@@ -53,6 +53,7 @@ def load_field(field_id: str) -> dict:
         raise NotFound(field_id)
     data = json.loads(ruta.read_text(encoding="utf-8"))
     data["has_terrain"] = (field_dir(field_id) / "terrain.json").exists()
+    data["has_hydrology"] = (field_dir(field_id) / "hydrology.json").exists()
     return data
 
 
@@ -75,4 +76,18 @@ def load_terrain(field_id: str) -> dict:
     ruta = field_dir(field_id) / "terrain.json"
     if not ruta.exists():
         raise NotFound(f"terrain:{field_id}")
+    return json.loads(ruta.read_text(encoding="utf-8"))
+
+
+def save_hydrology(field_id: str, data: dict) -> None:
+    (field_dir(field_id) / "hydrology.json").write_text(
+        json.dumps(data, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+
+
+def load_hydrology(field_id: str) -> dict:
+    ruta = field_dir(field_id) / "hydrology.json"
+    if not ruta.exists():
+        raise NotFound(f"hydrology:{field_id}")
     return json.loads(ruta.read_text(encoding="utf-8"))

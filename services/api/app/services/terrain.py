@@ -12,9 +12,9 @@ from geoprocessing import PROCESSING_VERSION
 from geoprocessing.dem import sources
 from geoprocessing.dem.prepare import prepare_dem
 from geoprocessing.dem.quality import build_quality_report, field_mask
-from geoprocessing.dem.terrain import Dem, field_rings_utm, mesh, point_info, profile
+from geoprocessing.dem.terrain import Dem, contours_geojson, field_rings_utm, hillshade, mesh, point_info, profile
 from geoprocessing.fields import field_utm_geometry
-from services.api.app.services import store
+from services.api.app.services import hydrology, store
 
 LIMITACIONES = [
     "Fase 0: solo análisis topográfico. No se calcula escurrimiento, lluvia, profundidad ni velocidad de agua.",
@@ -77,7 +77,13 @@ def process_terrain(field_id: str, source_id: str, buffer_m: float, upload_path:
         "limitations": LIMITACIONES,
     }
     store.save_terrain(field_id, terrain_data := terreno)
+    # Invalidar corridas hidrológicas previas si se reprocesó el DEM base
+    for fname in ("hydrology.json", "hydrology_grids.npz", "dem_conditioned_utm.tif"):
+        p = carpeta / fname
+        if p.exists():
+            p.unlink()
     _cargar.cache_clear()
+    hydrology.load_hydrology_grids.cache_clear()
     return terrain_data
 
 
@@ -103,7 +109,16 @@ def _avisos_basicos(terreno: dict) -> list[str]:
 def terrain_mesh(field_id: str, max_size: int) -> dict:
     _, field, dem, mascara = _contexto(field_id)
     anillos = field_rings_utm(field_utm_geometry(field["geometry"], field["utm_epsg"]))
-    return mesh(dem, mascara, anillos, max_size)
+    extra: dict[str, np.ndarray] | None = None
+    if grids := hydrology.optional_hydrology_grids(field_id):
+        extra = {
+            "sink_depth_m": grids["sink_depth_m"],
+            "mfd_area_ha": (grids["mfd_area_m2"] / 10_000.0).astype("float32"),
+            "d8_area_ha": (grids["d8_area_m2"] / 10_000.0).astype("float32"),
+            "d8_code": grids["d8_code"],
+            "subbasin_id": grids["subbasin_id"],
+        }
+    return mesh(dem, mascara, anillos, max_size, extra_grids=extra)
 
 
 def terrain_point(field_id: str, lon: float, lat: float) -> dict:
@@ -114,8 +129,21 @@ def terrain_point(field_id: str, lon: float, lat: float) -> dict:
         avisos.append("El punto está fuera del área procesada (lote + zona de aporte).")
     elif info["elevation_m"] is None:
         avisos.append("Sin dato de elevación en este punto (vacío del DEM o borde).")
+    else:
+        r, c = info["row"], info["col"]
+        alto, ancho = dem.z.shape
+        r0, r1, c0, c1 = max(r - 1, 0), min(r + 2, alto), max(c - 1, 0), min(c + 2, ancho)
+        hs = hillshade(dem.z[r0:r1, c0:c1], dem.pixel, dem.pixel)[r - r0, c - c0]
+        info["hillshade"] = round(float(hs), 3) if np.isfinite(hs) else None
+        if grids := hydrology.optional_hydrology_grids(field_id):
+            info.update(hydrology.point_hydrology_attrs(grids, r, c))
     return info | {"pixel_size_m": dem.pixel, "crs": dem.crs, "source_name": terreno["source"]["source_name"],
                    "warnings": avisos}
+
+
+def terrain_contours(field_id: str, interval_m: float | None = None) -> dict:
+    _, _, dem, _ = _contexto(field_id)
+    return contours_geojson(dem, interval_m=interval_m)
 
 
 def terrain_profile(field_id: str, coords: list[tuple[float, float]], step_m: float | None) -> dict:

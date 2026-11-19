@@ -11,7 +11,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from geoprocessing.dem.prepare import BUFFER_MAX_M, DemPreparationError
 from geoprocessing.dem.sources import COPERNICUS_ID, UPLOAD_ID, DemSourceError
 from services.api.app.core.config import DEFAULT_BUFFER_M, MAX_DEM_BYTES
-from services.api.app.schemas import MeshOut, PointOut, ProfileIn, ProfileOut, TerrainOut
+from services.api.app.schemas import ContoursOut, MeshOut, PointOut, ProfileIn, ProfileOut, TerrainOut
 from services.api.app.services import store, terrain
 
 router = APIRouter(prefix="/fields/{field_id}/terrain", tags=["terrain"])
@@ -137,3 +137,14 @@ def calcular_perfil(field_id: str, payload: ProfileIn):
         raise HTTPException(status_code=404, detail="Terreno no procesado para este lote.") from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/contours", response_model=ContoursOut)
+def obtener_curvas_de_nivel(
+    field_id: str,
+    interval_m: float | None = Query(None, gt=0.1, le=200.0),
+):
+    try:
+        return terrain.terrain_contours(field_id, interval_m=interval_m)
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail="Terreno no procesado para este lote.") from error

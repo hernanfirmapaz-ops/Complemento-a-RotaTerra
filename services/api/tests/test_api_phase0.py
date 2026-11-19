@@ -28,7 +28,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     r = client.get("/api/v1/health")
     assert r.status_code == 200
-    assert r.json()["phase"] == "fase-0-prueba-geoespacial"
+    assert r.json()["phase"] == "fase-1-hidrologia-estatica"
 
     # 1. Importar lote sintético
     geojson_bytes = json.dumps(synthetic_square_field_geojson()).encode("utf-8")
@@ -93,3 +93,38 @@ def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     pf = r.json()
     assert pf["summary"]["length_m"] > 1000
     assert pf["summary"]["valid_samples"] == pf["summary"]["samples"]
+
+    # 6. Curvas de nivel e Hidrología estática (Fase 1)
+    r = client.get(f"/api/v1/fields/{field_id}/terrain/contours?interval_m=5")
+    assert r.status_code == 200
+    assert len(r.json()["features"]) >= 3
+
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/static",
+        json={
+            "conditioning_mode": "fill_small",
+            "max_fill_depth_m": 0.35,
+            "max_fill_area_m2": 4500.0,
+            "mfd_exponent": 1.1,
+            "routing_basis": "MFD",
+        },
+    )
+    assert r.status_code == 200, r.text
+    hyd = r.json()
+    assert hyd["summary"]["mfd_mass_balance_error"] < 1e-5
+    assert hyd["summary"]["max_mfd_area_in_field_ha"] > 0.5
+    assert len(hyd["drainage_network"]["features"]) > 0
+    assert len(hyd["outlets"]) >= 1
+
+    # 7. El punto y la malla ahora incluyen atributos hidrológicos de Fase 1
+    r = client.get(f"/api/v1/fields/{field_id}/terrain/point", params={"lon": lon, "lat": lat})
+    assert r.status_code == 200
+    pt_hyd = r.json()
+    assert pt_hyd["d8_direction"] == "NO"
+    assert pt_hyd["mfd_area_ha"] is not None and pt_hyd["mfd_area_ha"] > 0
+
+    r = client.get(f"/api/v1/fields/{field_id}/terrain/mesh?max_size=120")
+    assert r.status_code == 200
+    malla_hyd = r.json()
+    assert malla_hyd["mfd_area_ha"] is not None
+    assert len(malla_hyd["mfd_area_ha"]) == malla_hyd["rows"] * malla_hyd["cols"]

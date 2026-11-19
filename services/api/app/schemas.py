@@ -21,6 +21,7 @@ class FieldOut(BaseModel):
     created_at: str
     source_file: str | None = None
     has_terrain: bool = False
+    has_hydrology: bool = False
 
 
 class FieldImportOut(BaseModel):
@@ -98,6 +99,13 @@ class MeshOut(BaseModel):
     lat: list[float]
     z: list[float | None]
     in_field: list[bool]
+    slope_pct: list[float | None] = []
+    hillshade: list[float | None] = []
+    sink_depth_m: list[float | None] | None = None
+    mfd_area_ha: list[float | None] | None = None
+    d8_area_ha: list[float | None] | None = None
+    d8_code: list[int] | None = None
+    subbasin_id: list[int] | None = None
     boundary: list[list[list[float | None]]]
 
 
@@ -113,6 +121,17 @@ class PointOut(BaseModel):
     slope_pct: float | None
     slope_deg: float | None
     aspect_deg: float | None
+    hillshade: float | None = None
+    sink_depth_m: float | None = None
+    depression_id: int | None = None
+    d8_code: int | None = None
+    d8_direction: str | None = None
+    d8_azimuth_deg: float | None = None
+    d8_area_m2: float | None = None
+    d8_area_ha: float | None = None
+    mfd_area_m2: float | None = None
+    mfd_area_ha: float | None = None
+    subbasin_id: int | None = None
     row: int
     col: int
     pixel_size_m: float
@@ -160,3 +179,82 @@ class ProfileOut(BaseModel):
     pixel_size_m: float
     source_name: str
     warnings: list[str]
+
+
+class ContoursOut(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    interval_m: float
+    features: list[dict]
+
+
+class HydrologyRunIn(BaseModel):
+    conditioning_mode: Literal["preserve", "fill_small", "fill_all"] = "fill_small"
+    max_fill_depth_m: float = Field(0.35, ge=0.0, le=5.0)
+    max_fill_area_m2: float = Field(4500.0, ge=0.0, le=500_000.0)
+    mfd_exponent: float = Field(1.1, ge=0.5, le=5.0)
+    stream_threshold_ha: float | None = Field(None, gt=0.01, le=5000.0)
+    routing_basis: Literal["MFD", "D8"] = "MFD"
+    contour_interval_m: float | None = Field(None, gt=0.1, le=200.0)
+    burn_lines: list[list[tuple[float, float]]] | None = None
+    burn_depth_m: float = Field(0.5, ge=0.0, le=5.0)
+
+
+class DepressionOut(BaseModel):
+    id: int
+    cells: int
+    area_m2: float
+    area_ha: float
+    max_depth_m: float
+    mean_depth_m: float
+    volume_m3: float
+    pour_point_elevation_m: float
+    min_elevation_m: float
+    centroid_lon: float
+    centroid_lat: float
+    in_field: bool
+    is_spurious_candidate: bool
+    filled_in_run: bool
+
+
+class OutletOut(BaseModel):
+    id: int
+    type: str
+    lon: float
+    lat: float
+    elevation_m: float
+    d8_direction: str
+    contributing_area_mfd_ha: float
+    contributing_area_d8_ha: float
+    subbasin_total_ha: float
+    subbasin_in_field_ha: float
+    subbasin_external_inflow_ha: float
+
+
+class HydrologySummaryOut(BaseModel):
+    depressions_count: int
+    depressions_in_field_count: int
+    depressions_filled_count: int
+    total_depression_area_in_field_ha: float
+    total_depression_volume_in_field_m3: float
+    max_depression_depth_in_field_m: float
+    max_mfd_area_in_field_ha: float
+    max_d8_area_in_field_ha: float
+    stream_segments_count: int
+    total_stream_length_m: float
+    outlets_count: int
+    external_inflow_ha: float
+    mfd_mass_balance_error: float
+
+
+class HydrologyOut(BaseModel):
+    field_id: str
+    processing_version: str
+    processed_at: str
+    parameters: dict
+    summary: HydrologySummaryOut
+    depressions: list[DepressionOut]
+    outlets: list[OutletOut]
+    drainage_network: dict
+    contours: ContoursOut
+    warnings: list[str]
+    limitations: list[str]

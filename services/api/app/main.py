@@ -7,16 +7,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from geoprocessing import PROCESSING_VERSION
-from services.api.app.api.routes import fields, terrain
+from services.api.app.api.routes import fields, hydrology, terrain
 from services.api.app.core.config import CORS_ORIGINS, WEB_DIST
 
 app = FastAPI(
-    title="RotaTerra — Visor 3D e Hidrología (Fase 0)",
+    title="RotaTerra — Visor 3D e Hidrología (Fase 0 + Fase 1)",
     description=(
         "Módulo geoespacial para visualización 3D de lotes agrícolas, control de calidad de DEM, "
-        "inspección de cota/pendiente y perfiles altimétricos. Fase 0: sin simulación de agua."
+        "inspección de cota/pendiente, perfiles altimétricos e hidrología estática (D8, MFD, "
+        "depresiones, red de drenaje potencial y subcuencas)."
     ),
-    version="0.1.0",
+    version="0.2.0",
 )
 
 app.add_middleware(
@@ -29,13 +30,14 @@ app.add_middleware(
 
 app.include_router(fields.router, prefix="/api/v1")
 app.include_router(terrain.router, prefix="/api/v1")
+app.include_router(hydrology.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")
 def health():
     return {
         "status": "ok",
-        "phase": "fase-0-prueba-geoespacial",
+        "phase": "fase-1-hidrologia-estatica",
         "processing_version": PROCESSING_VERSION,
     }
 
