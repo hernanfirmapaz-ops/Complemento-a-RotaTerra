@@ -3,13 +3,19 @@ import {
   activateRunoffRun,
   compareRunoffScenarios,
   computeTerrainProfile,
+  createFieldObservation,
   createManualRainfallEvent,
+  deleteFieldObservation,
   executeRunoffRun,
+  exportGeoJsonUrl,
+  exportReportUrl,
+  getRunoffTimeline,
   getStaticHydrology,
   getTerrain,
   getTerrainMesh,
   importCsvRainfallEvent,
   importFieldGeoJSON,
+  listFieldObservations,
   listFields,
   listRainfallEvents,
   listRunoffRuns,
@@ -20,16 +26,19 @@ import {
   runStaticHydrology,
 } from './services/api'
 import type {
+  FieldObservationOut,
   FieldOut,
   HydrologyOut,
   HydrologyRunIn,
   MeshOut,
+  ObservationType,
   PointOut,
   ProfileOut,
   RainfallEventManualIn,
   RainfallEventOut,
   RunoffRunIn,
   RunoffRunOut,
+  RunoffTimelineOut,
   ScenarioComparisonOut,
   TerrainOut,
 } from './types/api'
@@ -39,6 +48,7 @@ import {
   type SurfaceColorMode,
   TerrainScene3D,
 } from './components/TerrainScene3D'
+import { FlowTimelinePlayer } from './components/FlowTimelinePlayer'
 import { HydrologyPanel } from './components/HydrologyPanel'
 import { ProfileChart } from './components/ProfileChart'
 import { QualityPanel } from './components/QualityPanel'
@@ -55,6 +65,17 @@ export function App() {
   const [comparison, setComparison] = useState<ScenarioComparisonOut | null>(
     null,
   )
+  const [timeline, setTimeline] = useState<RunoffTimelineOut | null>(null)
+  const [timelineStep, setTimelineStep] = useState<number>(0)
+  const [playing, setPlaying] = useState<boolean>(false)
+  const [playSpeed, setPlaySpeed] = useState<number>(1)
+  const [showParticles, setShowParticles] = useState<boolean>(true)
+  const [observations, setObservations] = useState<FieldObservationOut[]>([])
+  const [obsDraftType, setObsDraftType] = useState<ObservationType>('ponding')
+  const [obsDraftNotes, setObsDraftNotes] = useState<string>(
+    'Anegamiento observado tras tormenta',
+  )
+  const [obsDraftVal, setObsDraftVal] = useState<string>('')
 
   const [sourceId, setSourceId] = useState<'copernicus_glo30' | 'upload'>(
     'copernicus_glo30',
@@ -110,6 +131,9 @@ export function App() {
     setRainfallEvents([])
     setRunoffRuns([])
     setComparison(null)
+    setTimeline(null)
+    setPlaying(false)
+    setObservations([])
     setSelectedPoint(null)
     setProfileDraft([])
     setProfileResult(null)
@@ -125,14 +149,27 @@ export function App() {
         : Promise.resolve(null),
       listRainfallEvents(activeField.id).catch(() => []),
       listRunoffRuns(activeField.id).catch(() => []),
+      listFieldObservations(activeField.id).catch(() => []),
     ]
     Promise.all(tasks)
-      .then(([t, m, h, evs, rns]) => {
+      .then(async ([t, m, h, evs, rns, obs]) => {
         setTerrain(t as TerrainOut)
         setMesh(m as MeshOut)
         setHydrology((h as HydrologyOut | null) ?? null)
         setRainfallEvents(evs as RainfallEventOut[])
-        setRunoffRuns(rns as RunoffRunOut[])
+        const runsList = rns as RunoffRunOut[]
+        setRunoffRuns(runsList)
+        setObservations(obs as FieldObservationOut[])
+        const activeRun =
+          runsList.find((r) => r.is_active) ?? runsList[0] ?? null
+        if (activeRun) {
+          const tl = await getRunoffTimeline(
+            activeField.id,
+            activeRun.id,
+          ).catch(() => null)
+          setTimeline(tl)
+          setTimelineStep(tl?.peak_step_index ?? 0)
+        }
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setBusy(null))
@@ -281,16 +318,19 @@ export function App() {
     setError(null)
     setBusy('Calculando escorrentía NRCS Curve Number y carga espacial MFD...')
     try {
-      await executeRunoffRun(activeField.id, payload)
-      const [h, m, rns, all] = await Promise.all([
+      const created = await executeRunoffRun(activeField.id, payload)
+      const [h, m, rns, tl, all] = await Promise.all([
         getStaticHydrology(activeField.id),
         getTerrainMesh(activeField.id),
         listRunoffRuns(activeField.id),
+        getRunoffTimeline(activeField.id, created.id).catch(() => null),
         listFields(),
       ])
       setHydrology(h)
       setMesh(m)
       setRunoffRuns(rns)
+      setTimeline(tl)
+      setTimelineStep(tl?.peak_step_index ?? 0)
       setFields(all)
       setLayers((prev) => ({ ...prev, surfaceColor: 'runoff' }))
     } catch (err) {
@@ -306,12 +346,15 @@ export function App() {
     setBusy('Activando escenario de escorrentía en la malla 3D...')
     try {
       await activateRunoffRun(activeField.id, runId)
-      const [m, rns] = await Promise.all([
+      const [m, rns, tl] = await Promise.all([
         getTerrainMesh(activeField.id),
         listRunoffRuns(activeField.id),
+        getRunoffTimeline(activeField.id, runId).catch(() => null),
       ])
       setMesh(m)
       setRunoffRuns(rns)
+      setTimeline(tl)
+      setTimelineStep(tl?.peak_step_index ?? 0)
       setLayers((prev) => ({ ...prev, surfaceColor: 'runoff' }))
     } catch (err) {
       setError((err as Error).message)
@@ -344,6 +387,23 @@ export function App() {
       return
     }
 
+    if (interactionMode === 'observe') {
+      try {
+        await createFieldObservation(activeField.id, {
+          observation_type: obsDraftType,
+          lon,
+          lat,
+          notes: obsDraftNotes.trim() || 'Observación de campo',
+          value: obsDraftVal.trim() !== '' ? Number(obsDraftVal) : null,
+          units: obsDraftVal.trim() !== '' ? 'm' : null,
+        })
+        setObservations(await listFieldObservations(activeField.id))
+      } catch (err) {
+        setError((err as Error).message)
+      }
+      return
+    }
+
     const next: [number, number][] = [...profileDraft, [lon, lat]]
     setProfileDraft(next)
     if (next.length >= 2) {
@@ -361,7 +421,7 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <span className="badge-phase">
-            FASE 0 + 1 + 2 · TERRENO 3D · D8/MFD · NRCS-CN
+            MVP COMPLETO · FASES 0 A 3 · 3D + D8/MFD + NRCS-CN + ANIMACIÓN
           </span>
           <h1>RotaTerra — Visor 3D de Lotes y Drenaje Superficial</h1>
         </div>
@@ -391,16 +451,43 @@ export function App() {
               onClick={() => setInteractionMode('inspect')}
               title="Inspeccionar cota, pendiente y área contribuyente en un punto"
             >
-              Inspeccionar punto
+              Inspeccionar
             </button>
             <button
               className={interactionMode === 'profile' ? 'active' : ''}
               onClick={() => setInteractionMode('profile')}
               title="Dibujar polilínea en el mapa para perfil altimétrico"
             >
-              Trazar perfil ({profileDraft.length} pts)
+              Perfil ({profileDraft.length})
+            </button>
+            <button
+              className={interactionMode === 'observe' ? 'active' : ''}
+              onClick={() => setInteractionMode('observe')}
+              title="Marcar observación real de campo o alcantarilla en el mapa (CU-06)"
+            >
+              + Observación ({observations.length})
             </button>
           </div>
+
+          {activeField && terrain && (
+            <div className="export-links">
+              <a
+                className="btn-ghost"
+                href={exportGeoJsonUrl(activeField.id)}
+                download
+              >
+                ⬇ GeoJSON
+              </a>
+              <a
+                className="btn-ghost"
+                href={exportReportUrl(activeField.id)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                📄 Informe
+              </a>
+            </div>
+          )}
 
           <label className="exag-control">
             <span>Exageración vertical:</span>
@@ -715,6 +802,14 @@ export function App() {
             field={activeField}
             mesh={mesh}
             hydrology={hydrology}
+            observations={observations}
+            particlePaths={timeline?.particle_paths ?? []}
+            showParticles={showParticles}
+            transitFraction={
+              timeline?.has_time_series && timeline.frames[timelineStep]
+                ? timeline.frames[timelineStep].transit_fraction_of_peak
+                : 1.0
+            }
             viewMode={viewMode}
             exaggeration={exaggeration}
             layers={layers}
@@ -726,8 +821,89 @@ export function App() {
           />
         </main>
 
-        {/* Panel derecho: Inspector de punto, perfil, salidas/depresiones y calidad del DEM */}
+        {/* Panel derecho: Animación Fase 3, Inspector, Perfil, Observaciones, Salidas y Calidad */}
         <aside className="sidebar sidebar-right">
+          {timeline && (
+            <FlowTimelinePlayer
+              timeline={timeline}
+              currentStep={timelineStep}
+              playing={playing}
+              speed={playSpeed}
+              showParticles={showParticles}
+              onStepChange={(s) => setTimelineStep(s)}
+              onTogglePlay={() => setPlaying((p) => !p)}
+              onReset={() => {
+                setPlaying(false)
+                setTimelineStep(0)
+              }}
+              onSpeedChange={(sp) => setPlaySpeed(sp)}
+              onToggleParticles={(sh) => setShowParticles(sh)}
+            />
+          )}
+
+          {interactionMode === 'observe' && (
+            <div className="card">
+              <h4>Registrar observación de campo (clic en el mapa · CU-06)</h4>
+              <div className="two-cols">
+                <label className="field-label">
+                  Tipo de registro
+                  <select
+                    value={obsDraftType}
+                    onChange={(e) =>
+                      setObsDraftType(e.target.value as ObservationType)
+                    }
+                  >
+                    <option value="ponding">Bajo / Anegamiento</option>
+                    <option value="erosion">Cárcava / Erosión</option>
+                    <option value="culvert">Alcantarilla</option>
+                    <option value="channel">Canal / Cuneta</option>
+                    <option value="terrace">Terraza / Bordo</option>
+                    <option value="water_depth">Marca de nivel (m)</option>
+                  </select>
+                </label>
+                <label className="field-label">
+                  Nivel / prof. (m, opc.)
+                  <input
+                    type="number"
+                    step="0.05"
+                    placeholder="0.20"
+                    value={obsDraftVal}
+                    onChange={(e) => setObsDraftVal(e.target.value)}
+                  />
+                </label>
+              </div>
+              <label className="field-label">
+                Descripción / nota de campo
+                <input
+                  type="text"
+                  value={obsDraftNotes}
+                  onChange={(e) => setObsDraftNotes(e.target.value)}
+                />
+              </label>
+              {observations.length > 0 && (
+                <ul className="limitations-list" style={{ marginTop: 8 }}>
+                  {observations.map((o) => (
+                    <li key={o.id}>
+                      <strong>{o.label}</strong> ({o.elevation_m ?? 's/d'} m):{' '}
+                      {o.notes}{' '}
+                      <button
+                        className="btn-ghost"
+                        onClick={async () => {
+                          if (!activeField) return
+                          await deleteFieldObservation(activeField.id, o.id)
+                          setObservations(
+                            await listFieldObservations(activeField.id),
+                          )
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {selectedPoint && (
             <div className="card">
               <div className="card-header">

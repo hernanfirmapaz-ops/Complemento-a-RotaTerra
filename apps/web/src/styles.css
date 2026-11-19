@@ -404,6 +404,35 @@ body,
   border-top: 1px solid var(--border);
 }
 
+.player-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.player-controls select {
+  background: var(--bg-0);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+
+.timeline-slider {
+  width: 100%;
+  margin-bottom: 8px;
+  accent-color: var(--accent);
+}
+
+.export-links {
+  display: flex;
+  gap: 6px;
+}
+
+.export-links a {
+  text-decoration: none;
+}
+
 .hydro-summary {
   margin-top: 10px;
   padding-top: 10px;

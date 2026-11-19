@@ -1,6 +1,8 @@
 /** Cliente HTTP de la API v1 (`/api/v1`). */
 
 import type {
+  FieldObservationIn,
+  FieldObservationOut,
   FieldOut,
   HydrologyOut,
   HydrologyRunIn,
@@ -11,6 +13,7 @@ import type {
   RainfallEventOut,
   RunoffRunIn,
   RunoffRunOut,
+  RunoffTimelineOut,
   ScenarioComparisonOut,
   TerrainOut,
 } from '../types/api'
@@ -247,4 +250,52 @@ export async function compareRunoffScenarios(
     `${BASE}/fields/${fieldId}/hydrology/compare?${params}`,
   )
   return check<ScenarioComparisonOut>(res)
+}
+
+export async function getRunoffTimeline(
+  fieldId: string,
+  runId: string,
+): Promise<RunoffTimelineOut> {
+  const res = await fetch(
+    `${BASE}/fields/${fieldId}/hydrology/runoff-runs/${runId}/timeline`,
+  )
+  return check<RunoffTimelineOut>(res)
+}
+
+export async function listFieldObservations(
+  fieldId: string,
+): Promise<FieldObservationOut[]> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/observations`)
+  return check<FieldObservationOut[]>(res)
+}
+
+export async function createFieldObservation(
+  fieldId: string,
+  payload: FieldObservationIn,
+): Promise<FieldObservationOut> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/observations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return check<FieldObservationOut>(res)
+}
+
+export async function deleteFieldObservation(
+  fieldId: string,
+  obsId: string,
+): Promise<void> {
+  const res = await fetch(
+    `${BASE}/fields/${fieldId}/hydrology/observations/${obsId}`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok) throw new Error(`Error HTTP ${res.status}`)
+}
+
+export function exportGeoJsonUrl(fieldId: string): string {
+  return `${BASE}/fields/${fieldId}/hydrology/export/geojson`
+}
+
+export function exportReportUrl(fieldId: string): string {
+  return `${BASE}/fields/${fieldId}/hydrology/export/report`
 }

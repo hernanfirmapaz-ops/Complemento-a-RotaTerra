@@ -6,13 +6,14 @@ import maplibregl, {
 import 'maplibre-gl/dist/maplibre-gl.css'
 import * as THREE from 'three'
 import type {
+  FieldObservationOut,
   FieldOut,
   HydrologyOut,
   MeshOut,
   PointOut,
 } from '../types/api'
 
-export type InteractionMode = 'inspect' | 'profile'
+export type InteractionMode = 'inspect' | 'profile' | 'observe'
 export type BasemapMode = 'satellite' | 'osm'
 export type SurfaceColorMode =
   | 'elevation'
@@ -39,6 +40,10 @@ interface Props {
   field: FieldOut | null
   mesh: MeshOut | null
   hydrology: HydrologyOut | null
+  observations: FieldObservationOut[]
+  particlePaths: number[][][]
+  showParticles: boolean
+  transitFraction: number
   viewMode: '2d' | '3d'
   exaggeration: number
   layers: LayerVisibility
@@ -201,6 +206,9 @@ interface ThreeLayerController extends CustomLayerInterface {
     meshData: MeshOut | null,
     exaggeration: number,
     vis: LayerVisibility,
+    particlePaths: number[][][],
+    showParticles: boolean,
+    transitFraction: number,
   ) => void
   disposeAll: () => void
 }
@@ -217,14 +225,32 @@ function createTerrainCustomLayer(
   scene.add(ambient, sun)
 
   let rootGroup: THREE.Group | null = null
+  let particlesPoints: THREE.Points | null = null
+  let localPaths: THREE.Vector3[][] = []
+  let activeFraction = 1.0
+  let animFrameId: number | null = null
   let renderer: THREE.WebGLRenderer | null = null
   let anchorMerc = MercatorCoordinate.fromLngLat([-65.7, -33.3], 0)
   let meterScale = anchorMerc.meterInMercatorCoordinateUnits()
 
+  const stopAnim = () => {
+    if (animFrameId !== null) {
+      window.cancelAnimationFrame(animFrameId)
+      animFrameId = null
+    }
+  }
+
   const clearGroup = () => {
+    stopAnim()
+    particlesPoints = null
+    localPaths = []
     if (!rootGroup) return
     rootGroup.traverse((obj) => {
-      if (obj instanceof THREE.Mesh || obj instanceof THREE.Line) {
+      if (
+        obj instanceof THREE.Mesh ||
+        obj instanceof THREE.Line ||
+        obj instanceof THREE.Points
+      ) {
         obj.geometry?.dispose()
         if (Array.isArray(obj.material)) {
           obj.material.forEach((m) => m.dispose())
@@ -241,8 +267,12 @@ function createTerrainCustomLayer(
     meshData: MeshOut | null,
     exaggeration: number,
     vis: LayerVisibility,
+    particlePaths: number[][][],
+    showParticles: boolean,
+    transitFraction: number,
   ) => {
     clearGroup()
+    activeFraction = Math.max(0.05, Math.min(1.0, transitFraction))
     if (!meshData || meshData.z_min === null || meshData.z_max === null) {
       getMap()?.triggerRepaint()
       return
@@ -329,7 +359,13 @@ function createTerrainCustomLayer(
             )
             break
           case 'runoff':
-            rgb = runoffLoadColor(runoffArr?.[i] ?? null, maxRunoff, inside)
+            rgb = runoffLoadColor(
+              runoffArr?.[i] !== null && runoffArr?.[i] !== undefined
+                ? (runoffArr[i] as number) * activeFraction
+                : null,
+              maxRunoff,
+              inside,
+            )
             break
           case 'elevation':
           default: {
@@ -406,6 +442,75 @@ function createTerrainCustomLayer(
       }
     }
 
+    // Construir partículas 3D vinculadas a las rutas de flujo calculadas (Fase 3, SDD §4.5 y §7.3)
+    if (showParticles && particlePaths.length > 0) {
+      const zOffsetPart = Math.max(2.2, zSpan * 0.03 * exaggeration)
+      localPaths = particlePaths
+        .map((path) =>
+          path.map(([lo, la, zv]) => {
+            const mc = MercatorCoordinate.fromLngLat([lo, la], 0)
+            const dz = ((zv - zBase) * exaggeration) + zOffsetPart
+            return new THREE.Vector3(
+              (mc.x - anchorMerc.x) / meterScale,
+              (mc.y - anchorMerc.y) / meterScale,
+              dz,
+            )
+          }),
+        )
+        .filter((p) => p.length >= 2)
+
+      const particlesPerPath = 4
+      const activePathsCount = Math.max(
+        1,
+        Math.round(localPaths.length * activeFraction),
+      )
+      const totalParticles = activePathsCount * particlesPerPath
+      const partPositions = new Float32Array(totalParticles * 3)
+      const partGeom = new THREE.BufferGeometry()
+      partGeom.setAttribute(
+        'position',
+        new THREE.BufferAttribute(partPositions, 3),
+      )
+      const partMat = new THREE.PointsMaterial({
+        color: 0x38bdf8,
+        size: 5.5,
+        sizeAttenuation: false,
+      })
+      particlesPoints = new THREE.Points(partGeom, partMat)
+      rootGroup.add(particlesPoints)
+
+      const stepParticles = (nowMs: number) => {
+        if (!particlesPoints || localPaths.length === 0) return
+        const posAttr = particlesPoints.geometry.getAttribute(
+          'position',
+        ) as THREE.BufferAttribute
+        const arr = posAttr.array as Float32Array
+        const cycleSpeed = 0.00025 * (0.45 + 0.85 * activeFraction)
+        let idx = 0
+        for (let pIdx = 0; pIdx < activePathsCount; pIdx++) {
+          const path = localPaths[pIdx]
+          const segs = path.length - 1
+          for (let k = 0; k < particlesPerPath; k++) {
+            const phase =
+              (nowMs * cycleSpeed + k / particlesPerPath + pIdx * 0.13) % 1.0
+            const fIdx = phase * segs
+            const s0 = Math.min(segs - 1, Math.floor(fIdx))
+            const frac = fIdx - s0
+            const v0 = path[s0]
+            const v1 = path[s0 + 1]
+            arr[3 * idx] = v0.x + (v1.x - v0.x) * frac
+            arr[3 * idx + 1] = v0.y + (v1.y - v0.y) * frac
+            arr[3 * idx + 2] = v0.z + (v1.z - v0.z) * frac
+            idx++
+          }
+        }
+        posAttr.needsUpdate = true
+        getMap()?.triggerRepaint()
+        animFrameId = window.requestAnimationFrame(stepParticles)
+      }
+      animFrameId = window.requestAnimationFrame(stepParticles)
+    }
+
     scene.add(rootGroup)
     getMap()?.triggerRepaint()
   }
@@ -448,6 +553,10 @@ export function TerrainScene3D({
   field,
   mesh,
   hydrology,
+  observations,
+  particlePaths,
+  showParticles,
+  transitFraction,
   viewMode,
   exaggeration,
   layers,
@@ -513,6 +622,10 @@ export function TerrainScene3D({
             data: { type: 'FeatureCollection', features: [] },
           },
           'selected-point': {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          },
+          'field-observations': {
             type: 'geojson',
             data: { type: 'FeatureCollection', features: [] },
           },
@@ -604,6 +717,17 @@ export function TerrainScene3D({
               'circle-color': '#38bdf8',
               'circle-stroke-width': 2,
               'circle-stroke-color': '#0f172a',
+            },
+          },
+          {
+            id: 'field-observations-layer',
+            type: 'circle',
+            source: 'field-observations',
+            paint: {
+              'circle-radius': 7,
+              'circle-color': '#f97316',
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#ffffff',
             },
           },
         ],
@@ -728,11 +852,46 @@ export function TerrainScene3D({
         'visibility',
         layers.depressionsAndOutlets ? 'visible' : 'none',
       )
-      threeLayerRef.current?.rebuild(mesh, exaggeration, layers)
+      threeLayerRef.current?.rebuild(
+        mesh,
+        exaggeration,
+        layers,
+        particlePaths,
+        showParticles,
+        transitFraction,
+      )
     }
     if (map.isStyleLoaded()) apply()
     else map.once('load', apply)
-  }, [mesh, exaggeration, layers])
+  }, [
+    mesh,
+    exaggeration,
+    layers,
+    particlePaths,
+    showParticles,
+    transitFraction,
+  ])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const updateObs = () => {
+      const obsSrc = map.getSource('field-observations') as
+        | maplibregl.GeoJSONSource
+        | undefined
+      if (!obsSrc) return
+      obsSrc.setData({
+        type: 'FeatureCollection',
+        features: observations.map((o) => ({
+          type: 'Feature',
+          properties: { id: o.id, label: o.label, notes: o.notes },
+          geometry: { type: 'Point', coordinates: [o.lon, o.lat] },
+        })),
+      })
+    }
+    if (map.isStyleLoaded()) updateObs()
+    else map.once('load', updateObs)
+  }, [observations])
 
   // Poblar fuentes GeoJSON de hidrología estática (curvas de nivel, red de drenaje, depresiones y salidas)
   useEffect(() => {

@@ -365,3 +365,79 @@ export interface ScenarioComparisonOut {
   delta_net_outflow_potential_m3: number
   delta_high_concentration_area_ha: number
 }
+
+export interface TimelineFrameOut {
+  step_index: number
+  timestamp: string
+  interval_minutes: number
+  is_recession: boolean
+  interval_precipitation_mm: number
+  cumulative_precipitation_mm: number
+  interval_infiltration_losses_mm: number
+  cumulative_infiltration_losses_mm: number
+  interval_runoff_generated_mm: number
+  cumulative_runoff_generated_mm: number
+  active_transit_lamina_mm: number
+  active_transit_volume_m3: number
+  depression_retained_mm: number
+  depression_retained_volume_m3: number
+  interval_outflow_mm: number
+  interval_outflow_m3: number
+  cumulative_outflow_mm: number
+  cumulative_outflow_m3: number
+  mass_balance_error_mm: number
+  transit_fraction_of_peak: number
+}
+
+export interface RunoffTimelineOut {
+  run_id: string
+  run_name: string
+  rainfall_event_id: string
+  rainfall_event_name: string
+  has_time_series: boolean
+  interval_minutes: number | null
+  total_steps: number
+  rainfall_steps: number
+  recession_steps: number
+  routing_coefficient_k: number | null
+  peak_step_index: number | null
+  peak_transit_lamina_mm: number | null
+  peak_transit_volume_m3: number | null
+  max_mass_balance_error_mm: number | null
+  frames: TimelineFrameOut[]
+  particle_paths: number[][][]
+  warnings: string[]
+  limitations: string[]
+}
+
+export type ObservationType =
+  | 'ponding'
+  | 'erosion'
+  | 'culvert'
+  | 'channel'
+  | 'terrace'
+  | 'water_depth'
+
+export interface FieldObservationIn {
+  observation_type: ObservationType
+  lon: number
+  lat: number
+  notes: string
+  value?: number | null
+  units?: string | null
+}
+
+export interface FieldObservationOut {
+  id: string
+  field_id: string
+  observation_type: ObservationType
+  label: string
+  lon: number
+  lat: number
+  elevation_m: number | null
+  notes: string
+  value: number | null
+  units: string | null
+  observed_at: string
+  created_at: string
+}
