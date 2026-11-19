@@ -108,3 +108,70 @@ def test_phase4_2d_diffusive_wave_solver_mass_balance_and_ponding(tmp_path: Path
     mid = dem.z.shape[0] // 2
     # El fondo del cuenco acumula mayor profundidad de agua que el borde exterior
     assert float(sim2d["max_water_depth_m"][mid, mid]) > float(sim2d["max_water_depth_m"][2, 2])
+
+
+def test_eight_complementary_tools_erosion_terraces_seeding_rotation_and_climate(tmp_path: Path):
+    from geoprocessing.agronomy.erosion_usle import (
+        compute_usle_erosion_and_gullies,
+        design_and_simulate_contour_terraces,
+    )
+    from geoprocessing.agronomy.seeding_and_rotation import (
+        calculate_seeding_and_fertilizer,
+        compare_triennial_rotations,
+    )
+    from geoprocessing.satellite.nasa_power_imerg import (
+        compute_monthly_water_balance,
+        evaluate_frost_risk_and_sowing_dates,
+        evaluate_real_date_waterlogging_risk,
+        fetch_nasa_power_daily_series,
+    )
+
+    lote = parse_geojson(synthetic_square_field_geojson())[0]
+    tif = write_synthetic_bowl_utm(tmp_path / "bowl_tools.tif", pixel_m=20.0, width=80, height=80)
+    dem = Dem.open(tif)
+    mascara = field_mask(lote.geometry, lote.utm_epsg, dem.transform, dem.z.shape)
+    z_cond, sink_d, _, _ = condition_dem(dem, mascara, mode="fill_small")
+    _, mfd_area, _ = mfd_accumulation(z_cond, dem.pixel)
+    pct, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    twi, spi = compute_twi_and_spi(mfd_area, pct, dem.pixel)
+
+    # 1. Erosión USLE y 4. Terrazas a nivel
+    loss_grid, ero_sum = compute_usle_erosion_and_gullies(
+        mfd_area, pct, spi, mascara, dem.pixel, 80.0, 35.0, "B", "soja_maiz_convencional"
+    )
+    assert ero_sum["mean_soil_loss_t_ha"] > 0.0
+    terr = design_and_simulate_contour_terraces(
+        dem, mascara, mfd_area, pct, spi, 80.0, 35.0, "B", "soja_maiz_convencional"
+    )
+    assert terr["soil_loss_after_t_ha"] < terr["soil_loss_before_t_ha"]
+    assert terr["erosion_reduction_pct"] > 20.0
+
+    # 5. Calculadora de siembra INTA y 6. Comparador de rotaciones trienales
+    seed = calculate_seeding_and_fertilizer("maiz_temprano", 100.0, "B", "media_loma")
+    assert seed["seeds_to_sow_ha"] > seed["target_plants_ha"]
+    assert seed["commercial_bags_needed"] > 50.0
+
+    rot = compare_triennial_rotations(
+        "Monocultivo",
+        ["soja_maiz_convencional", "barbecho_suelo_desnudo", "soja_maiz_convencional"],
+        "Rotación Sustentable",
+        ["soja_maiz_sd_buena", "trigo_cereal_invierno_sd", "cultivo_cobertura_vicia_centeno"],
+        "B",
+        80.0,
+        mfd_area,
+        pct,
+        spi,
+        mascara,
+        dem.pixel,
+    )
+    assert rot["delta_b_vs_a"]["soil_saved_by_b_tons"] > 0.0
+    assert rot["delta_b_vs_a"]["runoff_saved_by_b_mm"] > 0.0
+
+    # 2, 3 y 8. Balance hídrico mensual, Riesgo de anegamiento real y Heladas
+    daily, src, _ = fetch_nasa_power_daily_series(-65.7, -33.3, years=2)
+    wb = compute_monthly_water_balance(daily, src, "B")
+    assert len(wb["months"]) == 12
+    wl = evaluate_real_date_waterlogging_risk(daily, src, "B", "soja_maiz_sd_buena", 100.0, 15.0, 1500.0)
+    assert wl["evaluated_days"] >= 365
+    fr = evaluate_frost_risk_and_sowing_dates(daily, src)
+    assert fr["frost_free_period_days"] >= 120
