@@ -57,16 +57,20 @@ async def importar_lotes(
 
 
 @router.post("/sample", response_model=FieldImportOut, status_code=201)
-def cargar_lote_de_prueba():
-    """Importa el lote real de prueba documentado en `data/sample/san_luis_parcela_205.geojson`."""
-    ruta = SAMPLE_DIR / "san_luis_parcela_205.geojson"
+def cargar_lote_de_prueba(preset: str = "llanura"):
+    """Importa un lote real de prueba documentado en `data/sample/` (`llanura` o `serrano`)."""
+    if preset == "serrano":
+        ruta = SAMPLE_DIR / "san_luis_piedemonte_492.geojson"
+        default_title = "Lote Piedemonte El Trapiche #492 (San Luis)"
+    else:
+        ruta = SAMPLE_DIR / "san_luis_parcela_205.geojson"
+        default_title = "Parcela Rural 205 (San Luis)"
     if not ruta.exists():
         raise HTTPException(status_code=404, detail="No se encontró el archivo de lote de prueba en data/sample.")
-    # Si ya existe un lote con la misma nomenclatura catastral, devolverlo sin duplicar
     for existente in store.list_fields():
         if existente.get("source_file") == ruta.name:
             return {"fields": [existente]}
-    creados = _guardar_lotes(ruta.read_bytes(), "Parcela Rural 205 (San Luis)", ruta.name)
+    creados = _guardar_lotes(ruta.read_bytes(), default_title, ruta.name)
     return {"fields": creados}
 
 

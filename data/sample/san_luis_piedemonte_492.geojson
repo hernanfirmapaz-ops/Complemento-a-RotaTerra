@@ -1,0 +1,87 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "D4-02-31-00-000000-000492",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -66.03954,
+              -33.149419
+            ],
+            [
+              -66.04748,
+              -33.148671
+            ],
+            [
+              -66.045899,
+              -33.155386
+            ],
+            [
+              -66.047467,
+              -33.159149
+            ],
+            [
+              -66.053387,
+              -33.173345
+            ],
+            [
+              -66.052012,
+              -33.172855
+            ],
+            [
+              -66.049687,
+              -33.173671
+            ],
+            [
+              -66.048538,
+              -33.174829
+            ],
+            [
+              -66.048308,
+              -33.174136
+            ],
+            [
+              -66.045553,
+              -33.165829
+            ],
+            [
+              -66.043485,
+              -33.166215
+            ],
+            [
+              -66.04225,
+              -33.160181
+            ],
+            [
+              -66.033819,
+              -33.160012
+            ],
+            [
+              -66.033683,
+              -33.149933
+            ],
+            [
+              -66.03954,
+              -33.149419
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "nomenclatura_catastral": "D4-02-31-00-000000-000492",
+        "partida_inmobiliaria": "07-4940",
+        "numero_parcela": "492",
+        "tipo_parcela": "RURAL",
+        "plano_mensura": "02-6-1999",
+        "superficie_registrada_m2": 2302282.0,
+        "geometria_reparada": false,
+        "name": "Lote Piedemonte El Trapiche #492 (San Luis)",
+        "source": "Dirección Provincial de Catastro y Tierras Fiscales de San Luis (capa SanLuis:GIS_PARCELAS_RUR_VV)"
+      }
+    }
+  ]
+}

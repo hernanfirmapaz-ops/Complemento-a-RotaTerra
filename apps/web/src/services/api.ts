@@ -43,8 +43,12 @@ export async function listFields(): Promise<FieldOut[]> {
   return check<FieldOut[]>(res)
 }
 
-export async function loadSampleField(): Promise<FieldOut[]> {
-  const res = await fetch(`${BASE}/fields/sample`, { method: 'POST' })
+export async function loadSampleField(
+  preset: 'llanura' | 'serrano' = 'serrano',
+): Promise<FieldOut[]> {
+  const res = await fetch(`${BASE}/fields/sample?preset=${preset}`, {
+    method: 'POST',
+  })
   const data = await check<{ fields: FieldOut[] }>(res)
   return data.fields
 }

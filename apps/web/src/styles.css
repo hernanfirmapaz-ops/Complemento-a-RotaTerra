@@ -458,6 +458,416 @@ body,
   font-weight: 600;
 }
 
+/* ---------- Modo Agrónomo y Maqueta 3D Satelital (inspirado en CASO #1327) ---------- */
+
+.agro-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr 370px;
+  min-height: 0;
+  background: #0d1322;
+}
+
+.agro-sidebar {
+  background: #11192c;
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-right: 1px solid var(--border);
+}
+
+.agro-sidebar:last-child {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.agro-card {
+  background: #17223b;
+  border: 1px solid #283a5e;
+  border-radius: 10px;
+  padding: 13px;
+}
+
+.agro-card h3 {
+  margin: 0 0 6px 0;
+  font-size: 0.92rem;
+  color: #f8fafc;
+}
+
+.agro-help {
+  margin: 0 0 10px 0;
+  font-size: 0.77rem;
+  color: #94a3b8;
+  line-height: 1.38;
+}
+
+.btn-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.btn-agro-primary,
+.btn-agro-secondary,
+.btn-agro-outline {
+  width: 100%;
+  padding: 8px 11px;
+  border-radius: 7px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  border: 1px solid transparent;
+  display: inline-block;
+}
+
+.btn-agro-primary {
+  background: linear-gradient(90deg, #10b981, #059669);
+  color: #03150e;
+}
+
+.btn-agro-secondary {
+  background: #1e2d4d;
+  color: #e2e8f0;
+  border-color: #334b7c;
+}
+
+.btn-agro-outline {
+  background: transparent;
+  color: #93c5fd;
+  border: 1px dashed #3b82f6;
+  text-align: center;
+}
+
+.pill-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.pill-btn {
+  background: #0f172a;
+  color: #cbd5e1;
+  border: 1px solid #2c3e66;
+  border-radius: 7px;
+  padding: 7px 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.pill-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.kpi-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.kpi-box {
+  background: #0f172a;
+  border: 1px solid #263656;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-label {
+  font-size: 0.71rem;
+  color: #94a3b8;
+}
+
+.kpi-val {
+  font-size: 1.05rem;
+  margin: 2px 0;
+}
+
+.kpi-sub {
+  font-size: 0.68rem;
+  color: #94a3b8;
+}
+
+.kpi-green .kpi-val {
+  color: #34d399;
+}
+
+.kpi-blue .kpi-val {
+  color: #38bdf8;
+}
+
+.kpi-amber .kpi-val {
+  color: #fbbf24;
+}
+
+.kpi-purple .kpi-val {
+  color: #c084fc;
+}
+
+.agro-center {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 14px;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #1a243b 0%, #0b101d 100%);
+}
+
+.showcase-card {
+  width: 100%;
+  max-width: 980px;
+  background: #f4f3ef;
+  color: #1e293b;
+  border-radius: 16px;
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.55);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.showcase-header {
+  padding: 14px 20px 10px 20px;
+  text-align: center;
+  border-bottom: 1px solid #e2e0d8;
+  background: #faf9f5;
+}
+
+.showcase-kicker {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #0f766e;
+}
+
+.showcase-header h2 {
+  margin: 3px 0 6px 0;
+  font-size: 1.32rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.showcase-meta-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  font-size: 0.78rem;
+  color: #475569;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.showcase-layer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.overlay-pill {
+  background: #e2e8f0;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.overlay-pill.active {
+  background: #0f172a;
+  color: #38bdf8;
+  border-color: #0f172a;
+}
+
+.overlay-pill.rain-toggle.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+.showcase-diorama-stage {
+  position: relative;
+  min-height: 0;
+  background: linear-gradient(180deg, #f4f3ef 0%, #eae8e1 100%);
+}
+
+.diorama-wrapper,
+.diorama-canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.diorama-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.76);
+  color: #f8fafc;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.floating-point-card {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.76rem;
+  width: 250px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.floating-point-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 8px;
+  margin-top: 6px;
+}
+
+.showcase-footer {
+  padding: 12px 22px 16px 22px;
+  text-align: center;
+  background: #faf9f5;
+  border-top: 1px solid #e2e0d8;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+}
+
+.status-warn {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.status-crit {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.status-ok {
+  background: #10b981;
+  color: #042f2e;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.showcase-headline {
+  margin: 4px 0;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.showcase-subline {
+  margin: 2px 0 0 0;
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.agro-tool-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.agro-tab-btn {
+  background: #0f172a;
+  color: #cbd5e1;
+  border: 1px solid #283a5e;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.74rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.agro-tab-btn.active {
+  background: #10b981;
+  color: #03150e;
+  border-color: #34d399;
+  font-weight: 700;
+}
+
+.agro-panel-body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #283a5e;
+}
+
+.agro-explain h4 {
+  margin: 0 0 6px 0;
+  font-size: 0.86rem;
+  color: #34d399;
+}
+
+.agro-explain p {
+  margin: 0 0 8px 0;
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  line-height: 1.4;
+}
+
+.agro-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 0.77rem;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.env-item {
+  background: #0f172a;
+  border: 1px solid #263656;
+  border-radius: 7px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+}
+
+.env-item-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  color: #38bdf8;
+  margin-bottom: 3px;
+}
+
+.env-item p {
+  margin: 0;
+  font-size: 0.73rem;
+  color: #cbd5e1;
+}
+
 .hydro-summary {
   margin-top: 10px;
   padding-top: 10px;

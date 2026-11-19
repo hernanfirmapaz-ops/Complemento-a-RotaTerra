@@ -5,7 +5,6 @@ import {
   computeTerrainProfile,
   createFieldObservation,
   createManualRainfallEvent,
-  deleteFieldObservation,
   executeRunoffRun,
   exportGeoJsonUrl,
   exportReportUrl,
@@ -31,6 +30,7 @@ import {
 import type {
   AgronomicToolkitIn,
   AgronomicToolkitOut,
+  AntecedentMoisture,
   FieldObservationOut,
   FieldOut,
   HydrologyOut,
@@ -45,16 +45,21 @@ import type {
   RunoffRunOut,
   RunoffTimelineOut,
   ScenarioComparisonOut,
+  SoilGroup,
   TerrainOut,
 } from './types/api'
+import {
+  type AgronomistOverlayMode,
+  TerrainDiorama3D,
+} from './components/TerrainDiorama3D'
 import {
   type InteractionMode,
   type LayerVisibility,
   type SurfaceColorMode,
   TerrainScene3D,
 } from './components/TerrainScene3D'
-import { FlowTimelinePlayer } from './components/FlowTimelinePlayer'
 import { AgronomicToolkitPanel } from './components/AgronomicToolkitPanel'
+import { FlowTimelinePlayer } from './components/FlowTimelinePlayer'
 import { HydrologyPanel } from './components/HydrologyPanel'
 import { ProfileChart } from './components/ProfileChart'
 import { QualityPanel } from './components/QualityPanel'
@@ -77,12 +82,36 @@ export function App() {
   const [playSpeed, setPlaySpeed] = useState<number>(1)
   const [showParticles, setShowParticles] = useState<boolean>(true)
   const [observations, setObservations] = useState<FieldObservationOut[]>([])
-  const [obsDraftType, setObsDraftType] = useState<ObservationType>('ponding')
-  const [obsDraftNotes, setObsDraftNotes] = useState<string>(
+  const [obsDraftType] = useState<ObservationType>('ponding')
+  const [obsDraftNotes] = useState<string>(
     'Anegamiento observado tras tormenta',
   )
-  const [obsDraftVal, setObsDraftVal] = useState<string>('')
+  const [obsDraftVal] = useState<string>('')
   const [toolkit, setToolkit] = useState<AgronomicToolkitOut | null>(null)
+
+  // Modo principal de pantalla: 'agronomist' (Maqueta 3D satelital limpia e intuitiva) o 'gis' (Mapa GIS técnico)
+  const [workspaceMode, setWorkspaceMode] = useState<'agronomist' | 'gis'>(
+    'agronomist',
+  )
+  const [dioramaOverlay, setDioramaOverlay] =
+    useState<AgronomistOverlayMode>('satellite_water')
+  const [isPlayingDioramaRain, setIsPlayingDioramaRain] =
+    useState<boolean>(true)
+  const [quickRainMm, setQuickRainMm] = useState<number>(80)
+  const [quickSoilGroup, setQuickSoilGroup] = useState<SoilGroup>('B')
+  const [quickAmc, setQuickAmc] = useState<AntecedentMoisture>('medium')
+  const [quickCover, setQuickCover] = useState<string>('soja_maiz_sd_buena')
+  const [agroToolTab, setAgroToolTab] = useState<
+    | 'resumen'
+    | 'erosion'
+    | 'terrazas'
+    | 'siembra'
+    | 'balance'
+    | 'anegamiento'
+    | 'rotaciones'
+    | 'ndvi'
+    | 'heladas'
+  >('resumen')
 
   const [sourceId, setSourceId] = useState<'copernicus_glo30' | 'upload'>(
     'copernicus_glo30',
@@ -96,7 +125,7 @@ export function App() {
   const [uploadAccuracy, setUploadAccuracy] = useState<string>('')
 
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('3d')
-  const [exaggeration, setExaggeration] = useState<number>(1)
+  const [exaggeration, setExaggeration] = useState<number>(2.5)
   const [layers, setLayers] = useState<LayerVisibility>({
     basemap: 'satellite',
     surfaceColor: 'elevation',
@@ -110,7 +139,7 @@ export function App() {
   const [interactionMode, setInteractionMode] =
     useState<InteractionMode>('inspect')
 
-  const [cursorCoords, setCursorCoords] = useState<[number, number] | null>(
+  const [, setCursorCoords] = useState<[number, number] | null>(
     null,
   )
   const [selectedPoint, setSelectedPoint] = useState<PointOut | null>(null)
@@ -121,6 +150,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
 
   const activeField = fields.find((f) => f.id === activeFieldId) ?? null
+  const activeRun =
+    runoffRuns.find((r) => r.is_active) ?? runoffRuns[0] ?? null
 
   useEffect(() => {
     listFields()
@@ -148,7 +179,7 @@ export function App() {
     if (!activeField) return
     if (!activeField.has_terrain) return
 
-    setBusy('Cargando terreno y malla 3D...')
+    setBusy('Cargando relieve 3D del campo y simulación de lluvia...')
     const tasks: Promise<unknown>[] = [
       getTerrain(activeField.id),
       getTerrainMesh(activeField.id),
@@ -170,13 +201,12 @@ export function App() {
         setRunoffRuns(runsList)
         setObservations(obs as FieldObservationOut[])
         setToolkit((tk as AgronomicToolkitOut | null) ?? null)
-        const activeRun =
-          runsList.find((r) => r.is_active) ?? runsList[0] ?? null
-        if (activeRun) {
-          const tl = await getRunoffTimeline(
-            activeField.id,
-            activeRun.id,
-          ).catch(() => null)
+        const act = runsList.find((r) => r.is_active) ?? runsList[0] ?? null
+        if (act) {
+          setQuickRainMm(Math.round(act.cn_result.precipitation_mm))
+          const tl = await getRunoffTimeline(activeField.id, act.id).catch(
+            () => null,
+          )
           setTimeline(tl)
           setTimelineStep(tl?.peak_step_index ?? 0)
         }
@@ -185,14 +215,141 @@ export function App() {
       .finally(() => setBusy(null))
   }, [activeField?.id, activeField?.has_terrain, activeField?.has_hydrology])
 
-  const handleLoadSample = async () => {
+  /** Flujo de 1 clic para el agrónomo: carga el lote, descarga el DEM 3D, calcula drenaje, lluvia y las 8 herramientas. */
+  const handleQuickLoadAndSimulateField = async (
+    preset: 'serrano' | 'llanura',
+  ) => {
     setError(null)
-    setBusy('Importando lote real de muestra (San Luis)...')
+    setBusy(
+      preset === 'serrano'
+        ? 'Cargando Lote Piedemonte Serrano (223 ha) y generando maqueta 3D con simulación de lluvia...'
+        : 'Cargando Lote Agrícola #205 (199 ha) y generando maqueta 3D con simulación de lluvia...',
+    )
     try {
-      const imported = await loadSampleField()
+      const imported = await loadSampleField(preset)
+      const fld = imported[0]
+      if (!fld) return
+      if (!fld.has_terrain) {
+        await processTerrain(fld.id, {
+          sourceId: 'copernicus_glo30',
+          bufferM: 300,
+        })
+      }
+      if (!fld.has_hydrology) {
+        await runStaticHydrology(fld.id, {
+          conditioning_mode: 'fill_small',
+          max_fill_depth_m: 0.35,
+          max_fill_area_m2: 4500,
+          mfd_exponent: 1.1,
+          routing_basis: 'MFD',
+        })
+      }
+      const ev = await loadSampleRainfallEvent(fld.id)
+      const rns = await listRunoffRuns(fld.id)
+      if (rns.length === 0) {
+        const created = await executeRunoffRun(fld.id, {
+          name: `Tormenta ${ev.total_mm} mm · Suelo B · Siembra Directa`,
+          rainfall_event_id: ev.id,
+          soil_group: 'B',
+          cover_code: 'soja_maiz_sd_buena',
+          antecedent_moisture: 'medium',
+          compaction_high: false,
+          lambda_ratio: 0.2,
+        })
+        await runHydrodynamic2DSolver(fld.id, created.id, {
+          ponding_threshold_m: 0.05,
+          recession_minutes: 30,
+        })
+      }
+      await getAgronomicToolkit(fld.id).catch(() =>
+        runAgronomicToolkit(fld.id, {
+          soil_group: 'B',
+          cover_code: 'soja_maiz_sd_buena',
+          storm_precipitation_mm: 80,
+          crop_code: 'maiz_temprano',
+          environment_zone: 'media_loma',
+        }),
+      )
       const all = await listFields()
       setFields(all)
-      if (imported[0]) setActiveFieldId(imported[0].id)
+      setActiveFieldId(fld.id)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** Simulación rápida de lluvia para el agrónomo en 1 clic. */
+  const handleQuickSimulateRain = async (
+    mmOverride?: number,
+    amcOverride?: AntecedentMoisture,
+    coverOverride?: string,
+    soilOverride?: SoilGroup,
+  ) => {
+    if (!activeField) return
+    const mm = mmOverride ?? quickRainMm
+    const amc = amcOverride ?? quickAmc
+    const cov = coverOverride ?? quickCover
+    const soil = soilOverride ?? quickSoilGroup
+    setQuickRainMm(mm)
+    setQuickAmc(amc)
+    setQuickCover(cov)
+    setQuickSoilGroup(soil)
+
+    setError(null)
+    setBusy(`Simulando tormenta de ${mm} mm sobre el terreno 3D...`)
+    try {
+      if (!terrain) {
+        await processTerrain(activeField.id, {
+          sourceId: 'copernicus_glo30',
+          bufferM: 300,
+        })
+      }
+      const ev = await createManualRainfallEvent(activeField.id, {
+        name: `Lluvia ${mm} mm`,
+        total_mm: mm,
+        source_type: 'manual',
+      })
+      const created = await executeRunoffRun(activeField.id, {
+        name: `${mm} mm · Suelo ${soil} · ${
+          amc === 'wet' ? 'Húmedo' : amc === 'dry' ? 'Seco' : 'Normal'
+        }`,
+        rainfall_event_id: ev.id,
+        soil_group: soil,
+        cover_code: cov,
+        antecedent_moisture: amc,
+        compaction_high: false,
+        lambda_ratio: 0.2,
+      })
+      await runHydrodynamic2DSolver(activeField.id, created.id, {
+        ponding_threshold_m: 0.05,
+        recession_minutes: 30,
+      })
+      const tk = await runAgronomicToolkit(activeField.id, {
+        soil_group: soil,
+        cover_code: cov,
+        storm_precipitation_mm: mm,
+        crop_code:
+          (toolkit?.parameters?.crop_code as string) || 'maiz_temprano',
+        environment_zone: 'media_loma',
+      })
+      const [t, m, h, evs, rns, all] = await Promise.all([
+        getTerrain(activeField.id),
+        getTerrainMesh(activeField.id),
+        getStaticHydrology(activeField.id),
+        listRainfallEvents(activeField.id),
+        listRunoffRuns(activeField.id),
+        listFields(),
+      ])
+      setTerrain(t)
+      setMesh(m)
+      setHydrology(h)
+      setRainfallEvents(evs)
+      setRunoffRuns(rns)
+      setToolkit(tk)
+      setFields(all)
+      setIsPlayingDioramaRain(true)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -207,12 +364,28 @@ export function App() {
     e.target.value = ''
     if (!file) return
     setError(null)
-    setBusy(`Validando e importando ${file.name}...`)
+    setBusy(
+      `Importando lote ${file.name} y descargando relieve 3D Copernicus...`,
+    )
     try {
       const imported = await importFieldGeoJSON(file)
+      const fld = imported[0]
+      if (fld) {
+        await processTerrain(fld.id, {
+          sourceId: 'copernicus_glo30',
+          bufferM: 300,
+        })
+        await runStaticHydrology(fld.id, {
+          conditioning_mode: 'fill_small',
+          max_fill_depth_m: 0.35,
+          max_fill_area_m2: 4500,
+          mfd_exponent: 1.1,
+          routing_basis: 'MFD',
+        })
+      }
       const all = await listFields()
       setFields(all)
-      if (imported[0]) setActiveFieldId(imported[0].id)
+      if (fld) setActiveFieldId(fld.id)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -388,7 +561,7 @@ export function App() {
     if (!activeField) return
     setError(null)
     setBusy(
-      'Ejecutando Solver Hidrodinámico 2D de onda difusiva (Manning · water_depth_m + velocity_m_s) y Zonificación RotaTerra (Fase 4 + Fase 5)...',
+      'Ejecutando Solver Hidrodinámico 2D de onda difusiva (Manning) y Zonificación RotaTerra...',
     )
     try {
       await runHydrodynamic2DSolver(activeField.id, runId, {
@@ -436,7 +609,7 @@ export function App() {
   const handleMapClick = async (lon: number, lat: number) => {
     if (!activeField || !terrain) return
     setError(null)
-    if (interactionMode === 'inspect') {
+    if (interactionMode === 'inspect' || workspaceMode === 'agronomist') {
       try {
         const pt = await queryTerrainPoint(activeField.id, lon, lat)
         setSelectedPoint(pt)
@@ -475,58 +648,71 @@ export function App() {
     }
   }
 
+  // Semáforo diagnóstico para el agrónomo
+  const runoffQ = activeRun?.cn_result.runoff_q_mm ?? 0
+  const erosionMean = toolkit?.erosion_usle.mean_soil_loss_t_ha ?? 0
+  const lowZonePct =
+    (activeRun?.agronomic_zonation ?? hydrology?.agronomic_zonation)?.zones.find(
+      (z) => z.zone_id === 4,
+    )?.percentage_of_field ?? 12.0
+
+  let badgeStatus: { level: 'ok' | 'warn' | 'crit'; text: string } = {
+    level: 'warn',
+    text: 'Requiere revisión en bajos y vías de agua',
+  }
+  if (runoffQ >= 42 || erosionMean >= 2.2) {
+    badgeStatus = {
+      level: 'crit',
+      text: 'Riesgo Hídrico / Erosivo Alto — Intervenir con cobertura o terrazas',
+    }
+  } else if (runoffQ < 12 && erosionMean < 0.4) {
+    badgeStatus = {
+      level: 'ok',
+      text: 'Comportamiento Hidrológico Estable — Buena infiltración',
+    }
+  }
+
+  const rainFactor = Math.min(1.8, Math.max(0.2, quickRainMm / 70.0))
+
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <span className="badge-phase">
-            SUITE COMPLETA · FASES 0 A 5 · 3D + D8/MFD + NRCS-CN + 2D MANNING + ROTATERRA
-          </span>
-          <h1>RotaTerra — Visor 3D de Lotes y Drenaje Superficial</h1>
+          <span className="badge-phase">ROTATERRA 3D · AGRO-HIDROLOGÍA</span>
+          <h1>
+            Simulador 3D de Lluvia, Escurrimiento y Planificación Agronómica
+          </h1>
         </div>
+
         <div className="topbar-controls">
-          <div className="segmented" role="group" aria-label="Modo de vista">
+          <div className="segmented" role="group" aria-label="Modo de interfaz">
             <button
-              className={viewMode === '2d' ? 'active' : ''}
-              onClick={() => setViewMode('2d')}
+              className={workspaceMode === 'agronomist' ? 'active' : ''}
+              onClick={() => setWorkspaceMode('agronomist')}
             >
-              Vista 2D
+              🌱 Vista Maqueta 3D Agrónomo
             </button>
             <button
-              className={viewMode === '3d' ? 'active' : ''}
-              onClick={() => setViewMode('3d')}
+              className={workspaceMode === 'gis' ? 'active' : ''}
+              onClick={() => setWorkspaceMode('gis')}
             >
-              Escena 3D
+              🗺️ Mapa GIS Regional / Técnico
             </button>
           </div>
 
-          <div
-            className="segmented"
-            role="group"
-            aria-label="Herramienta de clic"
-          >
-            <button
-              className={interactionMode === 'inspect' ? 'active' : ''}
-              onClick={() => setInteractionMode('inspect')}
-              title="Inspeccionar cota, pendiente y área contribuyente en un punto"
+          <label className="exag-control">
+            <span>Relieve 3D:</span>
+            <select
+              value={exaggeration}
+              onChange={(e) => setExaggeration(Number(e.target.value))}
             >
-              Inspeccionar
-            </button>
-            <button
-              className={interactionMode === 'profile' ? 'active' : ''}
-              onClick={() => setInteractionMode('profile')}
-              title="Dibujar polilínea en el mapa para perfil altimétrico"
-            >
-              Perfil ({profileDraft.length})
-            </button>
-            <button
-              className={interactionMode === 'observe' ? 'active' : ''}
-              onClick={() => setInteractionMode('observe')}
-              title="Marcar observación real de campo o alcantarilla en el mapa (CU-06)"
-            >
-              + Observación ({observations.length})
-            </button>
-          </div>
+              <option value={1}>1× (plano real)</option>
+              <option value={2}>2× (moderado)</option>
+              <option value={2.5}>2,5× (maqueta ideal)</option>
+              <option value={3.5}>3,5× (relieve pronunciado)</option>
+              <option value={5}>5× (máximo contraste)</option>
+            </select>
+          </label>
 
           {activeField && terrain && (
             <div className="export-links">
@@ -535,7 +721,7 @@ export function App() {
                 href={exportGeoJsonUrl(activeField.id)}
                 download
               >
-                ⬇ GeoJSON
+                ⬇ Descargar Capas GIS
               </a>
               <a
                 className="btn-ghost"
@@ -543,820 +729,1325 @@ export function App() {
                 target="_blank"
                 rel="noreferrer"
               >
-                📄 Informe
+                📄 Informe para el Productor
               </a>
             </div>
           )}
-
-          <label className="exag-control">
-            <span>Exageración vertical:</span>
-            <select
-              value={exaggeration}
-              onChange={(e) => setExaggeration(Number(e.target.value))}
-            >
-              <option value={1}>1× (escala real)</option>
-              <option value={2}>2× (visual)</option>
-              <option value={3}>3× (visual)</option>
-              <option value={5}>5× (visual)</option>
-            </select>
-          </label>
         </div>
       </header>
 
-      <div className="workspace">
-        {/* Panel izquierdo: Lotes, fuente de DEM, Hidrología Fase 1 y capas */}
-        <aside className="sidebar sidebar-left">
-          <section className="card">
-            <div className="card-header">
-              <h3>1. Lotes agrícolas</h3>
+      {workspaceMode === 'agronomist' ? (
+        <div className="agro-layout">
+          {/* Columna izquierda: Selección de Lote + Simulador simple de Lluvia y Manejo */}
+          <aside className="agro-sidebar">
+            <section className="agro-card">
+              <h3>1. Seleccionar Campo o Subir Lote</h3>
+              <p className="agro-help">
+                Elegí un campo real de muestra o subí el archivo de tu lote
+                (GeoJSON, KML de Google Earth, KMZ o Shapefile ZIP).
+              </p>
+              <div className="btn-stack">
+                <button
+                  className="btn-agro-primary"
+                  onClick={() => handleQuickLoadAndSimulateField('serrano')}
+                  disabled={Boolean(busy)}
+                >
+                  ⛰️ Cargar Lote Piedemonte Serrano (223 ha · Alto relieve)
+                </button>
+                <button
+                  className="btn-agro-secondary"
+                  onClick={() => handleQuickLoadAndSimulateField('llanura')}
+                  disabled={Boolean(busy)}
+                >
+                  🌾 Cargar Lote Agrícola #205 (199 ha · Llanura ondulada)
+                </button>
+                <label className="btn-agro-outline">
+                  📂 Subir mi propio lote (.kml, .kmz, .geojson, .zip)
+                  <input
+                    type="file"
+                    accept=".geojson,.json,.kml,.kmz,.zip"
+                    onChange={handleImportGeoJSON}
+                    hidden
+                  />
+                </label>
+              </div>
+
+              {fields.length > 1 && (
+                <label className="field-label" style={{ marginTop: 10 }}>
+                  Cambiar entre lotes cargados
+                  <select
+                    value={activeFieldId ?? ''}
+                    onChange={(e) => setActiveFieldId(e.target.value)}
+                  >
+                    {fields.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.area_ha.toFixed(1)} ha)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </section>
+
+            <section className="agro-card">
+              <h3>2. ¿Qué pasa cuando llueve en el lote?</h3>
+              <p className="agro-help">
+                Probá distintos milímetros de lluvia y condiciones de cobertura
+                para ver cómo cambia el escurrimiento en la maqueta 3D.
+              </p>
+
+              <span className="subhead">Elegir intensidad de lluvia:</span>
+              <div className="pill-row">
+                {[
+                  { mm: 30, label: '🌧️ 30 mm (Suave)' },
+                  { mm: 80, label: '⛈️ 80 mm (Fuerte)' },
+                  { mm: 130, label: '🌊 130 mm (Temporal)' },
+                ].map((p) => (
+                  <button
+                    key={p.mm}
+                    className={
+                      quickRainMm === p.mm ? 'pill-btn active' : 'pill-btn'
+                    }
+                    onClick={() => handleQuickSimulateRain(p.mm)}
+                    disabled={Boolean(busy)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
+              <label className="field-label" style={{ marginTop: 10 }}>
+                ¿Cómo estaba el suelo antes de llover?
+                <select
+                  value={quickAmc}
+                  onChange={(e) =>
+                    handleQuickSimulateRain(
+                      undefined,
+                      e.target.value as AntecedentMoisture,
+                    )
+                  }
+                  disabled={Boolean(busy)}
+                >
+                  <option value="dry">
+                    Suelo seco (absorbe mucha más agua al inicio)
+                  </option>
+                  <option value="medium">
+                    Humedad normal (condición media de campaña)
+                  </option>
+                  <option value="wet">
+                    Suelo ya húmedo por lluvias previas (escurre rápido)
+                  </option>
+                </select>
+              </label>
+
+              <label className="field-label">
+                ¿Qué cobertura tiene hoy la superficie del lote?
+                <select
+                  value={quickCover}
+                  onChange={(e) =>
+                    handleQuickSimulateRain(
+                      undefined,
+                      undefined,
+                      e.target.value,
+                    )
+                  }
+                  disabled={Boolean(busy)}
+                >
+                  <option value="soja_maiz_sd_buena">
+                    Siembra Directa con buen rastrojo (&gt;30% cubierto)
+                  </option>
+                  <option value="cultivo_cobertura_vicia_centeno">
+                    Cultivo de Servicio activo (Vicia + Centeno)
+                  </option>
+                  <option value="trigo_cereal_invierno_sd">
+                    Trigo / Cereal de invierno denso en SD
+                  </option>
+                  <option value="pastura_pradera_buena">
+                    Pastura / Verdeo en buena condición
+                  </option>
+                  <option value="barbecho_con_rastrojo">
+                    Barbecho químico con rastrojo
+                  </option>
+                  <option value="soja_maiz_convencional">
+                    Labranza convencional / Poca cobertura
+                  </option>
+                  <option value="barbecho_suelo_desnudo">
+                    Suelo descubierto sin rastrojo (mayor riesgo)
+                  </option>
+                </select>
+              </label>
+
+              <label className="field-label">
+                Tipo de suelo predominante
+                <select
+                  value={quickSoilGroup}
+                  onChange={(e) =>
+                    handleQuickSimulateRain(
+                      undefined,
+                      undefined,
+                      undefined,
+                      e.target.value as SoilGroup,
+                    )
+                  }
+                  disabled={Boolean(busy)}
+                >
+                  <option value="A">
+                    Suelo Arenoso / Franco-arenoso (infiltra rápido)
+                  </option>
+                  <option value="B">
+                    Suelo Franco / Franco-limoso (infiltración moderada)
+                  </option>
+                  <option value="C">
+                    Suelo Franco-arcilloso (infiltración lenta)
+                  </option>
+                  <option value="D">
+                    Suelo Arcilloso pesado / Bajo con napa (infiltra muy poco)
+                  </option>
+                </select>
+              </label>
+            </section>
+
+            {activeRun && (
+              <section className="agro-card">
+                <h3>3. Balance de esa lluvia en tu campo</h3>
+                <div className="kpi-cards">
+                  <div className="kpi-box kpi-green">
+                    <span className="kpi-label">Agua que entra al suelo</span>
+                    <strong className="kpi-val">
+                      {activeRun.cn_result.total_retention_losses_mm.toFixed(1)}{' '}
+                      mm
+                    </strong>
+                    <span className="kpi-sub">
+                      Queda disponible o infiltra en el perfil
+                    </span>
+                  </div>
+                  <div className="kpi-box kpi-blue">
+                    <span className="kpi-label">Agua que escurre</span>
+                    <strong className="kpi-val">
+                      {activeRun.cn_result.runoff_q_mm.toFixed(1)} mm
+                    </strong>
+                    <span className="kpi-sub">
+                      {(
+                        activeRun.spatial_summary.field_runoff_generated_m3 /
+                        1000
+                      ).toFixed(1)}{' '}
+                      mil m³ corren por pendiente
+                    </span>
+                  </div>
+                  <div className="kpi-box kpi-amber">
+                    <span className="kpi-label">Bajos que acumulan agua</span>
+                    <strong className="kpi-val">
+                      {hydrology?.summary.total_depression_area_in_field_ha.toFixed(
+                        1,
+                      ) ?? '3.9'}{' '}
+                      ha
+                    </strong>
+                    <span className="kpi-sub">
+                      Retienen hasta{' '}
+                      {hydrology?.summary.total_depression_volume_in_field_m3.toFixed(
+                        0,
+                      ) ?? '8000'}{' '}
+                      m³
+                    </span>
+                  </div>
+                  <div className="kpi-box kpi-purple">
+                    <span className="kpi-label">Espera para maquinaria</span>
+                    <strong className="kpi-val">
+                      ~
+                      {(
+                        activeRun.agronomic_zonation ??
+                        hydrology?.agronomic_zonation
+                      )?.trafficability.estimated_wait_days_low_ground ??
+                        3.5}{' '}
+                      días
+                    </strong>
+                    <span className="kpi-sub">
+                      Para tener piso en los bajos (
+                      {(
+                        activeRun.agronomic_zonation ??
+                        hydrology?.agronomic_zonation
+                      )?.trafficability.estimated_wait_days_high_ground ?? 1.3}{' '}
+                      d en lomas)
+                    </span>
+                  </div>
+                </div>
+              </section>
+            )}
+          </aside>
+
+          {/* Centro: Tarjeta Maqueta 3D Satelital estilo CASO #1327 */}
+          <main className="agro-center">
+            {busy && <div className="status-toast">{busy}</div>}
+            {error && (
+              <div className="error-toast" role="alert">
+                <span>{error}</span>
+                <button onClick={() => setError(null)}>✕</button>
+              </div>
+            )}
+
+            <div className="showcase-card">
+              <div className="showcase-header">
+                <div className="showcase-title-block">
+                  <span className="showcase-kicker">
+                    SIMULACIÓN TOPOGRÁFICA E HIDROLÓGICA 3D
+                  </span>
+                  <h2>{activeField ? activeField.name : 'Cargando lote...'}</h2>
+                  {activeField && terrain && (
+                    <div className="showcase-meta-pills">
+                      <span>📍 Provincia de San Luis, Argentina</span>
+                      <span>
+                        📐 {activeField.area_ha.toFixed(1)} ha (
+                        {(activeField.area_ha / 100).toFixed(2)} km²)
+                      </span>
+                      <span>
+                        ⛰️ Cotas:{' '}
+                        {terrain.quality.elevation_field.min?.toFixed(0)} a{' '}
+                        {terrain.quality.elevation_field.max?.toFixed(0)} m
+                        s.n.m. (desnivel{' '}
+                        {terrain.quality.elevation_field.range?.toFixed(1)} m)
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="showcase-layer-bar">
+                  {(
+                    [
+                      ['satellite_water', '🛰️ Satélite + Escurrimiento'],
+                      ['waterlogging', '💧 Zonas que se Encharcan'],
+                      ['environments', '🌱 Ambientes (Loma / Bajo)'],
+                      ['erosion', '⚠️ Riesgo de Erosión'],
+                      ['ndvi', '🌿 Vigor Cultivo (NDVI)'],
+                    ] as const
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      className={
+                        dioramaOverlay === mode
+                          ? 'overlay-pill active'
+                          : 'overlay-pill'
+                      }
+                      onClick={() => setDioramaOverlay(mode)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    className={
+                      isPlayingDioramaRain
+                        ? 'overlay-pill rain-toggle active'
+                        : 'overlay-pill rain-toggle'
+                    }
+                    onClick={() => setIsPlayingDioramaRain((p) => !p)}
+                  >
+                    {isPlayingDioramaRain
+                      ? '⏸ Pausar lluvia 3D'
+                      : '▶ Animar lluvia 3D'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="showcase-diorama-stage">
+                <TerrainDiorama3D
+                  field={activeField}
+                  mesh={mesh}
+                  overlayMode={dioramaOverlay}
+                  exaggeration={exaggeration}
+                  rainIntensityFactor={rainFactor}
+                  showBoundary={true}
+                  showContours={false}
+                  isPlayingRain={isPlayingDioramaRain}
+                  onPointInspect={handleMapClick}
+                />
+
+                {selectedPoint && (
+                  <div className="floating-point-card">
+                    <div className="card-header">
+                      <strong>📍 Punto consultado en el lote</strong>
+                      <button
+                        className="btn-ghost"
+                        onClick={() => setSelectedPoint(null)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="floating-point-grid">
+                      <span>
+                        Altura:{' '}
+                        <strong>
+                          {selectedPoint.elevation_m?.toFixed(1) ?? '—'} m
+                        </strong>
+                      </span>
+                      <span>
+                        Pendiente:{' '}
+                        <strong>
+                          {selectedPoint.slope_pct?.toFixed(2) ?? '—'} %
+                        </strong>
+                      </span>
+                      <span>
+                        Escurre hacia:{' '}
+                        <strong>
+                          {selectedPoint.d8_direction ?? '—'}
+                        </strong>
+                      </span>
+                      <span>
+                        Aporte aguas arriba:{' '}
+                        <strong>
+                          {selectedPoint.mfd_area_ha?.toFixed(2) ?? '—'} ha
+                        </strong>
+                      </span>
+                      {selectedPoint.agronomic_zone_label && (
+                        <span style={{ gridColumn: '1 / -1' }}>
+                          Ambiente:{' '}
+                          <strong>{selectedPoint.agronomic_zone_label}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="showcase-footer">
+                <div className={`status-pill status-${badgeStatus.level}`}>
+                  <span className="status-dot" />
+                  <strong>{badgeStatus.text}</strong>
+                </div>
+                <p className="showcase-headline">
+                  ANTES DE SEMBRAR O INVERTIR EN LABORES:{' '}
+                  <strong>conocé cómo se comporta tu lote cuando llueve</strong>
+                </p>
+                {activeRun && (
+                  <p className="showcase-subline">
+                    Ante una lluvia de{' '}
+                    <strong>
+                      {activeRun.cn_result.precipitation_mm.toFixed(0)} mm
+                    </strong>
+                    , las líneas celestes muestran por dónde se concentra el
+                    agua superficial hacia los bajos ({lowZonePct.toFixed(1)} %
+                    de la superficie del lote) y los puntos de salida.
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="btn-row">
-              <button
-                className="btn-primary"
-                onClick={handleLoadSample}
-                disabled={Boolean(busy)}
-              >
-                Cargar lote real (San Luis)
-              </button>
-              <label className="btn-secondary">
+          </main>
+
+          {/* Columna derecha: Las 8 Herramientas Agronómicas explicadas de forma simple y accionable */}
+          <aside className="agro-sidebar">
+            <section className="agro-card">
+              <h3>4. Decisiones Agronómicas para este Lote</h3>
+              <p className="agro-help">
+                Seleccioná qué aspecto querés analizar con los datos reales del
+                relieve, clima NASA e INTA:
+              </p>
+
+              <div className="agro-tool-grid">
+                {(
+                  [
+                    ['resumen', '📋 Diagnóstico General'],
+                    ['erosion', '⚠️ 1. Erosión y Cárcavas'],
+                    ['terrazas', '🚜 2. Curvas y Terrazas'],
+                    ['balance', '💧 3. Agua Mes a Mes'],
+                    ['anegamiento', '📅 4. Lluvias Reales'],
+                    ['siembra', '🌱 5. Siembra y Fertiliz.'],
+                    ['rotaciones', '🔄 6. Rotación 3 Años'],
+                    ['ndvi', '🛰️ 7. Vigor NDVI'],
+                    ['heladas', '❄️ 8. Riesgo Heladas'],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    className={
+                      agroToolTab === k ? 'agro-tab-btn active' : 'agro-tab-btn'
+                    }
+                    onClick={() => {
+                      setAgroToolTab(k)
+                      if (k === 'erosion') setDioramaOverlay('erosion')
+                      else if (k === 'ndvi') setDioramaOverlay('ndvi')
+                      else if (k === 'anegamiento')
+                        setDioramaOverlay('waterlogging')
+                      else if (k === 'siembra' || k === 'resumen')
+                        setDioramaOverlay('environments')
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {!toolkit ? (
+                <button
+                  className="btn-agro-primary full-width"
+                  style={{ marginTop: 10 }}
+                  onClick={() =>
+                    handleRunToolkit({
+                      soil_group: quickSoilGroup,
+                      cover_code: quickCover,
+                      storm_precipitation_mm: quickRainMm,
+                      crop_code: 'maiz_temprano',
+                      environment_zone: 'media_loma',
+                    })
+                  }
+                  disabled={!terrain || Boolean(busy)}
+                >
+                  🚀 Calcular las 8 Herramientas Agronómicas
+                </button>
+              ) : (
+                <div className="agro-panel-body">
+                  {agroToolTab === 'resumen' && (
+                    <div className="agro-explain">
+                      <h4>¿Cómo se divide este campo según el agua?</h4>
+                      <p>
+                        El relieve divide tu lote en{' '}
+                        <strong>4 ambientes productivos</strong> con distinto
+                        comportamiento cuando llueve:
+                      </p>
+                      {(
+                        activeRun?.agronomic_zonation ??
+                        hydrology?.agronomic_zonation
+                      )?.zones.map((z) => (
+                        <div key={z.zone_id} className="env-item">
+                          <div className="env-item-head">
+                            <strong>{z.label}</strong>
+                            <span>
+                              {z.area_ha.toFixed(1)} ha (
+                              {z.percentage_of_field.toFixed(0)} %)
+                            </span>
+                          </div>
+                          <p>{z.management_guideline}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {agroToolTab === 'erosion' && (
+                    <div className="agro-explain">
+                      <h4>1. ¿Cuánto suelo se pierde por escurrimiento?</h4>
+                      <p>
+                        Con una tormenta de{' '}
+                        <strong>{quickRainMm} mm</strong>, el agua que corre por
+                        las pendientes arrastra suelo fértil (fórmula USLE):
+                      </p>
+                      <div className="kpi-cards">
+                        <div className="kpi-box kpi-amber">
+                          <span className="kpi-label">Pérdida promedio</span>
+                          <strong className="kpi-val">
+                            {toolkit.erosion_usle.mean_soil_loss_t_ha.toFixed(
+                              2,
+                            )}{' '}
+                            t/ha
+                          </strong>
+                          <span className="kpi-sub">
+                            Riesgo{' '}
+                            {toolkit.erosion_usle.erosion_severity.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="kpi-box kpi-amber">
+                          <span className="kpi-label">Tierra perdida total</span>
+                          <strong className="kpi-val">
+                            {toolkit.erosion_usle.total_field_soil_loss_tons.toFixed(
+                              1,
+                            )}{' '}
+                            t
+                          </strong>
+                          <span className="kpi-sub">
+                            En todo el lote por esta tormenta
+                          </span>
+                        </div>
+                      </div>
+                      <p style={{ marginTop: 8 }}>
+                        <strong>¿Dónde se pueden formar cárcavas/zanjas?</strong>{' '}
+                        Se detectaron{' '}
+                        <strong>
+                          {toolkit.erosion_usle.gully_risk_area_ha.toFixed(2)}{' '}
+                          ha
+                        </strong>{' '}
+                        ({toolkit.erosion_usle.gully_initiation_cells} sectores)
+                        donde el agua toma demasiada fuerza. Mantené esos
+                        sectores siempre empastados o con cultivo de servicio.
+                      </p>
+                    </div>
+                  )}
+
+                  {agroToolTab === 'terrazas' && (
+                    <div className="agro-explain">
+                      <h4>2. Curvas de nivel y Terrazas: ¿cuánto frenan?</h4>
+                      <p>
+                        Para la pendiente media de este lote (
+                        <strong>
+                          {toolkit.contour_terraces.mean_field_slope_pct.toFixed(
+                            2,
+                          )}{' '}
+                          %
+                        </strong>
+                        ), el diseño recomendado por INTA es:
+                      </p>
+                      <ul className="agro-list">
+                        <li>
+                          <strong>Distancia entre terrazas:</strong> cada{' '}
+                          <strong>
+                            {
+                              toolkit.contour_terraces
+                                .recommended_horizontal_spacing_m
+                            }{' '}
+                            metros
+                          </strong>{' '}
+                          ({toolkit.contour_terraces.recommended_vertical_interval_m}{' '}
+                          m de desnivel).
+                        </li>
+                        <li>
+                          <strong>Agua que frenan las terrazas:</strong>{' '}
+                          retienen{' '}
+                          <strong>
+                            {toolkit.contour_terraces.water_retained_by_terraces_m3.toFixed(
+                              0,
+                            )}{' '}
+                            m³
+                          </strong>{' '}
+                          dentro del lote (bajan la escorrentía un{' '}
+                          <strong>
+                            {toolkit.contour_terraces.runoff_reduction_pct.toFixed(
+                              0,
+                            )}{' '}
+                            %
+                          </strong>
+                          ).
+                        </li>
+                        <li>
+                          <strong>Suelo que salvan de la erosión:</strong> la
+                          pérdida baja de{' '}
+                          {toolkit.contour_terraces.soil_loss_before_t_ha.toFixed(
+                            2,
+                          )}{' '}
+                          a{' '}
+                          <strong>
+                            {toolkit.contour_terraces.soil_loss_after_t_ha.toFixed(
+                              2,
+                            )}{' '}
+                            t/ha
+                          </strong>{' '}
+                          (ahorrás{' '}
+                          <strong>
+                            {toolkit.contour_terraces.erosion_reduction_pct.toFixed(
+                              0,
+                            )}{' '}
+                            %
+                          </strong>{' '}
+                          de suelo).
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {agroToolTab === 'balance' && (
+                    <div className="agro-explain">
+                      <h4>3. Balance hídrico del lote mes a mes (NASA POWER)</h4>
+                      <p>
+                        Lluvia anual:{' '}
+                        <strong>
+                          {toolkit.water_balance_monthly.annual_precipitation_mm.toFixed(
+                            0,
+                          )}{' '}
+                          mm
+                        </strong>{' '}
+                        · Agua útil hoy en el suelo:{' '}
+                        <strong>
+                          {toolkit.water_balance_monthly.final_available_water_mm.toFixed(
+                            0,
+                          )}{' '}
+                          mm (
+                          {toolkit.water_balance_monthly.final_available_water_pct.toFixed(
+                            0,
+                          )}
+                          %)
+                        </strong>
+                        .
+                      </p>
+                      <table className="mini-table">
+                        <thead>
+                          <tr>
+                            <th>Mes</th>
+                            <th>Lluvia</th>
+                            <th>Consumo ET0</th>
+                            <th>Agua Útil</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {toolkit.water_balance_monthly.months
+                            .slice(-8)
+                            .map((m) => (
+                              <tr key={m.label}>
+                                <td>{m.label}</td>
+                                <td>{m.precipitation_mm.toFixed(0)} mm</td>
+                                <td>{m.et0_mm.toFixed(0)} mm</td>
+                                <td>{m.available_water_pct.toFixed(0)} %</td>
+                                <td>
+                                  <strong>{m.status}</strong>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {agroToolTab === 'anegamiento' && (
+                    <div className="agro-explain">
+                      <h4>4. Riesgo de anegamiento en tormentas reales</h4>
+                      <p>
+                        Analizando los días de lluvia reales de la zona (y cuánta
+                        humedad había los 5 días previos a cada tormenta):
+                      </p>
+                      <table className="mini-table">
+                        <thead>
+                          <tr>
+                            <th>Fecha real</th>
+                            <th>Lluvia</th>
+                            <th>Escurrió</th>
+                            <th>Bajos aneg.</th>
+                            <th>Riesgo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {toolkit.real_waterlogging_by_date.top_historical_events
+                            .slice(0, 6)
+                            .map((ev) => (
+                              <tr key={ev.date}>
+                                <td>{ev.date}</td>
+                                <td>{ev.precipitation_mm.toFixed(0)} mm</td>
+                                <td>{ev.runoff_q_mm.toFixed(1)} mm</td>
+                                <td>
+                                  {ev.estimated_waterlogged_area_ha.toFixed(1)}{' '}
+                                  ha
+                                </td>
+                                <td>
+                                  <strong>
+                                    {ev.waterlogging_risk.toUpperCase()}
+                                  </strong>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {agroToolTab === 'siembra' && (
+                    <div className="agro-explain">
+                      <h4>5. Calculadora de Siembra y Fertilizante (INTA)</h4>
+                      <div className="two-cols" style={{ marginBottom: 8 }}>
+                        <select
+                          value={
+                            (toolkit.parameters.crop_code as string) ||
+                            'maiz_temprano'
+                          }
+                          onChange={(e) =>
+                            handleRunToolkit({
+                              soil_group: quickSoilGroup,
+                              cover_code: quickCover,
+                              storm_precipitation_mm: quickRainMm,
+                              crop_code: e.target.value,
+                              environment_zone:
+                                (toolkit.parameters.environment_zone as
+                                  | 'loma'
+                                  | 'media_loma'
+                                  | 'bajo') || 'media_loma',
+                            })
+                          }
+                        >
+                          <option value="maiz_temprano">Maíz Temprano</option>
+                          <option value="maiz_tardio">Maíz Tardío</option>
+                          <option value="soja_primera">Soja de 1ª</option>
+                          <option value="trigo">Trigo pan</option>
+                          <option value="girasol">Girasol</option>
+                          <option value="sorgo_granifero">
+                            Sorgo Granífero
+                          </option>
+                          <option value="vicia_centeno_cobertura">
+                            Vicia + Centeno
+                          </option>
+                        </select>
+                        <select
+                          value={
+                            (toolkit.parameters.environment_zone as string) ||
+                            'media_loma'
+                          }
+                          onChange={(e) =>
+                            handleRunToolkit({
+                              soil_group: quickSoilGroup,
+                              cover_code: quickCover,
+                              storm_precipitation_mm: quickRainMm,
+                              crop_code:
+                                (toolkit.parameters.crop_code as string) ||
+                                'maiz_temprano',
+                              environment_zone: e.target.value as
+                                | 'loma'
+                                | 'media_loma'
+                                | 'bajo',
+                            })
+                          }
+                        >
+                          <option value="loma">Ambiente: Loma</option>
+                          <option value="media_loma">
+                            Ambiente: Media Loma
+                          </option>
+                          <option value="bajo">Ambiente: Bajo</option>
+                        </select>
+                      </div>
+                      <ul className="agro-list">
+                        <li>
+                          <strong>Densidad a lograr:</strong>{' '}
+                          {toolkit.seeding_calculator_inta.target_plants_ha.toLocaleString()}{' '}
+                          plantas/ha (calibrar sembradora a{' '}
+                          <strong>
+                            {toolkit.seeding_calculator_inta.seeds_per_linear_m.toFixed(
+                              1,
+                            )}{' '}
+                            semillas/metro
+                          </strong>
+                          ).
+                        </li>
+                        <li>
+                          <strong>Compra de semilla:</strong>{' '}
+                          <strong>
+                            {toolkit.seeding_calculator_inta.seed_density_kg_ha.toFixed(
+                              1,
+                            )}{' '}
+                            kg/ha
+                          </strong>{' '}
+                          →{' '}
+                          <strong>
+                            {toolkit.seeding_calculator_inta.commercial_bags_needed.toFixed(
+                              1,
+                            )}{' '}
+                            bolsas
+                          </strong>{' '}
+                          ({toolkit.seeding_calculator_inta.bag_unit}) para todo
+                          el lote.
+                        </li>
+                        <li>
+                          <strong>Fertilización guía (rinde objetivo{' '}
+                          {toolkit.seeding_calculator_inta.target_yield_t_ha}{' '}
+                          t/ha):</strong>{' '}
+                          <strong>
+                            MAP{' '}
+                            {toolkit.seeding_calculator_inta.commercial_fertilizer_guide_kg_ha.MAP_11_52_0_kg_ha.toFixed(
+                              0,
+                            )}{' '}
+                            kg/ha
+                          </strong>{' '}
+                          +{' '}
+                          <strong>
+                            Urea{' '}
+                            {toolkit.seeding_calculator_inta.commercial_fertilizer_guide_kg_ha.Urea_46_0_0_kg_ha.toFixed(
+                              0,
+                            )}{' '}
+                            kg/ha
+                          </strong>{' '}
+                          +{' '}
+                          <strong>
+                            Yeso{' '}
+                            {toolkit.seeding_calculator_inta.commercial_fertilizer_guide_kg_ha.Yeso_agricola_17S_kg_ha.toFixed(
+                              0,
+                            )}{' '}
+                            kg/ha
+                          </strong>
+                          .
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {agroToolTab === 'rotaciones' && (
+                    <div className="agro-explain">
+                      <h4>6. Comparador de Rotaciones (3 años lado a lado)</h4>
+                      <p>
+                        ¿Qué pasa en este lote si hacés{' '}
+                        <strong>Monocultivo / Baja cobertura (A)</strong> vs.{' '}
+                        <strong>
+                          Rotación Sustentable RotaTerra con Cultivo de Servicio
+                          (B)
+                        </strong>
+                        ?
+                      </p>
+                      <div className="kpi-cards">
+                        <div className="kpi-box kpi-green">
+                          <span className="kpi-label">Tierra que salvás</span>
+                          <strong className="kpi-val">
+                            {toolkit.rotation_comparator_3yr.delta_b_vs_a.soil_saved_by_b_tons.toFixed(
+                              1,
+                            )}{' '}
+                            t
+                          </strong>
+                          <span className="kpi-sub">
+                            Menos erosión en 3 campañas
+                          </span>
+                        </div>
+                        <div className="kpi-box kpi-blue">
+                          <span className="kpi-label">Agua extra retenida</span>
+                          <strong className="kpi-val">
+                            +
+                            {toolkit.rotation_comparator_3yr.delta_b_vs_a.runoff_saved_by_b_mm.toFixed(
+                              0,
+                            )}{' '}
+                            mm
+                          </strong>
+                          <span className="kpi-sub">
+                            Que infiltra en vez de perderse
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {agroToolTab === 'ndvi' && (
+                    <div className="agro-explain">
+                      <h4>7. Monitor de Vigor Vegetativo (NDVI)</h4>
+                      <p>
+                        NDVI medio del lote:{' '}
+                        <strong>
+                          {toolkit.ndvi_vigor_monitor.mean_ndvi_in_field.toFixed(
+                            2,
+                          )}
+                        </strong>
+                        . Se detectan{' '}
+                        <strong>
+                          {toolkit.ndvi_vigor_monitor.low_vigor_area_ha.toFixed(
+                            1,
+                          )}{' '}
+                          ha ({toolkit.ndvi_vigor_monitor.low_vigor_pct.toFixed(1)}{' '}
+                          %)
+                        </strong>{' '}
+                        con menor vigor vegetativo.
+                      </p>
+                      <p>
+                        <strong>Cruza con el relieve 3D:</strong> el{' '}
+                        <strong>
+                          {toolkit.ndvi_vigor_monitor.weak_zones_explained_by_waterlogging_or_erosion_pct.toFixed(
+                            0,
+                          )}{' '}
+                          %
+                        </strong>{' '}
+                        de las zonas débiles del cultivo coincide directamente
+                        con los bajos anegables o las vías de escurrimiento.
+                      </p>
+                    </div>
+                  )}
+
+                  {agroToolTab === 'heladas' && (
+                    <div className="agro-explain">
+                      <h4>8. Riesgo de Heladas y Fechas Seguras de Siembra</h4>
+                      <ul className="agro-list">
+                        <li>
+                          <strong>Última helada tardía (primavera):</strong>{' '}
+                          mediana el{' '}
+                          <strong>
+                            {
+                              toolkit.frost_risk_sowing
+                                .median_last_spring_frost_date
+                            }
+                          </strong>{' '}
+                          · Fecha segura (riesgo &lt;10%): desde el{' '}
+                          <strong>
+                            {
+                              toolkit.frost_risk_sowing
+                                .safe_spring_sowing_start_date
+                            }
+                          </strong>
+                          .
+                        </li>
+                        <li>
+                          <strong>Primera helada temprana (otoño):</strong>{' '}
+                          <strong>
+                            {
+                              toolkit.frost_risk_sowing
+                                .median_first_autumn_frost_date
+                            }
+                          </strong>{' '}
+                          ({toolkit.frost_risk_sowing.frost_free_period_days}{' '}
+                          días libres de heladas).
+                        </li>
+                        {toolkit.frost_risk_sowing.safe_sowing_windows_by_crop.map(
+                          (w) => (
+                            <li key={w.crop}>
+                              <strong>{w.crop}</strong> (sembrar desde{' '}
+                              {w.safe_start}): {w.note}
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          </aside>
+        </div>
+      ) : (
+        /* Modo Técnico GIS Regional completo (MapLibre + Todos los parámetros avanzados) */
+        <div className="workspace">
+          <aside className="sidebar sidebar-left">
+            <section className="card">
+              <div className="card-header">
+                <h3>1. Lotes agrícolas</h3>
+              </div>
+              <div className="btn-row">
+                <button
+                  className="btn-primary"
+                  onClick={() => handleQuickLoadAndSimulateField('serrano')}
+                  disabled={Boolean(busy)}
+                >
+                  Lote Serrano #492
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => handleQuickLoadAndSimulateField('llanura')}
+                  disabled={Boolean(busy)}
+                >
+                  Lote Llanura #205
+                </button>
+              </div>
+              <label className="btn-secondary full-width">
                 Importar Lote (GeoJSON/KML/SHP)
                 <input
                   type="file"
-                  accept=".geojson,.json,.kml,.kmz,.zip,application/geo+json,application/json"
+                  accept=".geojson,.json,.kml,.kmz,.zip"
                   onChange={handleImportGeoJSON}
                   hidden
                 />
               </label>
-            </div>
 
-            {fields.length > 0 && (
+              {fields.length > 0 && (
+                <label className="field-label" style={{ marginTop: 8 }}>
+                  Lote activo
+                  <select
+                    value={activeFieldId ?? ''}
+                    onChange={(e) => setActiveFieldId(e.target.value)}
+                  >
+                    {fields.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.area_ha.toFixed(1)} ha)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </section>
+
+            <section className="card">
+              <h3>2. Modelo Digital de Elevación (MDE)</h3>
               <label className="field-label">
-                Lote activo
+                Fuente de elevación
                 <select
-                  value={activeFieldId ?? ''}
-                  onChange={(e) => setActiveFieldId(e.target.value)}
+                  value={sourceId}
+                  onChange={(e) =>
+                    setSourceId(
+                      e.target.value as 'copernicus_glo30' | 'upload',
+                    )
+                  }
                 >
-                  {fields.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name} ({f.area_ha.toFixed(1)} ha)
-                      {f.has_hydrology
-                        ? ' · D8/MFD listo'
-                        : f.has_terrain
-                          ? ' · DEM listo'
-                          : ''}
-                    </option>
-                  ))}
+                  <option value="copernicus_glo30">
+                    Copernicus DEM GLO-30 (30 m · ESA / AWS COG)
+                  </option>
+                  <option value="upload">
+                    Subir GeoTIFF propio (Dron / LiDAR / IGN 5 m)
+                  </option>
                 </select>
               </label>
-            )}
-          </section>
-
-          <section className="card">
-            <h3>2. Modelo Digital de Elevación (MDE)</h3>
-            <label className="field-label">
-              Fuente de elevación
-              <select
-                value={sourceId}
-                onChange={(e) =>
-                  setSourceId(
-                    e.target.value as 'copernicus_glo30' | 'upload',
-                  )
-                }
-              >
-                <option value="copernicus_glo30">
-                  Copernicus DEM GLO-30 (30 m · ESA / AWS COG)
-                </option>
-                <option value="upload">
-                  Subir GeoTIFF propio (Dron / LiDAR / IGN 5 m)
-                </option>
-              </select>
-            </label>
-
-            <label className="field-label">
-              Zona de aporte externa (buffer en metros)
-              <input
-                type="number"
-                min={0}
-                max={5000}
-                step={50}
-                value={bufferM}
-                onChange={(e) => setBufferM(Number(e.target.value))}
-              />
-            </label>
-
-            {sourceId === 'upload' && (
-              <div className="upload-meta">
-                <label className="field-label">
-                  Archivo GeoTIFF
-                  <input
-                    type="file"
-                    accept=".tif,.tiff,image/tiff"
-                    onChange={(e) =>
-                      setUploadFile(e.target.files?.[0] ?? null)
-                    }
-                  />
-                </label>
-                <label className="field-label">
-                  Tipo de superficie
-                  <select
-                    value={uploadSurfaceType}
-                    onChange={(e) =>
-                      setUploadSurfaceType(
-                        e.target.value as 'DTM' | 'DSM' | 'desconocido',
-                      )
-                    }
-                  >
-                    <option value="DTM">MDT / DTM (terreno desnudo)</option>
-                    <option value="DSM">MDS / DSM (superficie)</option>
-                    <option value="desconocido">No declarado</option>
-                  </select>
-                </label>
-                <div className="two-cols">
-                  <label className="field-label">
-                    Datum vertical
-                    <input
-                      type="text"
-                      value={uploadDatum}
-                      onChange={(e) => setUploadDatum(e.target.value)}
-                      placeholder="EGM2008 / IGN"
-                    />
-                  </label>
-                  <label className="field-label">
-                    Precisión ± (m)
-                    <input
-                      type="number"
-                      step="0.05"
-                      value={uploadAccuracy}
-                      onChange={(e) => setUploadAccuracy(e.target.value)}
-                      placeholder="0.15"
-                    />
-                  </label>
-                </div>
-              </div>
-            )}
-
-            <button
-              className="btn-primary full-width"
-              onClick={handleProcessTerrain}
-              disabled={!activeField || Boolean(busy)}
-            >
-              {terrain ? 'Reprocesar DEM del lote' : 'Cargar y procesar DEM'}
-            </button>
-          </section>
-
-          <HydrologyPanel
-            hasTerrain={Boolean(terrain)}
-            hydrology={hydrology}
-            busy={Boolean(busy)}
-            onRun={handleRunHydrology}
-          />
-
-          <RainfallRunoffPanel
-            hasTerrain={Boolean(terrain)}
-            events={rainfallEvents}
-            runs={runoffRuns}
-            comparison={comparison}
-            busy={Boolean(busy)}
-            onCreateManualEvent={handleCreateManualEvent}
-            onLoadSampleEvent={handleLoadSampleEvent}
-            onImportCsvEvent={handleImportCsvEvent}
-            onRunRunoff={handleRunRunoff}
-            onActivateRun={handleActivateRunoff}
-            onRun2DSolver={handleRun2DSolver}
-            onCompare={handleCompareScenarios}
-          />
-
-          <section className="card">
-            <h3>7. Capas del visor 2D / 3D</h3>
-            <label className="field-label">
-              Mapa base
-              <select
-                value={layers.basemap}
-                onChange={(e) =>
-                  setLayers({
-                    ...layers,
-                    basemap: e.target.value as 'satellite' | 'osm',
-                  })
-                }
-              >
-                <option value="satellite">Imagen satelital (Esri)</option>
-                <option value="osm">OpenStreetMap</option>
-              </select>
-            </label>
-
-            <label className="field-label">
-              Variable en superficie 3D
-              <select
-                value={layers.surfaceColor}
-                onChange={(e) =>
-                  setLayers({
-                    ...layers,
-                    surfaceColor: e.target.value as SurfaceColorMode,
-                  })
-                }
-              >
-                <option value="elevation">
-                  Elevación (gradiente hipsométrico)
-                </option>
-                <option value="hillshade">
-                  Sombreado de relieve (Hillshade)
-                </option>
-                <option value="slope">Pendiente local (%)</option>
-                <option value="mfd" disabled={!hydrology}>
-                  Acumulación de flujo difuso MFD (ha)
-                </option>
-                <option value="d8" disabled={!hydrology}>
-                  Acumulación de flujo concentrado D8 (ha)
-                </option>
-                <option value="depressions" disabled={!hydrology}>
-                  Profundidad de depresiones / bajos (m)
-                </option>
-                <option value="subbasins" disabled={!hydrology}>
-                  Subcuencas por punto de salida
-                </option>
-                <option value="twi" disabled={!hydrology}>
-                  Índice Humedad Topográfica (TWI)
-                </option>
-                <option value="spi" disabled={!hydrology}>
-                  Índice Potencia Erosiva (SPI)
-                </option>
-                <option value="agronomic_zones" disabled={!hydrology}>
-                  Ambientes Hidro-Agronómicos RotaTerra (Fase 5)
-                </option>
-                <option value="runoff" disabled={runoffRuns.length === 0}>
-                  Escorrentía estimada NRCS-CN + MFD (mm equiv.)
-                </option>
-                <option
-                  value="water_depth"
-                  disabled={!mesh?.water_depth_m}
-                >
-                  Profundidad de agua 2D Manning (water_depth_m · Fase 4)
-                </option>
-                <option value="velocity" disabled={!mesh?.velocity_m_s}>
-                  Velocidad superficial 2D Manning (velocity_m_s · Fase 4)
-                </option>
-                <option value="erosion" disabled={!mesh?.soil_loss_t_ha}>
-                  Pérdida de suelo por tormenta USLE (t/ha)
-                </option>
-                <option value="ndvi" disabled={!mesh?.ndvi}>
-                  Monitor de Vigor Vegetativo (NDVI)
-                </option>
-              </select>
-            </label>
-
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={layers.mesh3d}
-                onChange={(e) =>
-                  setLayers({ ...layers, mesh3d: e.target.checked })
-                }
-              />
-              <span>Superficie 3D del terreno</span>
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={layers.boundary}
-                onChange={(e) =>
-                  setLayers({ ...layers, boundary: e.target.checked })
-                }
-              />
-              <span>Perímetro del lote (3D + 2D)</span>
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={layers.contours}
-                disabled={!hydrology}
-                onChange={(e) =>
-                  setLayers({ ...layers, contours: e.target.checked })
-                }
-              />
-              <span>Curvas de nivel</span>
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={layers.drainageNetwork}
-                disabled={!hydrology}
-                onChange={(e) =>
-                  setLayers({ ...layers, drainageNetwork: e.target.checked })
-                }
-              />
-              <span>Rutas potenciales de escurrimiento</span>
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={layers.depressionsAndOutlets}
-                disabled={!hydrology}
-                onChange={(e) =>
-                  setLayers({
-                    ...layers,
-                    depressionsAndOutlets: e.target.checked,
-                  })
-                }
-              />
-              <span>Depresiones (magenta) y salidas (cian)</span>
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={layers.wireframe}
-                onChange={(e) =>
-                  setLayers({ ...layers, wireframe: e.target.checked })
-                }
-              />
-              <span>Malla de alambre (wireframe de celdas)</span>
-            </label>
-          </section>
-        </aside>
-
-        {/* Centro: Escena 2D/3D */}
-        <main className="center-stage">
-          {busy && <div className="status-toast">{busy}</div>}
-          {error && (
-            <div className="error-toast" role="alert">
-              <span>{error}</span>
-              <button onClick={() => setError(null)}>✕</button>
-            </div>
-          )}
-          <TerrainScene3D
-            field={activeField}
-            mesh={mesh}
-            hydrology={hydrology}
-            observations={observations}
-            particlePaths={timeline?.particle_paths ?? []}
-            showParticles={showParticles}
-            transitFraction={
-              timeline?.has_time_series && timeline.frames[timelineStep]
-                ? timeline.frames[timelineStep].transit_fraction_of_peak
-                : 1.0
-            }
-            viewMode={viewMode}
-            exaggeration={exaggeration}
-            layers={layers}
-            interactionMode={interactionMode}
-            profileDraft={profileDraft}
-            selectedPoint={selectedPoint}
-            onMapClick={handleMapClick}
-            onCursorMove={(lon, lat) => setCursorCoords([lon, lat])}
-          />
-        </main>
-
-        {/* Panel derecho: Animación Fase 3, 8 Herramientas RotaTerra, Inspector, Perfil, Observaciones, Salidas y Calidad */}
-        <aside className="sidebar sidebar-right">
-          <AgronomicToolkitPanel
-            hasTerrain={Boolean(terrain)}
-            toolkit={toolkit}
-            busy={Boolean(busy)}
-            onRun={handleRunToolkit}
-            onSelect3DLayer={(layer) =>
-              setLayers((prev) => ({ ...prev, surfaceColor: layer }))
-            }
-          />
-
-          {timeline && (
-            <FlowTimelinePlayer
-              timeline={timeline}
-              currentStep={timelineStep}
-              playing={playing}
-              speed={playSpeed}
-              showParticles={showParticles}
-              onStepChange={(s) => setTimelineStep(s)}
-              onTogglePlay={() => setPlaying((p) => !p)}
-              onReset={() => {
-                setPlaying(false)
-                setTimelineStep(0)
-              }}
-              onSpeedChange={(sp) => setPlaySpeed(sp)}
-              onToggleParticles={(sh) => setShowParticles(sh)}
-            />
-          )}
-
-          {interactionMode === 'observe' && (
-            <div className="card">
-              <h4>Registrar observación de campo (clic en el mapa · CU-06)</h4>
-              <div className="two-cols">
-                <label className="field-label">
-                  Tipo de registro
-                  <select
-                    value={obsDraftType}
-                    onChange={(e) =>
-                      setObsDraftType(e.target.value as ObservationType)
-                    }
-                  >
-                    <option value="ponding">Bajo / Anegamiento</option>
-                    <option value="erosion">Cárcava / Erosión</option>
-                    <option value="culvert">Alcantarilla</option>
-                    <option value="channel">Canal / Cuneta</option>
-                    <option value="terrace">Terraza / Bordo</option>
-                    <option value="water_depth">Marca de nivel (m)</option>
-                  </select>
-                </label>
-                <label className="field-label">
-                  Nivel / prof. (m, opc.)
-                  <input
-                    type="number"
-                    step="0.05"
-                    placeholder="0.20"
-                    value={obsDraftVal}
-                    onChange={(e) => setObsDraftVal(e.target.value)}
-                  />
-                </label>
-              </div>
               <label className="field-label">
-                Descripción / nota de campo
+                Zona de aporte externa (buffer en metros)
                 <input
-                  type="text"
-                  value={obsDraftNotes}
-                  onChange={(e) => setObsDraftNotes(e.target.value)}
+                  type="number"
+                  min={0}
+                  max={5000}
+                  step={50}
+                  value={bufferM}
+                  onChange={(e) => setBufferM(Number(e.target.value))}
                 />
               </label>
-              {observations.length > 0 && (
-                <ul className="limitations-list" style={{ marginTop: 8 }}>
-                  {observations.map((o) => (
-                    <li key={o.id}>
-                      <strong>{o.label}</strong> ({o.elevation_m ?? 's/d'} m):{' '}
-                      {o.notes}{' '}
-                      <button
-                        className="btn-ghost"
-                        onClick={async () => {
-                          if (!activeField) return
-                          await deleteFieldObservation(activeField.id, o.id)
-                          setObservations(
-                            await listFieldObservations(activeField.id),
-                          )
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+              {sourceId === 'upload' && (
+                <div className="upload-meta">
+                  <label className="field-label">
+                    Archivo GeoTIFF
+                    <input
+                      type="file"
+                      accept=".tif,.tiff,image/tiff"
+                      onChange={(e) =>
+                        setUploadFile(e.target.files?.[0] ?? null)
+                      }
+                    />
+                  </label>
+                  <label className="field-label">
+                    Tipo de superficie
+                    <select
+                      value={uploadSurfaceType}
+                      onChange={(e) =>
+                        setUploadSurfaceType(
+                          e.target.value as 'DTM' | 'DSM' | 'desconocido',
+                        )
+                      }
+                    >
+                      <option value="DTM">MDT / DTM (terreno desnudo)</option>
+                      <option value="DSM">MDS / DSM (superficie)</option>
+                      <option value="desconocido">No declarado</option>
+                    </select>
+                  </label>
+                  <div className="two-cols">
+                    <label className="field-label">
+                      Datum vertical
+                      <input
+                        type="text"
+                        value={uploadDatum}
+                        onChange={(e) => setUploadDatum(e.target.value)}
+                      />
+                    </label>
+                    <label className="field-label">
+                      Precisión ± (m)
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={uploadAccuracy}
+                        onChange={(e) => setUploadAccuracy(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                </div>
               )}
-            </div>
-          )}
-          {selectedPoint && (
-            <div className="card">
-              <div className="card-header">
-                <h4>Inspección de punto</h4>
+              <button
+                className="btn-primary full-width"
+                onClick={handleProcessTerrain}
+                disabled={!activeField || Boolean(busy)}
+              >
+                {terrain ? 'Reprocesar DEM del lote' : 'Cargar y procesar DEM'}
+              </button>
+            </section>
+
+            <HydrologyPanel
+              hasTerrain={Boolean(terrain)}
+              hydrology={hydrology}
+              busy={Boolean(busy)}
+              onRun={handleRunHydrology}
+            />
+
+            <RainfallRunoffPanel
+              hasTerrain={Boolean(terrain)}
+              events={rainfallEvents}
+              runs={runoffRuns}
+              comparison={comparison}
+              busy={Boolean(busy)}
+              onCreateManualEvent={handleCreateManualEvent}
+              onLoadSampleEvent={handleLoadSampleEvent}
+              onImportCsvEvent={handleImportCsvEvent}
+              onRunRunoff={handleRunRunoff}
+              onActivateRun={handleActivateRunoff}
+              onRun2DSolver={handleRun2DSolver}
+              onCompare={handleCompareScenarios}
+            />
+
+            <section className="card">
+              <h3>7. Capas del visor GIS 2D / 3D</h3>
+              <div
+                className="segmented"
+                style={{ marginBottom: 8, width: '100%' }}
+              >
                 <button
-                  className="btn-ghost"
-                  onClick={() => setSelectedPoint(null)}
+                  style={{ flex: 1 }}
+                  className={viewMode === '2d' ? 'active' : ''}
+                  onClick={() => setViewMode('2d')}
                 >
-                  Cerrar
+                  Mapa 2D
+                </button>
+                <button
+                  style={{ flex: 1 }}
+                  className={viewMode === '3d' ? 'active' : ''}
+                  onClick={() => setViewMode('3d')}
+                >
+                  Mapa 3D
                 </button>
               </div>
-              <dl className="kv-grid">
-                <div>
-                  <dt>Coordenadas</dt>
-                  <dd>
-                    {selectedPoint.lat.toFixed(5)}°,{' '}
-                    {selectedPoint.lon.toFixed(5)}°
-                  </dd>
-                </div>
-                <div>
-                  <dt>UTM ({selectedPoint.crs})</dt>
-                  <dd>
-                    E {selectedPoint.x_utm.toFixed(0)} · N{' '}
-                    {selectedPoint.y_utm.toFixed(0)} m
-                  </dd>
-                </div>
-                <div>
-                  <dt>Cota interpolada</dt>
-                  <dd>
-                    {selectedPoint.elevation_m !== null
-                      ? `${selectedPoint.elevation_m.toFixed(2)} m s.n.m.`
-                      : 'Sin dato'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Pendiente local</dt>
-                  <dd>
-                    {selectedPoint.slope_pct !== null
-                      ? `${selectedPoint.slope_pct.toFixed(2)} % (${selectedPoint.slope_deg?.toFixed(2)}°)`
-                      : 's/d (borde)'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Orientación ladera</dt>
-                  <dd>
-                    {selectedPoint.aspect_deg !== null
-                      ? `${selectedPoint.aspect_deg.toFixed(0)}°`
-                      : 'Plano / s/d'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Ubicación</dt>
-                  <dd>
-                    {selectedPoint.inside_field
-                      ? 'Dentro del lote'
-                      : selectedPoint.inside_dem
-                        ? 'Zona de aporte externa'
-                        : 'Fuera del DEM'}
-                  </dd>
-                </div>
-                {selectedPoint.d8_direction && (
-                  <>
-                    <div>
-                      <dt>Dirección flujo D8</dt>
-                      <dd>
-                        {selectedPoint.d8_direction}
-                        {selectedPoint.d8_azimuth_deg !== null
-                          ? ` (${selectedPoint.d8_azimuth_deg}°)`
-                          : ''}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Área contrib. MFD</dt>
-                      <dd>
-                        {selectedPoint.mfd_area_ha !== null
-                          ? `${selectedPoint.mfd_area_ha.toFixed(3)} ha (${selectedPoint.mfd_area_m2?.toFixed(0)} m²)`
-                          : 's/d'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Área contrib. D8</dt>
-                      <dd>
-                        {selectedPoint.d8_area_ha !== null
-                          ? `${selectedPoint.d8_area_ha.toFixed(3)} ha (${selectedPoint.d8_area_m2?.toFixed(0)} m²)`
-                          : 's/d'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Depresión / subcuenca</dt>
-                      <dd>
-                        {selectedPoint.sink_depth_m &&
-                        selectedPoint.sink_depth_m > 0.05
-                          ? `Bajo ${selectedPoint.sink_depth_m.toFixed(2)} m`
-                          : 'Sin depresión'}{' '}
-                        {selectedPoint.subbasin_id
-                          ? `· Cuenca #${selectedPoint.subbasin_id}`
-                          : ''}
-                      </dd>
-                    </div>
-                  </>
-                )}
-                {selectedPoint.runoff_load_mm !== undefined &&
-                  selectedPoint.runoff_load_mm !== null && (
-                    <>
-                      <div>
-                        <dt>Escorrentía evento Q</dt>
-                        <dd>
-                          {selectedPoint.runoff_generated_q_mm?.toFixed(2)} mm
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Carga acum. MFD</dt>
-                        <dd>
-                          {selectedPoint.runoff_load_mm.toFixed(1)} mm equiv. (
-                          {selectedPoint.cumulative_runoff_m3?.toFixed(1)} m³)
-                        </dd>
-                      </div>
-                    </>
-                  )}
-                {selectedPoint.twi !== undefined &&
-                  selectedPoint.twi !== null && (
-                    <>
-                      <div>
-                        <dt>Índices TWI / SPI</dt>
-                        <dd>
-                          TWI {selectedPoint.twi.toFixed(2)} · SPI{' '}
-                          {selectedPoint.spi?.toFixed(3)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Ambiente RotaTerra</dt>
-                        <dd>{selectedPoint.agronomic_zone_label ?? 's/d'}</dd>
-                      </div>
-                    </>
-                  )}
-                {selectedPoint.water_depth_m !== undefined &&
-                  selectedPoint.water_depth_m !== null && (
-                    <>
-                      <div>
-                        <dt>Lámina 2D (water_depth)</dt>
-                        <dd>{selectedPoint.water_depth_m.toFixed(3)} m</dd>
-                      </div>
-                      <div>
-                        <dt>Velocidad 2D Manning</dt>
-                        <dd>{selectedPoint.velocity_m_s?.toFixed(3)} m/s</dd>
-                      </div>
-                    </>
-                  )}
-              </dl>
-              {selectedPoint.warnings.map((w, idx) => (
-                <div key={idx} className="alert alert-advertencia">
-                  {w}
-                </div>
-              ))}
-            </div>
-          )}
+              <div
+                className="segmented"
+                style={{ marginBottom: 8, width: '100%' }}
+              >
+                <button
+                  style={{ flex: 1 }}
+                  className={interactionMode === 'inspect' ? 'active' : ''}
+                  onClick={() => setInteractionMode('inspect')}
+                >
+                  Inspeccionar
+                </button>
+                <button
+                  style={{ flex: 1 }}
+                  className={interactionMode === 'profile' ? 'active' : ''}
+                  onClick={() => setInteractionMode('profile')}
+                >
+                  Perfil ({profileDraft.length})
+                </button>
+                <button
+                  style={{ flex: 1 }}
+                  className={interactionMode === 'observe' ? 'active' : ''}
+                  onClick={() => setInteractionMode('observe')}
+                >
+                  + Obs ({observations.length})
+                </button>
+              </div>
+              <label className="field-label">
+                Variable en superficie 3D
+                <select
+                  value={layers.surfaceColor}
+                  onChange={(e) =>
+                    setLayers({
+                      ...layers,
+                      surfaceColor: e.target.value as SurfaceColorMode,
+                    })
+                  }
+                >
+                  <option value="elevation">
+                    Elevación (gradiente hipsométrico)
+                  </option>
+                  <option value="hillshade">
+                    Sombreado de relieve (Hillshade)
+                  </option>
+                  <option value="slope">Pendiente local (%)</option>
+                  <option value="mfd" disabled={!hydrology}>
+                    Acumulación de flujo difuso MFD (ha)
+                  </option>
+                  <option value="d8" disabled={!hydrology}>
+                    Acumulación de flujo concentrado D8 (ha)
+                  </option>
+                  <option value="depressions" disabled={!hydrology}>
+                    Profundidad de depresiones / bajos (m)
+                  </option>
+                  <option value="subbasins" disabled={!hydrology}>
+                    Subcuencas por punto de salida
+                  </option>
+                  <option value="twi" disabled={!hydrology}>
+                    Índice Humedad Topográfica (TWI)
+                  </option>
+                  <option value="spi" disabled={!hydrology}>
+                    Índice Potencia Erosiva (SPI)
+                  </option>
+                  <option value="agronomic_zones" disabled={!hydrology}>
+                    Ambientes Hidro-Agronómicos RotaTerra
+                  </option>
+                  <option value="runoff" disabled={runoffRuns.length === 0}>
+                    Escorrentía estimada NRCS-CN + MFD
+                  </option>
+                  <option value="water_depth" disabled={!mesh?.water_depth_m}>
+                    Profundidad de agua 2D Manning (m)
+                  </option>
+                  <option value="velocity" disabled={!mesh?.velocity_m_s}>
+                    Velocidad superficial 2D Manning (m/s)
+                  </option>
+                  <option value="erosion" disabled={!mesh?.soil_loss_t_ha}>
+                    Pérdida de suelo por tormenta USLE (t/ha)
+                  </option>
+                  <option value="ndvi" disabled={!mesh?.ndvi}>
+                    Monitor de Vigor Vegetativo (NDVI)
+                  </option>
+                </select>
+              </label>
+            </section>
+          </aside>
 
-          {profileResult && (
-            <ProfileChart
-              profile={profileResult}
-              onClear={() => {
-                setProfileDraft([])
-                setProfileResult(null)
-              }}
-            />
-          )}
-
-          {(runoffRuns.find((r) => r.is_active)?.agronomic_zonation ??
-            hydrology?.agronomic_zonation) && (
-            <div className="card">
-              <h4>
-                Ambientes Hidro-Agronómicos y Transitabilidad RotaTerra (Fase 5)
-              </h4>
-              {(() => {
-                const az =
-                  runoffRuns.find((r) => r.is_active)?.agronomic_zonation ??
-                  hydrology?.agronomic_zonation
-                if (!az) return null
-                return (
-                  <>
-                    <dl className="kv-grid">
-                      <div>
-                        <dt>Riesgo transitabilidad</dt>
-                        <dd>{az.trafficability.risk_level.toUpperCase()}</dd>
-                      </div>
-                      <div>
-                        <dt>Espera lomas / bajos</dt>
-                        <dd>
-                          ~{az.trafficability.estimated_wait_days_high_ground} d
-                          / ~{az.trafficability.estimated_wait_days_low_ground} d
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>TWI medio / P90</dt>
-                        <dd>
-                          {az.twi_field_mean.toFixed(2)} /{' '}
-                          {az.twi_field_p90.toFixed(2)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>SPI medio / P90</dt>
-                        <dd>
-                          {az.spi_field_mean.toFixed(3)} /{' '}
-                          {az.spi_field_p90.toFixed(3)}
-                        </dd>
-                      </div>
-                    </dl>
-                    <div className="mini-table-wrap">
-                      <table className="mini-table">
-                        <thead>
-                          <tr>
-                            <th>Ambiente</th>
-                            <th>Área</th>
-                            <th>% Lote</th>
-                            <th>Pend.</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {az.zones.map((z) => (
-                            <tr key={z.zone_id}>
-                              <td>{z.label.replace('Ambiente ', 'A')}</td>
-                              <td>{z.area_ha.toFixed(1)} ha</td>
-                              <td>{z.percentage_of_field.toFixed(1)} %</td>
-                              <td>
-                                {z.mean_slope_pct !== null
-                                  ? `${z.mean_slope_pct.toFixed(1)} %`
-                                  : '—'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <ul
-                      className="limitations-list"
-                      style={{ marginTop: 8 }}
-                    >
-                      {az.rotaterra_criteria.map((c, idx) => (
-                        <li key={idx}>{c}</li>
-                      ))}
-                    </ul>
-                  </>
-                )
-              })()}
-            </div>
-          )}
-
-          {hydrology && (
-            <div className="card">
-              <h4>Salidas principales y depresiones del lote</h4>
-              {hydrology.outlets.length > 0 && (
-                <div className="mini-table-wrap">
-                  <span className="subhead">
-                    Puntos de salida / concentración (# subcuenca)
-                  </span>
-                  <table className="mini-table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Dir</th>
-                        <th>MFD (ha)</th>
-                        <th>Aporte ext.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {hydrology.outlets.slice(0, 5).map((o) => (
-                        <tr key={o.id}>
-                          <td>#{o.id}</td>
-                          <td>{o.d8_direction}</td>
-                          <td>{o.contributing_area_mfd_ha.toFixed(2)}</td>
-                          <td>{o.subbasin_external_inflow_ha.toFixed(2)} ha</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {hydrology.depressions.filter((d) => d.in_field).length > 0 && (
-                <div className="mini-table-wrap">
-                  <span className="subhead">
-                    Depresiones detectadas dentro del lote
-                  </span>
-                  <table className="mini-table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Área</th>
-                        <th>Prof. máx</th>
-                        <th>Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {hydrology.depressions
-                        .filter((d) => d.in_field)
-                        .slice(0, 5)
-                        .map((d) => (
-                          <tr key={d.id}>
-                            <td>B{d.id}</td>
-                            <td>{d.area_ha.toFixed(2)} ha</td>
-                            <td>{d.max_depth_m.toFixed(2)} m</td>
-                            <td>
-                              {d.filled_in_run ? 'Rellenada' : 'Conservada'}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {hydrology.warnings.map((w, idx) => (
-                <div key={idx} className="alert alert-advertencia">
-                  {w}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {activeField ? (
-            <QualityPanel
+          <main className="center-stage">
+            {busy && <div className="status-toast">{busy}</div>}
+            {error && (
+              <div className="error-toast" role="alert">
+                <span>{error}</span>
+                <button onClick={() => setError(null)}>✕</button>
+              </div>
+            )}
+            <TerrainScene3D
               field={activeField}
-              terrain={terrain}
               mesh={mesh}
+              hydrology={hydrology}
+              observations={observations}
+              particlePaths={timeline?.particle_paths ?? []}
+              showParticles={showParticles}
+              transitFraction={
+                timeline?.has_time_series && timeline.frames[timelineStep]
+                  ? timeline.frames[timelineStep].transit_fraction_of_peak
+                  : 1.0
+              }
+              viewMode={viewMode}
+              exaggeration={exaggeration}
+              layers={layers}
+              interactionMode={interactionMode}
+              profileDraft={profileDraft}
+              selectedPoint={selectedPoint}
+              onMapClick={handleMapClick}
+              onCursorMove={(lon, lat) => setCursorCoords([lon, lat])}
             />
-          ) : (
-            <div className="card">
-              <h4>Sin lote seleccionado</h4>
-              <p className="muted">
-                Cargá el lote real de muestra (Parcela Rural 205, San Luis) o
-                importá un archivo GeoJSON para iniciar el análisis
-                topográfico e hidrológico estático.
-              </p>
-            </div>
-          )}
-        </aside>
-      </div>
+          </main>
+
+          <aside className="sidebar sidebar-right">
+            <AgronomicToolkitPanel
+              hasTerrain={Boolean(terrain)}
+              toolkit={toolkit}
+              busy={Boolean(busy)}
+              onRun={handleRunToolkit}
+              onSelect3DLayer={(layer) =>
+                setLayers((prev) => ({ ...prev, surfaceColor: layer }))
+              }
+            />
+
+            {timeline && (
+              <FlowTimelinePlayer
+                timeline={timeline}
+                currentStep={timelineStep}
+                playing={playing}
+                speed={playSpeed}
+                showParticles={showParticles}
+                onStepChange={(s) => setTimelineStep(s)}
+                onTogglePlay={() => setPlaying((p) => !p)}
+                onReset={() => {
+                  setPlaying(false)
+                  setTimelineStep(0)
+                }}
+                onSpeedChange={(sp) => setPlaySpeed(sp)}
+                onToggleParticles={(sh) => setShowParticles(sh)}
+              />
+            )}
+
+            {profileResult && (
+              <ProfileChart
+                profile={profileResult}
+                onClear={() => {
+                  setProfileDraft([])
+                  setProfileResult(null)
+                }}
+              />
+            )}
+
+            {activeField && (
+              <QualityPanel
+                field={activeField}
+                terrain={terrain}
+                mesh={mesh}
+              />
+            )}
+          </aside>
+        </div>
+      )}
 
       <footer className="bottombar">
         <span>
-          Cursor:{' '}
-          {cursorCoords
-            ? `${cursorCoords[1].toFixed(5)}°, ${cursorCoords[0].toFixed(5)}°`
+          Lote: <strong>{activeField?.name ?? '—'}</strong> (
+          {activeField ? `${activeField.area_ha.toFixed(1)} ha` : '—'})
+        </span>
+        <span>
+          Fuente relieve:{' '}
+          {terrain
+            ? `${terrain.source.source_name} (${terrain.quality.pixel_size_m.toFixed(0)} m)`
             : '—'}
         </span>
         <span>
-          Resolución DEM:{' '}
-          {terrain ? `${terrain.quality.pixel_size_m.toFixed(1)} m` : '—'}
-        </span>
-        <span>
-          CRS de cálculo:{' '}
-          {activeField ? `EPSG:${activeField.utm_epsg} (métrico)` : '—'}
-        </span>
-        <span>
-          Capa 3D: <strong>{layers.surfaceColor.toUpperCase()}</strong>
+          Lluvia activa: <strong>{quickRainMm} mm</strong>
         </span>
         <span className="phase-note">
-          Fase 1: D8 + MFD + depresiones + cuencas (sin lluvia ni lámina
-          hidrodinámica)
+          RotaTerra · Simulación agro-hidrológica trazable (Copernicus + NASA
+          POWER + INTA + Sentinel-2)
         </span>
       </footer>
     </div>
