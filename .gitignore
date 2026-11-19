@@ -1,0 +1,18 @@
+# Entorno Python y caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Frontend Node
+node_modules/
+apps/web/dist/
+
+# Datos de corridas locales (no subir a Git)
+data/runs/
+
+# Sistema operativo / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,59 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "00-03-30-00-000000-000205",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -65.692134,
+              -33.291132
+            ],
+            [
+              -65.699221,
+              -33.291166
+            ],
+            [
+              -65.703666,
+              -33.291201
+            ],
+            [
+              -65.703631,
+              -33.299113
+            ],
+            [
+              -65.702041,
+              -33.299106
+            ],
+            [
+              -65.701973,
+              -33.309184
+            ],
+            [
+              -65.692046,
+              -33.309277
+            ],
+            [
+              -65.692134,
+              -33.291132
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "nomenclatura_catastral": "00-03-30-00-000000-000205",
+        "partida_inmobiliaria": "05-1397",
+        "numero_parcela": "205",
+        "tipo_parcela": "RURAL",
+        "plano_mensura": "03-11-2001",
+        "superficie_registrada_m2": 1993424.0,
+        "geometria_reparada": false,
+        "name": "Parcela Rural 205 (San Luis)",
+        "source": "Dirección Provincial de Catastro y Tierras Fiscales de San Luis (capa SanLuis:GIS_PARCELAS_RUR_VV)"
+      }
+    }
+  ]
+}
