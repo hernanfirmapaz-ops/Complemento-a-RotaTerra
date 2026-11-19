@@ -2,6 +2,8 @@
 
 import type {
   FieldOut,
+  HydrologyOut,
+  HydrologyRunIn,
   MeshOut,
   PointOut,
   ProfileOut,
@@ -127,4 +129,23 @@ export async function computeTerrainProfile(
     body: JSON.stringify({ coordinates }),
   })
   return check<ProfileOut>(res)
+}
+
+export async function getStaticHydrology(
+  fieldId: string,
+): Promise<HydrologyOut> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology`)
+  return check<HydrologyOut>(res)
+}
+
+export async function runStaticHydrology(
+  fieldId: string,
+  payload: HydrologyRunIn,
+): Promise<HydrologyOut> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/static`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return check<HydrologyOut>(res)
 }

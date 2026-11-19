@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   computeTerrainProfile,
+  getStaticHydrology,
   getTerrain,
   getTerrainMesh,
   importFieldGeoJSON,
@@ -8,9 +9,12 @@ import {
   loadSampleField,
   processTerrain,
   queryTerrainPoint,
+  runStaticHydrology,
 } from './services/api'
 import type {
   FieldOut,
+  HydrologyOut,
+  HydrologyRunIn,
   MeshOut,
   PointOut,
   ProfileOut,
@@ -19,8 +23,10 @@ import type {
 import {
   type InteractionMode,
   type LayerVisibility,
+  type SurfaceColorMode,
   TerrainScene3D,
 } from './components/TerrainScene3D'
+import { HydrologyPanel } from './components/HydrologyPanel'
 import { ProfileChart } from './components/ProfileChart'
 import { QualityPanel } from './components/QualityPanel'
 
@@ -29,6 +35,7 @@ export function App() {
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null)
   const [terrain, setTerrain] = useState<TerrainOut | null>(null)
   const [mesh, setMesh] = useState<MeshOut | null>(null)
+  const [hydrology, setHydrology] = useState<HydrologyOut | null>(null)
 
   const [sourceId, setSourceId] = useState<'copernicus_glo30' | 'upload'>(
     'copernicus_glo30',
@@ -45,9 +52,13 @@ export function App() {
   const [exaggeration, setExaggeration] = useState<number>(1)
   const [layers, setLayers] = useState<LayerVisibility>({
     basemap: 'satellite',
+    surfaceColor: 'elevation',
     mesh3d: true,
     wireframe: false,
     boundary: true,
+    contours: true,
+    drainageNetwork: true,
+    depressionsAndOutlets: true,
   })
   const [interactionMode, setInteractionMode] =
     useState<InteractionMode>('inspect')
@@ -76,6 +87,7 @@ export function App() {
   useEffect(() => {
     setTerrain(null)
     setMesh(null)
+    setHydrology(null)
     setSelectedPoint(null)
     setProfileDraft([])
     setProfileResult(null)
@@ -83,14 +95,22 @@ export function App() {
     if (!activeField.has_terrain) return
 
     setBusy('Cargando terreno y malla 3D...')
-    Promise.all([getTerrain(activeField.id), getTerrainMesh(activeField.id)])
-      .then(([t, m]) => {
-        setTerrain(t)
-        setMesh(m)
+    const tasks: Promise<unknown>[] = [
+      getTerrain(activeField.id),
+      getTerrainMesh(activeField.id),
+      activeField.has_hydrology
+        ? getStaticHydrology(activeField.id).catch(() => null)
+        : Promise.resolve(null),
+    ]
+    Promise.all(tasks)
+      .then(([t, m, h]) => {
+        setTerrain(t as TerrainOut)
+        setMesh(m as MeshOut)
+        setHydrology((h as HydrologyOut | null) ?? null)
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setBusy(null))
-  }, [activeField?.id, activeField?.has_terrain])
+  }, [activeField?.id, activeField?.has_terrain, activeField?.has_hydrology])
 
   const handleLoadSample = async () => {
     setError(null)
@@ -147,6 +167,34 @@ export function App() {
       const m = await getTerrainMesh(activeField.id)
       setTerrain(t)
       setMesh(m)
+      setHydrology(null)
+      const all = await listFields()
+      setFields(all)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleRunHydrology = async (params: HydrologyRunIn) => {
+    if (!activeField) return
+    setError(null)
+    setBusy(
+      'Calculando acondicionamiento selectivo, direcciones D8, acumulación MFD, depresiones y red de drenaje...',
+    )
+    try {
+      const h = await runStaticHydrology(activeField.id, params)
+      const m = await getTerrainMesh(activeField.id)
+      setHydrology(h)
+      setMesh(m)
+      setLayers((prev) => ({
+        ...prev,
+        surfaceColor: 'mfd',
+        contours: true,
+        drainageNetwork: true,
+        depressionsAndOutlets: true,
+      }))
       const all = await listFields()
       setFields(all)
     } catch (err) {
@@ -169,7 +217,6 @@ export function App() {
       return
     }
 
-    // Modo perfil: acumular vértices y calcular cuando hay al menos 2 puntos
     const next: [number, number][] = [...profileDraft, [lon, lat]]
     setProfileDraft(next)
     if (next.length >= 2) {
@@ -186,8 +233,8 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <span className="badge-phase">FASE 0 · PRUEBA GEOESPACIAL</span>
-          <h1>RotaTerra — Visor 3D de Lotes y Análisis Topográfico</h1>
+          <span className="badge-phase">FASE 0 + FASE 1 · HIDROLOGÍA ESTÁTICA</span>
+          <h1>RotaTerra — Visor 3D de Lotes y Drenaje Superficial</h1>
         </div>
         <div className="topbar-controls">
           <div className="segmented" role="group" aria-label="Modo de vista">
@@ -213,7 +260,7 @@ export function App() {
             <button
               className={interactionMode === 'inspect' ? 'active' : ''}
               onClick={() => setInteractionMode('inspect')}
-              title="Inspeccionar cota y pendiente en un punto"
+              title="Inspeccionar cota, pendiente y área contribuyente en un punto"
             >
               Inspeccionar punto
             </button>
@@ -242,7 +289,7 @@ export function App() {
       </header>
 
       <div className="workspace">
-        {/* Panel izquierdo: Lotes, fuente de DEM y capas */}
+        {/* Panel izquierdo: Lotes, fuente de DEM, Hidrología Fase 1 y capas */}
         <aside className="sidebar sidebar-left">
           <section className="card">
             <div className="card-header">
@@ -277,7 +324,11 @@ export function App() {
                   {fields.map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.name} ({f.area_ha.toFixed(1)} ha)
-                      {f.has_terrain ? ' · DEM listo' : ''}
+                      {f.has_hydrology
+                        ? ' · D8/MFD listo'
+                        : f.has_terrain
+                          ? ' · DEM listo'
+                          : ''}
                     </option>
                   ))}
                 </select>
@@ -378,8 +429,15 @@ export function App() {
             </button>
           </section>
 
+          <HydrologyPanel
+            hasTerrain={Boolean(terrain)}
+            hydrology={hydrology}
+            busy={Boolean(busy)}
+            onRun={handleRunHydrology}
+          />
+
           <section className="card">
-            <h3>3. Capas del visor</h3>
+            <h3>4. Capas del visor 2D / 3D</h3>
             <label className="field-label">
               Mapa base
               <select
@@ -395,6 +453,40 @@ export function App() {
                 <option value="osm">OpenStreetMap</option>
               </select>
             </label>
+
+            <label className="field-label">
+              Variable en superficie 3D
+              <select
+                value={layers.surfaceColor}
+                onChange={(e) =>
+                  setLayers({
+                    ...layers,
+                    surfaceColor: e.target.value as SurfaceColorMode,
+                  })
+                }
+              >
+                <option value="elevation">
+                  Elevación (gradiente hipsométrico)
+                </option>
+                <option value="hillshade">
+                  Sombreado de relieve (Hillshade)
+                </option>
+                <option value="slope">Pendiente local (%)</option>
+                <option value="mfd" disabled={!hydrology}>
+                  Acumulación de flujo difuso MFD (ha)
+                </option>
+                <option value="d8" disabled={!hydrology}>
+                  Acumulación de flujo concentrado D8 (ha)
+                </option>
+                <option value="depressions" disabled={!hydrology}>
+                  Profundidad de depresiones / bajos (m)
+                </option>
+                <option value="subbasins" disabled={!hydrology}>
+                  Subcuencas por punto de salida
+                </option>
+              </select>
+            </label>
+
             <label className="checkbox-row">
               <input
                 type="checkbox"
@@ -403,7 +495,7 @@ export function App() {
                   setLayers({ ...layers, mesh3d: e.target.checked })
                 }
               />
-              <span>Superficie 3D del terreno (gradiente hipsométrico)</span>
+              <span>Superficie 3D del terreno</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -414,6 +506,42 @@ export function App() {
                 }
               />
               <span>Perímetro del lote (3D + 2D)</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={layers.contours}
+                disabled={!hydrology}
+                onChange={(e) =>
+                  setLayers({ ...layers, contours: e.target.checked })
+                }
+              />
+              <span>Curvas de nivel</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={layers.drainageNetwork}
+                disabled={!hydrology}
+                onChange={(e) =>
+                  setLayers({ ...layers, drainageNetwork: e.target.checked })
+                }
+              />
+              <span>Rutas potenciales de escurrimiento</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={layers.depressionsAndOutlets}
+                disabled={!hydrology}
+                onChange={(e) =>
+                  setLayers({
+                    ...layers,
+                    depressionsAndOutlets: e.target.checked,
+                  })
+                }
+              />
+              <span>Depresiones (magenta) y salidas (cian)</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -440,6 +568,7 @@ export function App() {
           <TerrainScene3D
             field={activeField}
             mesh={mesh}
+            hydrology={hydrology}
             viewMode={viewMode}
             exaggeration={exaggeration}
             layers={layers}
@@ -451,7 +580,7 @@ export function App() {
           />
         </main>
 
-        {/* Panel derecho: Inspector de punto, perfil y calidad del DEM */}
+        {/* Panel derecho: Inspector de punto, perfil, salidas/depresiones y calidad del DEM */}
         <aside className="sidebar sidebar-right">
           {selectedPoint && (
             <div className="card">
@@ -513,6 +642,47 @@ export function App() {
                         : 'Fuera del DEM'}
                   </dd>
                 </div>
+                {selectedPoint.d8_direction && (
+                  <>
+                    <div>
+                      <dt>Dirección flujo D8</dt>
+                      <dd>
+                        {selectedPoint.d8_direction}
+                        {selectedPoint.d8_azimuth_deg !== null
+                          ? ` (${selectedPoint.d8_azimuth_deg}°)`
+                          : ''}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Área contrib. MFD</dt>
+                      <dd>
+                        {selectedPoint.mfd_area_ha !== null
+                          ? `${selectedPoint.mfd_area_ha.toFixed(3)} ha (${selectedPoint.mfd_area_m2?.toFixed(0)} m²)`
+                          : 's/d'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Área contrib. D8</dt>
+                      <dd>
+                        {selectedPoint.d8_area_ha !== null
+                          ? `${selectedPoint.d8_area_ha.toFixed(3)} ha (${selectedPoint.d8_area_m2?.toFixed(0)} m²)`
+                          : 's/d'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Depresión / subcuenca</dt>
+                      <dd>
+                        {selectedPoint.sink_depth_m &&
+                        selectedPoint.sink_depth_m > 0.05
+                          ? `Bajo ${selectedPoint.sink_depth_m.toFixed(2)} m`
+                          : 'Sin depresión'}{' '}
+                        {selectedPoint.subbasin_id
+                          ? `· Cuenca #${selectedPoint.subbasin_id}`
+                          : ''}
+                      </dd>
+                    </div>
+                  </>
+                )}
               </dl>
               {selectedPoint.warnings.map((w, idx) => (
                 <div key={idx} className="alert alert-advertencia">
@@ -532,6 +702,78 @@ export function App() {
             />
           )}
 
+          {hydrology && (
+            <div className="card">
+              <h4>Salidas principales y depresiones del lote</h4>
+              {hydrology.outlets.length > 0 && (
+                <div className="mini-table-wrap">
+                  <span className="subhead">
+                    Puntos de salida / concentración (# subcuenca)
+                  </span>
+                  <table className="mini-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Dir</th>
+                        <th>MFD (ha)</th>
+                        <th>Aporte ext.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hydrology.outlets.slice(0, 5).map((o) => (
+                        <tr key={o.id}>
+                          <td>#{o.id}</td>
+                          <td>{o.d8_direction}</td>
+                          <td>{o.contributing_area_mfd_ha.toFixed(2)}</td>
+                          <td>{o.subbasin_external_inflow_ha.toFixed(2)} ha</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {hydrology.depressions.filter((d) => d.in_field).length > 0 && (
+                <div className="mini-table-wrap">
+                  <span className="subhead">
+                    Depresiones detectadas dentro del lote
+                  </span>
+                  <table className="mini-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Área</th>
+                        <th>Prof. máx</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hydrology.depressions
+                        .filter((d) => d.in_field)
+                        .slice(0, 5)
+                        .map((d) => (
+                          <tr key={d.id}>
+                            <td>B{d.id}</td>
+                            <td>{d.area_ha.toFixed(2)} ha</td>
+                            <td>{d.max_depth_m.toFixed(2)} m</td>
+                            <td>
+                              {d.filled_in_run ? 'Rellenada' : 'Conservada'}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {hydrology.warnings.map((w, idx) => (
+                <div key={idx} className="alert alert-advertencia">
+                  {w}
+                </div>
+              ))}
+            </div>
+          )}
+
           {activeField ? (
             <QualityPanel
               field={activeField}
@@ -544,7 +786,7 @@ export function App() {
               <p className="muted">
                 Cargá el lote real de muestra (Parcela Rural 205, San Luis) o
                 importá un archivo GeoJSON para iniciar el análisis
-                topográfico.
+                topográfico e hidrológico estático.
               </p>
             </div>
           )}
@@ -567,14 +809,11 @@ export function App() {
           {activeField ? `EPSG:${activeField.utm_epsg} (métrico)` : '—'}
         </span>
         <span>
-          Modo clic:{' '}
-          {interactionMode === 'inspect'
-            ? 'Inspección puntual de cota y pendiente'
-            : 'Trazo de línea de perfil altimétrico'}
+          Capa 3D: <strong>{layers.surfaceColor.toUpperCase()}</strong>
         </span>
         <span className="phase-note">
-          Fase 0: análisis topográfico (sin simulación hidrológica ni lámina de
-          agua)
+          Fase 1: D8 + MFD + depresiones + cuencas (sin lluvia ni lámina
+          hidrodinámica)
         </span>
       </footer>
     </div>

@@ -5,21 +5,39 @@ import maplibregl, {
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import * as THREE from 'three'
-import type { FieldOut, MeshOut, PointOut } from '../types/api'
+import type {
+  FieldOut,
+  HydrologyOut,
+  MeshOut,
+  PointOut,
+} from '../types/api'
 
 export type InteractionMode = 'inspect' | 'profile'
 export type BasemapMode = 'satellite' | 'osm'
+export type SurfaceColorMode =
+  | 'elevation'
+  | 'hillshade'
+  | 'slope'
+  | 'mfd'
+  | 'd8'
+  | 'depressions'
+  | 'subbasins'
 
 export interface LayerVisibility {
   basemap: BasemapMode
+  surfaceColor: SurfaceColorMode
   mesh3d: boolean
   wireframe: boolean
   boundary: boolean
+  contours: boolean
+  drainageNetwork: boolean
+  depressionsAndOutlets: boolean
 }
 
 interface Props {
   field: FieldOut | null
   mesh: MeshOut | null
+  hydrology: HydrologyOut | null
   viewMode: '2d' | '3d'
   exaggeration: number
   layers: LayerVisibility
@@ -30,7 +48,22 @@ interface Props {
   onCursorMove: (lon: number, lat: number) => void
 }
 
-/** Gradiente hipsométrico sobrio (verde bajo -> ocre medio -> marrón/blanco alto). */
+function attenuateOutside(
+  r: number,
+  g: number,
+  b: number,
+  inField: boolean,
+): [number, number, number] {
+  if (inField) return [r, g, b]
+  const gray = 0.3 * r + 0.59 * g + 0.11 * b
+  return [
+    0.55 * r + 0.45 * gray,
+    0.55 * g + 0.45 * gray,
+    0.55 * b + 0.45 * gray,
+  ]
+}
+
+/** Gradiente hipsométrico (verde bajo -> ocre medio -> marrón/crema alto). */
 function hypsometricColor(t: number, inField: boolean): [number, number, number] {
   const u = Math.min(1, Math.max(0, t))
   let r = 0
@@ -52,14 +85,85 @@ function hypsometricColor(t: number, inField: boolean): [number, number, number]
     g = 0.62 + 0.24 * k
     b = 0.28 + 0.45 * k
   }
-  if (!inField) {
-    // Zona de aporte externa ligeramente atenuada para distinguir el interior del lote
-    const gray = 0.3 * r + 0.59 * g + 0.11 * b
-    r = 0.55 * r + 0.45 * gray
-    g = 0.55 * g + 0.45 * gray
-    b = 0.55 * b + 0.45 * gray
+  return attenuateOutside(r, g, b, inField)
+}
+
+/** Gradiente de pendiente (%): verde suave -> amarillo -> naranja -> rojo. */
+function slopeColor(slopePct: number | null, inField: boolean): [number, number, number] {
+  const s = slopePct ?? 0
+  const u = Math.min(1, Math.max(0, s / 8.0))
+  let r = 0
+  let g = 0
+  let b = 0
+  if (u < 0.5) {
+    const k = u / 0.5
+    r = 0.16 + 0.78 * k
+    g = 0.65 + 0.15 * k
+    b = 0.32 - 0.20 * k
+  } else {
+    const k = (u - 0.5) / 0.5
+    r = 0.94
+    g = 0.80 - 0.62 * k
+    b = 0.12
   }
-  return [r, g, b]
+  return attenuateOutside(r, g, b, inField)
+}
+
+/** Gradiente logarítmico de acumulación de flujo (ha): gris pizarra -> celeste -> cian -> azul intenso. */
+function flowAccumColor(
+  areaHa: number | null,
+  maxHa: number,
+  inField: boolean,
+): [number, number, number] {
+  const a = Math.max(0, areaHa ?? 0)
+  const denom = Math.log10(1 + Math.max(0.5, maxHa) * 20)
+  const u = Math.min(1, Math.max(0, Math.log10(1 + a * 20) / denom))
+  const r = 0.20 * (1 - u) + 0.05 * u
+  const g = 0.27 * (1 - u) + 0.78 * u
+  const b = 0.34 * (1 - u) + 0.98 * u
+  return attenuateOutside(r, g, b, inField)
+}
+
+/** Color de profundidad de depresión (m): terreno neutro -> magenta/violeta en bajos. */
+function depressionColor(
+  sinkDepthM: number | null,
+  hsVal: number | null,
+  inField: boolean,
+): [number, number, number] {
+  const d = sinkDepthM ?? 0
+  const base = 0.28 + 0.45 * (hsVal ?? 0.65)
+  if (d <= 0.05) {
+    return attenuateOutside(base * 0.85, base * 0.95, base * 0.85, inField)
+  }
+  const u = Math.min(1, d / 1.0)
+  const r = 0.55 + 0.40 * u
+  const g = 0.22 * (1 - u)
+  const b = 0.75 + 0.22 * u
+  return attenuateOutside(r, g, b, inField)
+}
+
+const SUBBASIN_PALETTE: [number, number, number][] = [
+  [0.22, 0.74, 0.97],
+  [0.20, 0.83, 0.60],
+  [0.98, 0.75, 0.14],
+  [0.96, 0.45, 0.71],
+  [0.65, 0.55, 0.98],
+  [0.98, 0.57, 0.24],
+  [0.38, 0.65, 0.98],
+  [0.52, 0.80, 0.09],
+]
+
+function subbasinColor(
+  basinId: number | null | undefined,
+  hsVal: number | null,
+  inField: boolean,
+): [number, number, number] {
+  const shade = 0.55 + 0.45 * (hsVal ?? 0.7)
+  if (!basinId || basinId <= 0) {
+    return attenuateOutside(0.32 * shade, 0.36 * shade, 0.42 * shade, inField)
+  }
+  const [r, g, b] = SUBBASIN_PALETTE[(basinId - 1) % SUBBASIN_PALETTE.length]
+  return attenuateOutside(r * shade, g * shade, b * shade, inField)
 }
 
 interface ThreeLayerController extends CustomLayerInterface {
@@ -77,8 +181,8 @@ function createTerrainCustomLayer(
   const camera = new THREE.Camera()
   const scene = new THREE.Scene()
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.75)
-  const sun = new THREE.DirectionalLight(0xfff6e5, 0.95)
+  const ambient = new THREE.AmbientLight(0xffffff, 0.78)
+  const sun = new THREE.DirectionalLight(0xfff6e5, 0.92)
   sun.position.set(-1.2, -1.5, 2.0).normalize()
   scene.add(ambient, sun)
 
@@ -120,7 +224,6 @@ function createTerrainCustomLayer(
     const zBase = meshData.z_min
     const zSpan = Math.max(1e-3, meshData.z_max - meshData.z_min)
 
-    // Anclar sistema local en el centro de la malla para mantener precisión Float32 en WebGL
     const midIdx = Math.floor((rows * cols) / 2)
     anchorMerc = MercatorCoordinate.fromLngLat(
       [lon[midIdx], lat[midIdx]],
@@ -135,6 +238,22 @@ function createTerrainCustomLayer(
       const positions = new Float32Array(nVerts * 3)
       const colors = new Float32Array(nVerts * 3)
 
+      const mfdArr = meshData.mfd_area_ha
+      const d8Arr = meshData.d8_area_ha
+      const sinkArr = meshData.sink_depth_m
+      const basArr = meshData.subbasin_id
+      const slopeArr = meshData.slope_pct
+      const hsArr = meshData.hillshade
+
+      let maxMfd = 1.0
+      if (mfdArr) {
+        for (const v of mfdArr) if (v !== null && v > maxMfd) maxMfd = v
+      }
+      let maxD8 = 1.0
+      if (d8Arr) {
+        for (const v of d8Arr) if (v !== null && v > maxD8) maxD8 = v
+      }
+
       for (let i = 0; i < nVerts; i++) {
         const mc = MercatorCoordinate.fromLngLat([lon[i], lat[i]], 0)
         const zi = z[i]
@@ -143,11 +262,47 @@ function createTerrainCustomLayer(
         positions[3 * i + 1] = (mc.y - anchorMerc.y) / meterScale
         positions[3 * i + 2] = dz
 
-        const t = zi === null ? 0 : (zi - zBase) / zSpan
-        const [r, g, b] = hypsometricColor(t, in_field[i])
-        colors[3 * i] = r
-        colors[3 * i + 1] = g
-        colors[3 * i + 2] = b
+        const inside = in_field[i]
+        let rgb: [number, number, number]
+        switch (vis.surfaceColor) {
+          case 'hillshade': {
+            const h = hsArr?.[i] ?? 0.65
+            rgb = attenuateOutside(h, h, h, inside)
+            break
+          }
+          case 'slope':
+            rgb = slopeColor(slopeArr?.[i] ?? null, inside)
+            break
+          case 'mfd':
+            rgb = flowAccumColor(mfdArr?.[i] ?? null, maxMfd, inside)
+            break
+          case 'd8':
+            rgb = flowAccumColor(d8Arr?.[i] ?? null, maxD8, inside)
+            break
+          case 'depressions':
+            rgb = depressionColor(
+              sinkArr?.[i] ?? null,
+              hsArr?.[i] ?? null,
+              inside,
+            )
+            break
+          case 'subbasins':
+            rgb = subbasinColor(
+              basArr?.[i] ?? null,
+              hsArr?.[i] ?? null,
+              inside,
+            )
+            break
+          case 'elevation':
+          default: {
+            const t = zi === null ? 0 : (zi - zBase) / zSpan
+            rgb = hypsometricColor(t, inside)
+            break
+          }
+        }
+        colors[3 * i] = rgb[0]
+        colors[3 * i + 1] = rgb[1]
+        colors[3 * i + 2] = rgb[2]
       }
 
       const indices: number[] = []
@@ -178,14 +333,13 @@ function createTerrainCustomLayer(
         vertexColors: true,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.93,
         wireframe: vis.wireframe,
       })
       rootGroup.add(new THREE.Mesh(geom, mat))
     }
 
     if (vis.boundary && meshData.boundary.length > 0) {
-      // Offset vertical anti-z-fighting (~1.5 % del desnivel o mínimo 1.5 m)
       const zOffset = Math.max(1.5, zSpan * 0.02 * exaggeration)
       for (const ring of meshData.boundary) {
         const pts: THREE.Vector3[] = []
@@ -255,6 +409,7 @@ function createTerrainCustomLayer(
 export function TerrainScene3D({
   field,
   mesh,
+  hydrology,
   viewMode,
   exaggeration,
   layers,
@@ -272,7 +427,6 @@ export function TerrainScene3D({
   const moveHandlerRef = useRef(onCursorMove)
   moveHandlerRef.current = onCursorMove
 
-  // Inicializar MapLibre + capa Three.js una sola vez
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
@@ -304,6 +458,18 @@ export function TerrainScene3D({
             type: 'geojson',
             data: { type: 'FeatureCollection', features: [] },
           },
+          contours: {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          },
+          'drainage-network': {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          },
+          'hydro-points': {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          },
           'profile-line': {
             type: 'geojson',
             data: { type: 'FeatureCollection', features: [] },
@@ -332,7 +498,7 @@ export function TerrainScene3D({
             source: 'field-2d',
             paint: {
               'fill-color': '#10b981',
-              'fill-opacity': 0.12,
+              'fill-opacity': 0.1,
             },
           },
           {
@@ -342,6 +508,43 @@ export function TerrainScene3D({
             paint: {
               'line-color': '#34d399',
               'line-width': 2.5,
+            },
+          },
+          {
+            id: 'contours-layer',
+            type: 'line',
+            source: 'contours',
+            paint: {
+              'line-color': '#fde68a',
+              'line-width': 1.2,
+              'line-opacity': 0.75,
+            },
+          },
+          {
+            id: 'drainage-network-layer',
+            type: 'line',
+            source: 'drainage-network',
+            paint: {
+              'line-color': '#38bdf8',
+              'line-width': 2.8,
+              'line-opacity': 0.95,
+            },
+          },
+          {
+            id: 'hydro-points-layer',
+            type: 'circle',
+            source: 'hydro-points',
+            paint: {
+              'circle-radius': 6,
+              'circle-color': [
+                'match',
+                ['get', 'kind'],
+                'depression',
+                '#d946ef',
+                '#22d3ee',
+              ],
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#0f172a',
             },
           },
           {
@@ -369,14 +572,20 @@ export function TerrainScene3D({
       },
     })
 
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
-    map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left')
+    map.addControl(
+      new maplibregl.NavigationControl({ visualizePitch: true }),
+      'top-right',
+    )
+    map.addControl(
+      new maplibregl.ScaleControl({ unit: 'metric' }),
+      'bottom-left',
+    )
 
     const customLayer = createTerrainCustomLayer(() => mapRef.current)
     threeLayerRef.current = customLayer
 
     map.on('load', () => {
-      map.addLayer(customLayer, 'profile-line-layer')
+      map.addLayer(customLayer, 'contours-layer')
     })
 
     map.on('click', (e) => {
@@ -402,12 +611,13 @@ export function TerrainScene3D({
     }
   }, [])
 
-  // Centrar cámara y actualizar polígono 2D al cambiar de lote
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
     const updateSource = () => {
-      const src = map.getSource('field-2d') as maplibregl.GeoJSONSource | undefined
+      const src = map.getSource('field-2d') as
+        | maplibregl.GeoJSONSource
+        | undefined
       if (!src) return
       if (!field) {
         src.setData({ type: 'FeatureCollection', features: [] })
@@ -436,7 +646,6 @@ export function TerrainScene3D({
     else map.once('load', updateSource)
   }, [field?.id])
 
-  // Alternar vista 2D cenital / perspectiva 3D
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -447,7 +656,6 @@ export function TerrainScene3D({
     }
   }, [viewMode])
 
-  // Actualizar malla 3D, exageración y visibilidad de capas
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -467,13 +675,89 @@ export function TerrainScene3D({
         'visibility',
         layers.boundary ? 'visible' : 'none',
       )
+      map.setLayoutProperty(
+        'contours-layer',
+        'visibility',
+        layers.contours ? 'visible' : 'none',
+      )
+      map.setLayoutProperty(
+        'drainage-network-layer',
+        'visibility',
+        layers.drainageNetwork ? 'visible' : 'none',
+      )
+      map.setLayoutProperty(
+        'hydro-points-layer',
+        'visibility',
+        layers.depressionsAndOutlets ? 'visible' : 'none',
+      )
       threeLayerRef.current?.rebuild(mesh, exaggeration, layers)
     }
     if (map.isStyleLoaded()) apply()
     else map.once('load', apply)
   }, [mesh, exaggeration, layers])
 
-  // Actualizar línea de perfil y punto inspeccionado
+  // Poblar fuentes GeoJSON de hidrología estática (curvas de nivel, red de drenaje, depresiones y salidas)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const updateHydro = () => {
+      const contoursSrc = map.getSource('contours') as
+        | maplibregl.GeoJSONSource
+        | undefined
+      const netSrc = map.getSource('drainage-network') as
+        | maplibregl.GeoJSONSource
+        | undefined
+      const ptsSrc = map.getSource('hydro-points') as
+        | maplibregl.GeoJSONSource
+        | undefined
+
+      if (!hydrology) {
+        contoursSrc?.setData({ type: 'FeatureCollection', features: [] })
+        netSrc?.setData({ type: 'FeatureCollection', features: [] })
+        ptsSrc?.setData({ type: 'FeatureCollection', features: [] })
+        return
+      }
+
+      contoursSrc?.setData(hydrology.contours as GeoJSON.FeatureCollection)
+      netSrc?.setData(hydrology.drainage_network)
+
+      const ptFeatures: GeoJSON.Feature[] = [
+        ...hydrology.depressions
+          .filter((d) => d.in_field)
+          .map((d) => ({
+            type: 'Feature' as const,
+            properties: {
+              kind: 'depression',
+              id: d.id,
+              depth_m: d.max_depth_m,
+            },
+            geometry: {
+              type: 'Point' as const,
+              coordinates: [d.centroid_lon, d.centroid_lat],
+            },
+          })),
+        ...hydrology.outlets.map((o) => ({
+          type: 'Feature' as const,
+          properties: {
+            kind: 'outlet',
+            id: o.id,
+            area_ha: o.contributing_area_mfd_ha,
+          },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [o.lon, o.lat],
+          },
+        })),
+      ]
+      ptsSrc?.setData({
+        type: 'FeatureCollection',
+        features: ptFeatures,
+      })
+    }
+    if (map.isStyleLoaded()) updateHydro()
+    else map.once('load', updateHydro)
+  }, [hydrology])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map || !map.isStyleLoaded()) return
@@ -531,21 +815,82 @@ export function TerrainScene3D({
       {exaggeration !== 1 && (
         <div className="exaggeration-banner" role="status">
           Exageración vertical visual activa: <strong>{exaggeration}×</strong>{' '}
-          (solo para visualización; las cotas, pendientes y perfiles se calculan
-          siempre a escala real 1×).
+          (solo para visualización; las cotas, pendientes, acumulaciones y
+          perfiles se calculan siempre a escala real 1×).
         </div>
       )}
       {mesh && mesh.z_min !== null && mesh.z_max !== null && (
         <div className="hypsometric-legend">
-          <span className="legend-title">Elevación DEM (m s.n.m.)</span>
-          <div className="legend-gradient" />
-          <div className="legend-labels">
-            <span>{mesh.z_min.toFixed(1)} m</span>
-            <span>
-              {((mesh.z_min + mesh.z_max) / 2).toFixed(1)} m
-            </span>
-            <span>{mesh.z_max.toFixed(1)} m</span>
-          </div>
+          {layers.surfaceColor === 'elevation' && (
+            <>
+              <span className="legend-title">Elevación DEM (m s.n.m.)</span>
+              <div className="legend-gradient" />
+              <div className="legend-labels">
+                <span>{mesh.z_min.toFixed(1)} m</span>
+                <span>{((mesh.z_min + mesh.z_max) / 2).toFixed(1)} m</span>
+                <span>{mesh.z_max.toFixed(1)} m</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'slope' && (
+            <>
+              <span className="legend-title">Pendiente local (%)</span>
+              <div className="legend-gradient legend-slope" />
+              <div className="legend-labels">
+                <span>0 %</span>
+                <span>4 %</span>
+                <span>≥ 8 %</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'hillshade' && (
+            <>
+              <span className="legend-title">
+                Sombreado relieve (NW 315° / 45°)
+              </span>
+              <div className="legend-gradient legend-hillshade" />
+              <div className="legend-labels">
+                <span>Sombra</span>
+                <span>Iluminado</span>
+              </div>
+            </>
+          )}
+          {(layers.surfaceColor === 'mfd' || layers.surfaceColor === 'd8') && (
+            <>
+              <span className="legend-title">
+                Área contribuyente {layers.surfaceColor.toUpperCase()} (ha,
+                log)
+              </span>
+              <div className="legend-gradient legend-flow" />
+              <div className="legend-labels">
+                <span>Cabecera</span>
+                <span>Concentración</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'depressions' && (
+            <>
+              <span className="legend-title">
+                Profundidad de depresiones (m)
+              </span>
+              <div className="legend-gradient legend-depressions" />
+              <div className="legend-labels">
+                <span>0 m</span>
+                <span>0,5 m</span>
+                <span>≥ 1,0 m</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'subbasins' && (
+            <>
+              <span className="legend-title">
+                Subcuencas por punto de salida
+              </span>
+              <div className="legend-labels">
+                <span>Colores discretos por salida principal del lote</span>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

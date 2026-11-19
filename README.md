@@ -1,10 +1,11 @@
-# Complemento a RotaTerra — Visor 3D de Lotes e Hidrología (Fase 0)
+# Complemento a RotaTerra — Visor 3D de Lotes e Hidrología (Fase 0 + Fase 1)
 
-Módulo web geoespacial para **RotaTerra** orientado a la visualización 3D del relieve parcelario, control de calidad de Modelos Digitales de Elevación (MDE/MDT), inspección puntual de cota/pendiente y perfiles altimétricos.
+Módulo web geoespacial para **RotaTerra** orientado a la visualización 3D del relieve parcelario, control de calidad de Modelos Digitales de Elevación (MDE/MDT), inspección puntual de cota/pendiente, perfiles altimétricos e **hidrología estática** (acondicionamiento selectivo de depresiones, dirección D8, acumulación difusa MFD, curvas de nivel, rutas potenciales de drenaje, puntos de salida y subcuencas).
 
-> **Estado actual:** **Fase 0 — Prueba geoespacial** (SDD §14).  
-> Incluye importación y validación de lotes GeoJSON en CRS métrico UTM, descarga por ventana de **Copernicus DEM GLO-30 (30 m)** o subida de **GeoTIFF propio** (Dron/LiDAR/IGN 5 m), informe de calidad y advertencias de escala, escena 3D con **MapLibre GL JS + Three.js**, inspección puntual de cota/pendiente/orientación y perfil altimétrico.  
-> **No incluye todavía** simulación hidrológica, dirección/acumulación de flujo ni lámina de agua (Fases 1 a 4).
+> **Estado actual:** **Fase 0 + Fase 1 — Análisis topográfico e hidrología estática** (SDD §14).  
+> - **Fase 0:** importación y validación de lotes GeoJSON en CRS métrico UTM, descarga por ventana de **Copernicus DEM GLO-30 (30 m)** o subida de **GeoTIFF propio** (Dron/LiDAR/IGN 5 m), informe de calidad y advertencias de escala, escena 3D con **MapLibre GL JS + Three.js**, inspección puntual y perfil altimétrico.  
+> - **Fase 1:** acondicionamiento hidrológico selectivo (`fill_small` / `preserve` / `fill_all` + *burn-in* sin alterar el DEM original), sombreado analítico (*hillshade*), curvas de nivel vectoriales, dirección **D8**, acumulación **MFD** (Quinn et al. 1991) con verificación de balance de masa, identificación de depresiones/bajos con volumen y profundidad, red de drenaje potencial con umbral configurable, puntos de salida del lote y subcuencas.  
+> - **Pendiente para Fases 2 a 4:** eventos de lluvia, escorrentía NRCS-CN, hietogramas y simulación hidrodinámica 2D.
 
 ---
 

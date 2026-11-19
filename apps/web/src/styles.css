@@ -358,6 +358,72 @@ body,
   margin-bottom: 4px;
 }
 
+.legend-slope {
+  background: linear-gradient(
+    90deg,
+    rgb(41, 166, 82) 0%,
+    rgb(240, 204, 31) 50%,
+    rgb(240, 46, 31) 100%
+  );
+}
+
+.legend-hillshade {
+  background: linear-gradient(90deg, #1e293b 0%, #f8fafc 100%);
+}
+
+.legend-flow {
+  background: linear-gradient(
+    90deg,
+    rgb(51, 69, 87) 0%,
+    rgb(28, 145, 199) 50%,
+    rgb(13, 199, 250) 100%
+  );
+}
+
+.legend-depressions {
+  background: linear-gradient(
+    90deg,
+    rgb(89, 102, 89) 0%,
+    rgb(191, 45, 212) 50%,
+    rgb(242, 0, 247) 100%
+  );
+}
+
+.hydro-summary {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.mini-table-wrap {
+  margin-top: 8px;
+}
+
+.subhead {
+  display: block;
+  font-size: 0.73rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.74rem;
+}
+
+.mini-table th,
+.mini-table td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mini-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .legend-labels {
   display: flex;
   justify-content: space-between;

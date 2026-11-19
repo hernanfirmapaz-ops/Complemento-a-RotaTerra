@@ -17,6 +17,7 @@ export interface FieldOut {
   created_at: string
   source_file: string | null
   has_terrain: boolean
+  has_hydrology: boolean
 }
 
 export interface DemSourceOut {
@@ -37,8 +38,10 @@ export interface DemSourceOut {
 export interface QualityWarningOut {
   code: string
   level: 'info' | 'advertencia' | 'critico'
-  message: string
+  message: str
 }
+
+type str = string
 
 export interface ElevationStats {
   min: number | null
@@ -90,6 +93,13 @@ export interface MeshOut {
   lat: number[]
   z: (number | null)[]
   in_field: boolean[]
+  slope_pct: (number | null)[]
+  hillshade: (number | null)[]
+  sink_depth_m?: (number | null)[] | null
+  mfd_area_ha?: (number | null)[] | null
+  d8_area_ha?: (number | null)[] | null
+  d8_code?: number[] | null
+  subbasin_id?: number[] | null
   boundary: (number | null)[][][]
 }
 
@@ -105,6 +115,17 @@ export interface PointOut {
   slope_pct: number | null
   slope_deg: number | null
   aspect_deg: number | null
+  hillshade: number | null
+  sink_depth_m: number | null
+  depression_id: number | null
+  d8_code: number | null
+  d8_direction: string | null
+  d8_azimuth_deg: number | null
+  d8_area_m2: number | null
+  d8_area_ha: number | null
+  mfd_area_m2: number | null
+  mfd_area_ha: number | null
+  subbasin_id: number | null
   row: number
   col: number
   pixel_size_m: number
@@ -139,4 +160,86 @@ export interface ProfileOut {
   pixel_size_m: number
   source_name: string
   warnings: string[]
+}
+
+export type ConditioningMode = 'preserve' | 'fill_small' | 'fill_all'
+
+export interface HydrologyRunIn {
+  conditioning_mode: ConditioningMode
+  max_fill_depth_m: number
+  max_fill_area_m2: number
+  mfd_exponent: number
+  stream_threshold_ha?: number | null
+  routing_basis: 'MFD' | 'D8'
+  contour_interval_m?: number | null
+}
+
+export interface DepressionOut {
+  id: number
+  cells: number
+  area_m2: number
+  area_ha: number
+  max_depth_m: number
+  mean_depth_m: number
+  volume_m3: number
+  pour_point_elevation_m: number
+  min_elevation_m: number
+  centroid_lon: number
+  centroid_lat: number
+  in_field: boolean
+  is_spurious_candidate: boolean
+  filled_in_run: boolean
+}
+
+export interface OutletOut {
+  id: number
+  type: string
+  lon: number
+  lat: number
+  elevation_m: number
+  d8_direction: string
+  contributing_area_mfd_ha: number
+  contributing_area_d8_ha: number
+  subbasin_total_ha: number
+  subbasin_in_field_ha: number
+  subbasin_external_inflow_ha: number
+}
+
+export interface HydrologySummaryOut {
+  depressions_count: number
+  depressions_in_field_count: number
+  depressions_filled_count: number
+  total_depression_area_in_field_ha: number
+  total_depression_volume_in_field_m3: number
+  max_depression_depth_in_field_m: number
+  max_mfd_area_in_field_ha: number
+  max_d8_area_in_field_ha: number
+  stream_segments_count: number
+  total_stream_length_m: number
+  outlets_count: number
+  external_inflow_ha: number
+  mfd_mass_balance_error: number
+}
+
+export interface ContoursOut {
+  type: 'FeatureCollection'
+  interval_m: number
+  features: GeoJSON.Feature[]
+}
+
+export interface HydrologyOut {
+  field_id: string
+  processing_version: string
+  processed_at: string
+  parameters: Record<string, unknown>
+  summary: HydrologySummaryOut
+  depressions: DepressionOut[]
+  outlets: OutletOut[]
+  drainage_network: GeoJSON.FeatureCollection & {
+    threshold_ha?: number
+    basis?: string
+  }
+  contours: ContoursOut
+  warnings: string[]
+  limitations: string[]
 }
