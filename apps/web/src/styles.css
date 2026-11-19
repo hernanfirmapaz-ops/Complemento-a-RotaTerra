@@ -389,6 +389,21 @@ body,
   );
 }
 
+.legend-runoff {
+  background: linear-gradient(
+    90deg,
+    rgb(235, 199, 82) 0%,
+    rgb(51, 219, 224) 50%,
+    rgb(15, 122, 250) 100%
+  );
+}
+
+.rain-meta {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
 .hydro-summary {
   margin-top: 10px;
   padding-top: 10px;

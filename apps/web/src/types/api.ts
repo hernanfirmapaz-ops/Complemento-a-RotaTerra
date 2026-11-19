@@ -100,6 +100,8 @@ export interface MeshOut {
   d8_area_ha?: (number | null)[] | null
   d8_code?: number[] | null
   subbasin_id?: number[] | null
+  runoff_load_mm?: (number | null)[] | null
+  cumulative_runoff_m3?: (number | null)[] | null
   boundary: (number | null)[][][]
 }
 
@@ -126,6 +128,9 @@ export interface PointOut {
   mfd_area_m2: number | null
   mfd_area_ha: number | null
   subbasin_id: number | null
+  runoff_generated_q_mm?: number | null
+  runoff_load_mm?: number | null
+  cumulative_runoff_m3?: number | null
   row: number
   col: number
   pixel_size_m: number
@@ -242,4 +247,121 @@ export interface HydrologyOut {
   contours: ContoursOut
   warnings: string[]
   limitations: string[]
+}
+
+export type RainfallSourceType =
+  | 'gauge'
+  | 'SMN'
+  | 'IMERG'
+  | 'CHIRPS'
+  | 'ERA5-Land'
+  | 'manual'
+
+export interface RainfallIntervalOut {
+  timestamp: string
+  precipitation_mm: number
+  interval_minutes: number
+  station_id: string | null
+}
+
+export interface RainfallEventManualIn {
+  name: string
+  total_mm: number
+  source_type: RainfallSourceType
+  start_at?: string | null
+  end_at?: string | null
+}
+
+export interface RainfallEventOut {
+  id: string
+  field_id: string
+  name: string
+  total_mm: number
+  source_type: RainfallSourceType
+  start_at: string
+  end_at: string
+  has_time_series: boolean
+  interval_minutes: number | null
+  intervals: RainfallIntervalOut[]
+  max_intensity_mm_h: number | null
+  source_metadata: Record<string, unknown>
+  warnings: string[]
+  created_at: string
+}
+
+export type SoilGroup = 'A' | 'B' | 'C' | 'D'
+export type AntecedentMoisture = 'dry' | 'medium' | 'wet'
+
+export interface RunoffRunIn {
+  name?: string | null
+  rainfall_event_id: string
+  soil_group: SoilGroup
+  cover_code: string
+  cover_percent?: number | null
+  compaction_high: boolean
+  antecedent_moisture: AntecedentMoisture
+  lambda_ratio: number
+  custom_cn_ii?: number | null
+}
+
+export interface CnResultOut {
+  precipitation_mm: number
+  cn_ii_base: number
+  cn_effective: number
+  antecedent_moisture: string
+  lambda_ratio: number
+  potential_retention_s_mm: number
+  initial_abstraction_ia_mm: number
+  infiltration_after_ia_f_mm: number
+  total_retention_losses_mm: number
+  runoff_q_mm: number
+  runoff_coefficient: number
+  mass_balance_error_mm: number
+}
+
+export interface SpatialRunoffSummaryOut {
+  runoff_generated_q_mm: number
+  field_runoff_generated_m3: number
+  external_runoff_inflow_m3: number
+  total_runoff_supply_m3: number
+  potential_depression_retention_m3: number
+  net_outflow_potential_m3: number
+  max_cell_cumulative_runoff_m3: number
+  max_cell_runoff_load_mm: number
+  mean_cell_runoff_load_mm: number
+  high_concentration_area_ha: number
+}
+
+export interface RunoffRunOut {
+  id: string
+  field_id: string
+  name: string
+  rainfall_event_id: string
+  rainfall_event_name: string
+  model: string
+  processing_version: string
+  created_at: string
+  is_active: boolean
+  field_conditions: Record<string, unknown>
+  cn_result: CnResultOut
+  spatial_summary: SpatialRunoffSummaryOut
+  assumptions_and_notes: string[]
+  warnings: string[]
+  limitations: string[]
+}
+
+export interface ScenarioComparisonOut {
+  run_a_id: string
+  run_a_name: string
+  run_b_id: string
+  run_b_name: string
+  delta_precipitation_mm: number
+  delta_cn_effective: number
+  delta_initial_abstraction_ia_mm: number
+  delta_runoff_q_mm: number
+  delta_runoff_q_pct: number | null
+  delta_runoff_coefficient: number
+  delta_field_runoff_generated_m3: number
+  delta_net_outflow_potential_m3: number
+  delta_high_concentration_area_ha: number
 }

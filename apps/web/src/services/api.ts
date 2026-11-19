@@ -7,6 +7,11 @@ import type {
   MeshOut,
   PointOut,
   ProfileOut,
+  RainfallEventManualIn,
+  RainfallEventOut,
+  RunoffRunIn,
+  RunoffRunOut,
+  ScenarioComparisonOut,
   TerrainOut,
 } from '../types/api'
 
@@ -148,4 +153,98 @@ export async function runStaticHydrology(
     body: JSON.stringify(payload),
   })
   return check<HydrologyOut>(res)
+}
+
+export async function listRainfallEvents(
+  fieldId: string,
+): Promise<RainfallEventOut[]> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/rainfall-events`)
+  return check<RainfallEventOut[]>(res)
+}
+
+export async function createManualRainfallEvent(
+  fieldId: string,
+  payload: RainfallEventManualIn,
+): Promise<RainfallEventOut> {
+  const res = await fetch(
+    `${BASE}/fields/${fieldId}/hydrology/rainfall-events`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  )
+  return check<RainfallEventOut>(res)
+}
+
+export async function loadSampleRainfallEvent(
+  fieldId: string,
+): Promise<RainfallEventOut> {
+  const res = await fetch(
+    `${BASE}/fields/${fieldId}/hydrology/rainfall-events/sample`,
+    { method: 'POST' },
+  )
+  return check<RainfallEventOut>(res)
+}
+
+export async function importCsvRainfallEvent(
+  fieldId: string,
+  file: File,
+  name: string,
+  sourceType: string,
+): Promise<RainfallEventOut> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('name', name)
+  form.append('source_type', sourceType)
+  const res = await fetch(
+    `${BASE}/fields/${fieldId}/hydrology/rainfall-events/import-csv`,
+    {
+      method: 'POST',
+      body: form,
+    },
+  )
+  return check<RainfallEventOut>(res)
+}
+
+export async function listRunoffRuns(
+  fieldId: string,
+): Promise<RunoffRunOut[]> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/runoff-runs`)
+  return check<RunoffRunOut[]>(res)
+}
+
+export async function executeRunoffRun(
+  fieldId: string,
+  payload: RunoffRunIn,
+): Promise<RunoffRunOut> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/runoff-runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return check<RunoffRunOut>(res)
+}
+
+export async function activateRunoffRun(
+  fieldId: string,
+  runId: string,
+): Promise<RunoffRunOut> {
+  const res = await fetch(
+    `${BASE}/fields/${fieldId}/hydrology/runoff-runs/${runId}/activate`,
+    { method: 'POST' },
+  )
+  return check<RunoffRunOut>(res)
+}
+
+export async function compareRunoffScenarios(
+  fieldId: string,
+  runA: string,
+  runB: string,
+): Promise<ScenarioComparisonOut> {
+  const params = new URLSearchParams({ run_a: runA, run_b: runB })
+  const res = await fetch(
+    `${BASE}/fields/${fieldId}/hydrology/compare?${params}`,
+  )
+  return check<ScenarioComparisonOut>(res)
 }

@@ -22,6 +22,7 @@ export type SurfaceColorMode =
   | 'd8'
   | 'depressions'
   | 'subbasins'
+  | 'runoff'
 
 export interface LayerVisibility {
   basemap: BasemapMode
@@ -166,6 +167,35 @@ function subbasinColor(
   return attenuateOutside(r * shade, g * shade, b * shade, inField)
 }
 
+/** Gradiente de carga de escorrentía estimada (mm equiv., escala log): ámbar suave -> turquesa -> azul cobalto. */
+function runoffLoadColor(
+  loadMm: number | null,
+  maxLoadMm: number,
+  inField: boolean,
+): [number, number, number] {
+  const v = Math.max(0, loadMm ?? 0)
+  if (v <= 0.05) {
+    return attenuateOutside(0.28, 0.32, 0.36, inField)
+  }
+  const denom = Math.log10(1 + Math.max(10, maxLoadMm))
+  const u = Math.min(1, Math.max(0, Math.log10(1 + v) / denom))
+  let r = 0
+  let g = 0
+  let b = 0
+  if (u < 0.5) {
+    const k = u / 0.5
+    r = 0.92 - 0.72 * k
+    g = 0.78 + 0.08 * k
+    b = 0.32 + 0.56 * k
+  } else {
+    const k = (u - 0.5) / 0.5
+    r = 0.20 - 0.14 * k
+    g = 0.86 - 0.38 * k
+    b = 0.88 + 0.10 * k
+  }
+  return attenuateOutside(r, g, b, inField)
+}
+
 interface ThreeLayerController extends CustomLayerInterface {
   rebuild: (
     meshData: MeshOut | null,
@@ -242,6 +272,7 @@ function createTerrainCustomLayer(
       const d8Arr = meshData.d8_area_ha
       const sinkArr = meshData.sink_depth_m
       const basArr = meshData.subbasin_id
+      const runoffArr = meshData.runoff_load_mm
       const slopeArr = meshData.slope_pct
       const hsArr = meshData.hillshade
 
@@ -252,6 +283,10 @@ function createTerrainCustomLayer(
       let maxD8 = 1.0
       if (d8Arr) {
         for (const v of d8Arr) if (v !== null && v > maxD8) maxD8 = v
+      }
+      let maxRunoff = 20.0
+      if (runoffArr) {
+        for (const v of runoffArr) if (v !== null && v > maxRunoff) maxRunoff = v
       }
 
       for (let i = 0; i < nVerts; i++) {
@@ -292,6 +327,9 @@ function createTerrainCustomLayer(
               hsArr?.[i] ?? null,
               inside,
             )
+            break
+          case 'runoff':
+            rgb = runoffLoadColor(runoffArr?.[i] ?? null, maxRunoff, inside)
             break
           case 'elevation':
           default: {
@@ -888,6 +926,18 @@ export function TerrainScene3D({
               </span>
               <div className="legend-labels">
                 <span>Colores discretos por salida principal del lote</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'runoff' && (
+            <>
+              <span className="legend-title">
+                Carga escorrentía NRCS-CN + MFD (mm equiv., no inundación)
+              </span>
+              <div className="legend-gradient legend-runoff" />
+              <div className="legend-labels">
+                <span>Ladera (Q)</span>
+                <span>Vías de concentración</span>
               </div>
             </>
           )}

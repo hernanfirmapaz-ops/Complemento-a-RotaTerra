@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react'
 import {
+  activateRunoffRun,
+  compareRunoffScenarios,
   computeTerrainProfile,
+  createManualRainfallEvent,
+  executeRunoffRun,
   getStaticHydrology,
   getTerrain,
   getTerrainMesh,
+  importCsvRainfallEvent,
   importFieldGeoJSON,
   listFields,
+  listRainfallEvents,
+  listRunoffRuns,
   loadSampleField,
+  loadSampleRainfallEvent,
   processTerrain,
   queryTerrainPoint,
   runStaticHydrology,
@@ -18,6 +26,11 @@ import type {
   MeshOut,
   PointOut,
   ProfileOut,
+  RainfallEventManualIn,
+  RainfallEventOut,
+  RunoffRunIn,
+  RunoffRunOut,
+  ScenarioComparisonOut,
   TerrainOut,
 } from './types/api'
 import {
@@ -29,6 +42,7 @@ import {
 import { HydrologyPanel } from './components/HydrologyPanel'
 import { ProfileChart } from './components/ProfileChart'
 import { QualityPanel } from './components/QualityPanel'
+import { RainfallRunoffPanel } from './components/RainfallRunoffPanel'
 
 export function App() {
   const [fields, setFields] = useState<FieldOut[]>([])
@@ -36,6 +50,11 @@ export function App() {
   const [terrain, setTerrain] = useState<TerrainOut | null>(null)
   const [mesh, setMesh] = useState<MeshOut | null>(null)
   const [hydrology, setHydrology] = useState<HydrologyOut | null>(null)
+  const [rainfallEvents, setRainfallEvents] = useState<RainfallEventOut[]>([])
+  const [runoffRuns, setRunoffRuns] = useState<RunoffRunOut[]>([])
+  const [comparison, setComparison] = useState<ScenarioComparisonOut | null>(
+    null,
+  )
 
   const [sourceId, setSourceId] = useState<'copernicus_glo30' | 'upload'>(
     'copernicus_glo30',
@@ -88,6 +107,9 @@ export function App() {
     setTerrain(null)
     setMesh(null)
     setHydrology(null)
+    setRainfallEvents([])
+    setRunoffRuns([])
+    setComparison(null)
     setSelectedPoint(null)
     setProfileDraft([])
     setProfileResult(null)
@@ -101,12 +123,16 @@ export function App() {
       activeField.has_hydrology
         ? getStaticHydrology(activeField.id).catch(() => null)
         : Promise.resolve(null),
+      listRainfallEvents(activeField.id).catch(() => []),
+      listRunoffRuns(activeField.id).catch(() => []),
     ]
     Promise.all(tasks)
-      .then(([t, m, h]) => {
+      .then(([t, m, h, evs, rns]) => {
         setTerrain(t as TerrainOut)
         setMesh(m as MeshOut)
         setHydrology((h as HydrologyOut | null) ?? null)
+        setRainfallEvents(evs as RainfallEventOut[])
+        setRunoffRuns(rns as RunoffRunOut[])
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setBusy(null))
@@ -204,6 +230,107 @@ export function App() {
     }
   }
 
+  const handleCreateManualEvent = async (payload: RainfallEventManualIn) => {
+    if (!activeField) return
+    setError(null)
+    setBusy('Registrando evento de lluvia manual...')
+    try {
+      await createManualRainfallEvent(activeField.id, payload)
+      setRainfallEvents(await listRainfallEvents(activeField.id))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleLoadSampleEvent = async () => {
+    if (!activeField) return
+    setError(null)
+    setBusy('Importando tormenta CSV de muestra (80 mm · 15 min)...')
+    try {
+      await loadSampleRainfallEvent(activeField.id)
+      setRainfallEvents(await listRainfallEvents(activeField.id))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleImportCsvEvent = async (
+    file: File,
+    name: string,
+    sourceType: string,
+  ) => {
+    if (!activeField) return
+    setError(null)
+    setBusy(`Validando serie temporal CSV (${file.name})...`)
+    try {
+      await importCsvRainfallEvent(activeField.id, file, name, sourceType)
+      setRainfallEvents(await listRainfallEvents(activeField.id))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleRunRunoff = async (payload: RunoffRunIn) => {
+    if (!activeField) return
+    setError(null)
+    setBusy('Calculando escorrentía NRCS Curve Number y carga espacial MFD...')
+    try {
+      await executeRunoffRun(activeField.id, payload)
+      const [h, m, rns, all] = await Promise.all([
+        getStaticHydrology(activeField.id),
+        getTerrainMesh(activeField.id),
+        listRunoffRuns(activeField.id),
+        listFields(),
+      ])
+      setHydrology(h)
+      setMesh(m)
+      setRunoffRuns(rns)
+      setFields(all)
+      setLayers((prev) => ({ ...prev, surfaceColor: 'runoff' }))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleActivateRunoff = async (runId: string) => {
+    if (!activeField) return
+    setError(null)
+    setBusy('Activando escenario de escorrentía en la malla 3D...')
+    try {
+      await activateRunoffRun(activeField.id, runId)
+      const [m, rns] = await Promise.all([
+        getTerrainMesh(activeField.id),
+        listRunoffRuns(activeField.id),
+      ])
+      setMesh(m)
+      setRunoffRuns(rns)
+      setLayers((prev) => ({ ...prev, surfaceColor: 'runoff' }))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleCompareScenarios = async (runA: string, runB: string) => {
+    if (!activeField) return
+    setError(null)
+    try {
+      const comp = await compareRunoffScenarios(activeField.id, runA, runB)
+      setComparison(comp)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
   const handleMapClick = async (lon: number, lat: number) => {
     if (!activeField || !terrain) return
     setError(null)
@@ -233,7 +360,9 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <span className="badge-phase">FASE 0 + FASE 1 · HIDROLOGÍA ESTÁTICA</span>
+          <span className="badge-phase">
+            FASE 0 + 1 + 2 · TERRENO 3D · D8/MFD · NRCS-CN
+          </span>
           <h1>RotaTerra — Visor 3D de Lotes y Drenaje Superficial</h1>
         </div>
         <div className="topbar-controls">
@@ -436,8 +565,22 @@ export function App() {
             onRun={handleRunHydrology}
           />
 
+          <RainfallRunoffPanel
+            hasTerrain={Boolean(terrain)}
+            events={rainfallEvents}
+            runs={runoffRuns}
+            comparison={comparison}
+            busy={Boolean(busy)}
+            onCreateManualEvent={handleCreateManualEvent}
+            onLoadSampleEvent={handleLoadSampleEvent}
+            onImportCsvEvent={handleImportCsvEvent}
+            onRunRunoff={handleRunRunoff}
+            onActivateRun={handleActivateRunoff}
+            onCompare={handleCompareScenarios}
+          />
+
           <section className="card">
-            <h3>4. Capas del visor 2D / 3D</h3>
+            <h3>7. Capas del visor 2D / 3D</h3>
             <label className="field-label">
               Mapa base
               <select
@@ -483,6 +626,9 @@ export function App() {
                 </option>
                 <option value="subbasins" disabled={!hydrology}>
                   Subcuencas por punto de salida
+                </option>
+                <option value="runoff" disabled={runoffRuns.length === 0}>
+                  Escorrentía estimada NRCS-CN + MFD (mm equiv.)
                 </option>
               </select>
             </label>
@@ -683,6 +829,24 @@ export function App() {
                     </div>
                   </>
                 )}
+                {selectedPoint.runoff_load_mm !== undefined &&
+                  selectedPoint.runoff_load_mm !== null && (
+                    <>
+                      <div>
+                        <dt>Escorrentía evento Q</dt>
+                        <dd>
+                          {selectedPoint.runoff_generated_q_mm?.toFixed(2)} mm
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Carga acum. MFD</dt>
+                        <dd>
+                          {selectedPoint.runoff_load_mm.toFixed(1)} mm equiv. (
+                          {selectedPoint.cumulative_runoff_m3?.toFixed(1)} m³)
+                        </dd>
+                      </div>
+                    </>
+                  )}
               </dl>
               {selectedPoint.warnings.map((w, idx) => (
                 <div key={idx} className="alert alert-advertencia">
