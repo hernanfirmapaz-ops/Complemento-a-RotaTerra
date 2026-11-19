@@ -244,3 +244,18 @@ def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     assert pt_full["velocity_m_s"] is not None
     assert pt_full["twi"] is not None
     assert pt_full["agronomic_zone_id"] in (1, 2, 3, 4)
+
+    # 11. Paquete de 8 herramientas complementarias (/toolkit/run)
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/toolkit/run",
+        json={"soil_group": "B", "cover_code": "soja_maiz_sd_buena", "storm_precipitation_mm": 80.0},
+    )
+    assert r.status_code == 200, r.text
+    tk = r.json()
+    assert tk["erosion_usle"]["mean_soil_loss_t_ha"] > 0
+    assert tk["contour_terraces"]["erosion_reduction_pct"] > 0
+    assert len(tk["water_balance_monthly"]["months"]) == 12
+    assert tk["seeding_calculator_inta"]["seeds_to_sow_ha"] > 0
+    assert tk["rotation_comparator_3yr"]["delta_b_vs_a"]["soil_saved_by_b_tons"] > 0
+    assert tk["ndvi_vigor_monitor"]["mean_ndvi_in_field"] > 0
+    assert tk["frost_risk_sowing"]["frost_free_period_days"] >= 120

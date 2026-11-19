@@ -124,6 +124,10 @@ def terrain_mesh(field_id: str, max_size: int) -> dict:
             extra["spi"] = grids["spi"]
         if "agronomic_zone_id" in grids:
             extra["agronomic_zone_id"] = grids["agronomic_zone_id"]
+        if "soil_loss_t_ha" in grids:
+            extra["soil_loss_t_ha"] = grids["soil_loss_t_ha"]
+        if "ndvi" in grids:
+            extra["ndvi"] = grids["ndvi"]
     if active_run := hydrology.optional_active_runoff(field_id):
         _, r_grids = active_run
         extra["runoff_load_mm"] = r_grids["runoff_load_mm"]

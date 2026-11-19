@@ -113,6 +113,8 @@ class MeshOut(BaseModel):
     cumulative_runoff_m3: list[float | None] | None = None
     water_depth_m: list[float | None] | None = None
     velocity_m_s: list[float | None] | None = None
+    soil_loss_t_ha: list[float | None] | None = None
+    ndvi: list[float | None] | None = None
     boundary: list[list[list[float | None]]]
 
 
@@ -148,6 +150,8 @@ class PointOut(BaseModel):
     cumulative_runoff_m3: float | None = None
     water_depth_m: float | None = None
     velocity_m_s: float | None = None
+    soil_loss_t_ha: float | None = None
+    ndvi: float | None = None
     row: int
     col: int
     pixel_size_m: float
@@ -472,3 +476,24 @@ class Hydrodynamic2DIn(BaseModel):
     manning_n: float | None = Field(None, ge=0.015, le=0.50)
     ponding_threshold_m: float = Field(0.05, ge=0.01, le=2.0)
     recession_minutes: int = Field(30, ge=5, le=360)
+
+
+class AgronomicToolkitIn(BaseModel):
+    soil_group: Literal["A", "B", "C", "D"] = "B"
+    cover_code: str = "soja_maiz_sd_buena"
+    storm_precipitation_mm: float = Field(80.0, gt=0.0, le=1000.0)
+    crop_code: str = "maiz_temprano"
+    environment_zone: Literal["loma", "media_loma", "bajo"] = "media_loma"
+    target_yield_t_ha: float | None = Field(None, gt=0.5, le=25.0)
+    sequence_a_name: str = "Secuencia A — Monocultivo / Baja Cobertura"
+    sequence_a_crops: list[str] = [
+        "soja_maiz_convencional",
+        "barbecho_suelo_desnudo",
+        "soja_maiz_convencional",
+    ]
+    sequence_b_name: str = "Secuencia B — Rotación Sustentable RotaTerra (SD + Cobertura)"
+    sequence_b_crops: list[str] = [
+        "soja_maiz_sd_buena",
+        "trigo_cereal_invierno_sd",
+        "cultivo_cobertura_vicia_centeno",
+    ]

@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from geoprocessing.rainfall.events import RainfallValidationError
 from services.api.app.schemas import (
+    AgronomicToolkitIn,
     FieldObservationIn,
     FieldObservationOut,
     Hydrodynamic2DIn,
@@ -211,3 +212,29 @@ def exportar_informe_tecnico_html(field_id: str):
         return HTMLResponse(content=html_doc)
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail="Lote no encontrado.") from error
+
+
+@router.get("/toolkit")
+def obtener_toolkit_agronomico(field_id: str):
+    try:
+        store.load_field(field_id)
+        return hydrology.load_agronomic_toolkit(field_id)
+    except store.NotFound as error:
+        raise HTTPException(
+            status_code=404,
+            detail="Todavía no se ejecutó el paquete de herramientas agronómicas para este lote.",
+        ) from error
+
+
+@router.post("/toolkit/run")
+def ejecutar_toolkit_agronomico(
+    field_id: str,
+    payload: AgronomicToolkitIn | None = None,
+):
+    try:
+        params = payload or AgronomicToolkitIn()
+        return hydrology.run_agronomic_toolkit(field_id, params)
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail=f"Recurso no encontrado: {error}") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error

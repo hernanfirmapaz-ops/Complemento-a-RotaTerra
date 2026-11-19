@@ -8,6 +8,14 @@ import numpy as np
 import rasterio
 
 from geoprocessing import PROCESSING_VERSION
+from geoprocessing.agronomy.erosion_usle import (
+    compute_usle_erosion_and_gullies,
+    design_and_simulate_contour_terraces,
+)
+from geoprocessing.agronomy.seeding_and_rotation import (
+    calculate_seeding_and_fertilizer,
+    compare_triennial_rotations,
+)
 from geoprocessing.agronomy.zonation import ZONE_CATALOG, classify_hydro_agronomic_zones
 from geoprocessing.dem.quality import field_mask
 from geoprocessing.dem.terrain import Dem, contours_geojson, slope_aspect
@@ -40,8 +48,16 @@ from geoprocessing.rainfall.timeline import (
     extract_3d_flow_particle_paths,
     simulate_temporal_runoff,
 )
+from geoprocessing.satellite.nasa_power_imerg import (
+    compute_monthly_water_balance,
+    compute_ndvi_vigor_monitor,
+    evaluate_frost_risk_and_sowing_dates,
+    evaluate_real_date_waterlogging_risk,
+    fetch_nasa_power_daily_series,
+)
 from services.api.app.core.config import SAMPLE_DIR
 from services.api.app.schemas import (
+    AgronomicToolkitIn,
     FieldObservationIn,
     Hydrodynamic2DIn,
     HydrologyRunIn,
@@ -252,6 +268,8 @@ def point_hydrology_attrs(grids: dict[str, np.ndarray], row: int, col: int) -> d
     twi_v = float(grids["twi"][row, col]) if "twi" in grids else np.nan
     spi_v = float(grids["spi"][row, col]) if "spi" in grids else np.nan
     zone_id = int(grids["agronomic_zone_id"][row, col]) if "agronomic_zone_id" in grids else 0
+    loss_v = float(grids["soil_loss_t_ha"][row, col]) if "soil_loss_t_ha" in grids else np.nan
+    ndvi_v = float(grids["ndvi"][row, col]) if "ndvi" in grids else np.nan
     return {
         "sink_depth_m": round(sink_d, 3) if np.isfinite(sink_d) else None,
         "depression_id": dep_id if dep_id > 0 else None,
@@ -267,6 +285,8 @@ def point_hydrology_attrs(grids: dict[str, np.ndarray], row: int, col: int) -> d
         "spi": round(spi_v, 3) if np.isfinite(spi_v) else None,
         "agronomic_zone_id": zone_id if zone_id > 0 else None,
         "agronomic_zone_label": ZONE_CATALOG[zone_id]["label"] if zone_id in ZONE_CATALOG else None,
+        "soil_loss_t_ha": round(loss_v, 3) if np.isfinite(loss_v) else None,
+        "ndvi": round(ndvi_v, 3) if np.isfinite(ndvi_v) else None,
     }
 
 
@@ -628,6 +648,168 @@ def execute_hydrodynamic_2d_on_run(
     store.save_runoff_runs(field_id, runs)
     load_active_runoff_grids.cache_clear()
     return target
+
+
+def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
+    """Ejecuta el paquete de las 8 herramientas complementarias sobre el lote:
+    1. Erosión en escurrimiento (USLE + cárcavas)
+    2. Balance hídrico mensual del lote (NASA POWER + Agua útil)
+    3. Riesgo de anegamiento por fecha con lluvia real
+    4. Curvas de nivel y Terrazas (trazado y simulación de freno de agua/erosión)
+    5. Calculadora de Siembra y Fertilizante (Tablas INTA)
+    6. Comparador de Rotaciones Trienales (3 años lado a lado)
+    7. Monitor de Vigor (NDVI Sentinel-2 STAC COG / correlación topográfica)
+    8. Riesgo de Heladas y Fechas Seguras de Siembra (NASA POWER T2M_MIN)
+    """
+    import json
+
+    field = store.load_field(field_id)
+    store.load_terrain(field_id)
+    carpeta = store.field_dir(field_id)
+
+    if not (carpeta / "hydrology.json").exists() or not (carpeta / "hydrology_grids.npz").exists():
+        run_static_hydrology(field_id, HydrologyRunIn())
+
+    hydro = store.load_hydrology(field_id)
+    grids = dict(load_hydrology_grids(field_id, hydro["processed_at"]))
+    dem = Dem.open(carpeta / "dem_utm.tif")
+    mascara = field_mask(field["geometry"], field["utm_epsg"], dem.transform, dem.z.shape)
+    pct_grid, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    twi_grid = grids["twi"] if "twi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[0]
+    spi_grid = grids["spi"] if "spi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[1]
+    zone_grid = grids.get("agronomic_zone_id")
+    if zone_grid is None:
+        zone_grid, _ = classify_hydro_agronomic_zones(
+            dem.z, pct_grid, grids["sink_depth_m"], twi_grid, spi_grid, mascara, dem.pixel
+        )
+
+    cn_ii, _ = lookup_cn_ii(params.cover_code, params.soil_group)
+    cn_storm = compute_nrcs_cn(params.storm_precipitation_mm, cn_ii, "medium", 0.2)
+
+    # 1. Erosión USLE en escurrimiento y focos de cárcavas
+    soil_loss_grid, erosion_summary = compute_usle_erosion_and_gullies(
+        mfd_area_m2=grids["mfd_area_m2"],
+        slope_pct=pct_grid,
+        spi=spi_grid,
+        mascara_lote=mascara,
+        pixel_size_m=dem.pixel,
+        precipitation_mm=params.storm_precipitation_mm,
+        runoff_q_mm=cn_storm.runoff_q_mm,
+        soil_group=params.soil_group,
+        cover_code=params.cover_code,
+    )
+
+    # 4. Curvas de nivel y Terrazas (simulación antes vs. después)
+    terraces_sim = design_and_simulate_contour_terraces(
+        dem=dem,
+        mascara_lote=mascara,
+        mfd_area_m2=grids["mfd_area_m2"],
+        slope_pct=pct_grid,
+        spi=spi_grid,
+        precipitation_mm=params.storm_precipitation_mm,
+        runoff_q_mm=cn_storm.runoff_q_mm,
+        soil_group=params.soil_group,
+        cover_code=params.cover_code,
+    )
+
+    # 5. Calculadora de Siembra y Fertilizante (Tablas INTA)
+    seeding_calc = calculate_seeding_and_fertilizer(
+        crop_code=params.crop_code,
+        field_area_ha=field["area_ha"],
+        soil_group=params.soil_group,
+        environment_zone=params.environment_zone,
+        target_yield_t_ha=params.target_yield_t_ha,
+    )
+
+    # 6. Comparador de Rotaciones Trienales (Secuencia A vs. Secuencia B)
+    rotation_comp = compare_triennial_rotations(
+        sequence_a_name=params.sequence_a_name,
+        sequence_a_crops=params.sequence_a_crops,
+        sequence_b_name=params.sequence_b_name,
+        sequence_b_crops=params.sequence_b_crops,
+        soil_group=params.soil_group,
+        design_storm_mm=params.storm_precipitation_mm,
+        mfd_area_m2=grids["mfd_area_m2"],
+        slope_pct=pct_grid,
+        spi=spi_grid,
+        mascara_lote=mascara,
+        pixel_size_m=dem.pixel,
+    )
+
+    # 2, 3 y 8. Clima diario NASA POWER -> Balance hídrico mensual, Riesgo de anegamiento real y Heladas
+    lon_c, lat_c = field["centroid"]
+    daily_series, climate_source, climate_warnings = fetch_nasa_power_daily_series(lon_c, lat_c, years=3)
+
+    water_balance = compute_monthly_water_balance(
+        daily_rows=daily_series,
+        source_label=climate_source,
+        soil_group=params.soil_group,
+        cover_code=params.cover_code,
+    )
+
+    low_zone_cells = int((mascara & (zone_grid == 4)).sum())
+    low_zone_ha = (low_zone_cells * (dem.pixel ** 2)) / 10_000.0
+    real_waterlogging = evaluate_real_date_waterlogging_risk(
+        daily_rows=daily_series,
+        source_label=climate_source,
+        soil_group=params.soil_group,
+        cover_code=params.cover_code,
+        field_area_ha=field["area_ha"],
+        low_zone_area_ha=max(0.5, low_zone_ha),
+        depression_volume_m3=hydro["summary"]["total_depression_volume_in_field_m3"],
+    )
+
+    frost_risk = evaluate_frost_risk_and_sowing_dates(
+        daily_rows=daily_series,
+        source_label=climate_source,
+    )
+
+    # 7. Monitor de Vigor (NDVI Sentinel-2 L2A STAC COG / correlación topográfica)
+    ndvi_res = compute_ndvi_vigor_monitor(
+        dem=dem,
+        mascara_lote=mascara,
+        twi=twi_grid,
+        agronomic_zone_id=zone_grid,
+        bbox_4326=tuple(field["bbox"]),
+    )
+
+    # Guardar grillas soil_loss_t_ha y ndvi dentro de hydrology_grids.npz para visualización 3D
+    grids["soil_loss_t_ha"] = soil_loss_grid
+    grids["ndvi"] = ndvi_res["grid"]
+    np.savez_compressed(carpeta / "hydrology_grids.npz", **grids)
+    # Actualizar timestamp en hydrology.json para invalidar cache LRU
+    hydro["processed_at"] = store.now_iso()
+    store.save_hydrology(field_id, hydro)
+    load_hydrology_grids.cache_clear()
+
+    toolkit_doc = {
+        "field_id": field_id,
+        "processed_at": hydro["processed_at"],
+        "parameters": params.model_dump(),
+        "erosion_usle": erosion_summary,
+        "water_balance_monthly": water_balance,
+        "real_waterlogging_by_date": real_waterlogging,
+        "contour_terraces": terraces_sim,
+        "seeding_calculator_inta": seeding_calc,
+        "rotation_comparator_3yr": rotation_comp,
+        "ndvi_vigor_monitor": ndvi_res["summary"],
+        "frost_risk_sowing": frost_risk,
+        "warnings": climate_warnings,
+    }
+    (carpeta / "toolkit.json").write_text(
+        json.dumps(toolkit_doc, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+    return toolkit_doc
+
+
+def load_agronomic_toolkit(field_id: str) -> dict:
+    import json
+
+    ruta = store.field_dir(field_id) / "toolkit.json"
+    if not ruta.exists():
+        raise store.NotFound(f"toolkit:{field_id}")
+    return json.loads(ruta.read_text(encoding="utf-8"))
 
 
 @lru_cache(maxsize=8)
