@@ -11,14 +11,15 @@ from services.api.app.api.routes import fields, hydrology, terrain
 from services.api.app.core.config import CORS_ORIGINS, WEB_DIST
 
 app = FastAPI(
-    title="RotaTerra — Visor 3D e Hidrología (Fase 0 + Fase 1 + Fase 2)",
+    title="RotaTerra — Visor 3D e Hidrología (Fases 0 a 3 · MVP Completo)",
     description=(
         "Módulo geoespacial para visualización 3D de lotes agrícolas, control de calidad de DEM, "
         "inspección de cota/pendiente, perfiles altimétricos, hidrología estática (D8, MFD, "
-        "depresiones, red de drenaje y subcuencas) y estimación de escorrentía por evento "
-        "(NRCS Curve Number + comparación de escenarios)."
+        "depresiones, red de drenaje y subcuencas), estimación de escorrentía por evento "
+        "(NRCS Curve Number + comparación de escenarios), animación temporal por hietograma, "
+        "observaciones de campo y exportación técnica."
     ),
-    version="0.3.0",
+    version="0.4.0",
 )
 
 app.add_middleware(
@@ -38,7 +39,7 @@ app.include_router(hydrology.router, prefix="/api/v1")
 def health():
     return {
         "status": "ok",
-        "phase": "fase-2-lluvia-escorrentia-nrcs-cn",
+        "phase": "fase-3-animacion-temporal-y-exportacion",
         "processing_version": PROCESSING_VERSION,
     }
 

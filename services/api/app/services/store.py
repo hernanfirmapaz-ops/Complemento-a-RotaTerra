@@ -119,3 +119,17 @@ def save_runoff_runs(field_id: str, runs: list[dict]) -> None:
         json.dumps(runs, ensure_ascii=False, indent=1),
         encoding="utf-8",
     )
+
+
+def list_observations(field_id: str) -> list[dict]:
+    ruta = field_dir(field_id) / "observations.json"
+    if not ruta.exists():
+        return []
+    return json.loads(ruta.read_text(encoding="utf-8"))
+
+
+def save_observations(field_id: str, items: list[dict]) -> None:
+    (field_dir(field_id) / "observations.json").write_text(
+        json.dumps(items, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )

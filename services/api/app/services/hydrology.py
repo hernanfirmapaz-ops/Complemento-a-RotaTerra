@@ -30,8 +30,17 @@ from geoprocessing.rainfall.nrcs_cn import (
     distribute_event_runoff_mfd,
     lookup_cn_ii,
 )
+from geoprocessing.rainfall.timeline import (
+    extract_3d_flow_particle_paths,
+    simulate_temporal_runoff,
+)
 from services.api.app.core.config import SAMPLE_DIR
-from services.api.app.schemas import HydrologyRunIn, RainfallEventManualIn, RunoffRunIn
+from services.api.app.schemas import (
+    FieldObservationIn,
+    HydrologyRunIn,
+    RainfallEventManualIn,
+    RunoffRunIn,
+)
 from services.api.app.services import store
 
 LIMITACIONES_FASE1 = [
@@ -512,3 +521,343 @@ def optional_active_runoff(field_id: str) -> tuple[dict, dict[str, np.ndarray]] 
     if grids is None:
         return None
     return active, grids
+
+
+LIMITACIONES_FASE3 = [
+    "Fase 3 (Animación temporal simplificada por intervalos): particiona el hietograma mediante NRCS-CN "
+    "incremental y un reservorio de tránsito superficial con balance de masa exacto por intervalo.",
+    "Las partículas 3D representan trayectorias topográficas y volumen en tránsito por intervalo; "
+    "NO representan velocidad hidrodinámica local en m/s ni altura de inundación 2D (Saint-Venant).",
+]
+
+OBSERVATION_LABELS: dict[str, str] = {
+    "ponding": "Bajo / Anegamiento observado",
+    "erosion": "Cárcava / Surco de erosión",
+    "culvert": "Alcantarilla / Obra de paso",
+    "channel": "Canal / Cuneta de drenaje",
+    "terrace": "Terraza / Bordo de contención",
+    "water_depth": "Marca / Medición de nivel de agua",
+}
+
+
+def get_runoff_timeline(field_id: str, run_id: str) -> dict:
+    field = store.load_field(field_id)
+    carpeta = store.field_dir(field_id)
+    runs = store.list_runoff_runs(field_id)
+    run_doc = next((r for r in runs if r["id"] == run_id), None)
+    if run_doc is None:
+        raise store.NotFound(f"runoff_run:{run_id}")
+
+    events = store.list_rainfall_events(field_id)
+    rain_ev = next((e for e in events if e["id"] == run_doc["rainfall_event_id"]), None)
+    if rain_ev is None:
+        raise store.NotFound(f"rainfall_event:{run_doc['rainfall_event_id']}")
+
+    hydro = store.load_hydrology(field_id)
+    grids = load_hydrology_grids(field_id, hydro["processed_at"])
+    dem = Dem.open(carpeta / "dem_utm.tif")
+    mascara = field_mask(field["geometry"], field["utm_epsg"], dem.transform, dem.z.shape)
+
+    particle_paths = extract_3d_flow_particle_paths(
+        dem=dem,
+        d8_code=grids["d8_code"],
+        mfd_area_m2=grids["mfd_area_m2"],
+        max_paths=45,
+    )
+
+    if not rain_ev.get("has_time_series") or not rain_ev.get("intervals"):
+        return {
+            "run_id": run_doc["id"],
+            "run_name": run_doc["name"],
+            "rainfall_event_id": rain_ev["id"],
+            "rainfall_event_name": rain_ev["name"],
+            "has_time_series": False,
+            "interval_minutes": None,
+            "total_steps": 0,
+            "rainfall_steps": 0,
+            "recession_steps": 0,
+            "routing_coefficient_k": None,
+            "peak_step_index": None,
+            "peak_transit_lamina_mm": None,
+            "peak_transit_volume_m3": None,
+            "max_mass_balance_error_mm": None,
+            "frames": [],
+            "particle_paths": particle_paths,
+            "warnings": [
+                "El evento de lluvia de este escenario solo tiene precipitación total acumulada (sin hietograma CSV). "
+                "Conforme a SDD §4.4, no se inventa una distribución temporal; las partículas muestran únicamente "
+                "las trayectorias potenciales de drenaje topográfico."
+            ],
+            "limitations": LIMITACIONES_FASE3,
+        }
+
+    from geoprocessing.dem.terrain import slope_aspect
+
+    pct, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    pct_in_field = pct[mascara & np.isfinite(pct)]
+    mean_slope = float(pct_in_field.mean()) if pct_in_field.size else 1.5
+
+    sim = simulate_temporal_runoff(
+        intervals=rain_ev["intervals"],
+        cn_ii_base=run_doc["cn_result"]["cn_ii_base"],
+        antecedent_moisture=run_doc["field_conditions"]["antecedent_moisture"],
+        lambda_ratio=run_doc["field_conditions"]["lambda_ratio"],
+        mfd_area_m2=grids["mfd_area_m2"],
+        mascara_lote=mascara,
+        pixel_size_m=dem.pixel,
+        mean_slope_pct=mean_slope,
+        depression_volume_in_field_m3=hydro["summary"]["total_depression_volume_in_field_m3"],
+        external_inflow_ha=hydro["summary"]["external_inflow_ha"],
+    )
+
+    return {
+        "run_id": run_doc["id"],
+        "run_name": run_doc["name"],
+        "rainfall_event_id": rain_ev["id"],
+        "rainfall_event_name": rain_ev["name"],
+        "has_time_series": True,
+        "interval_minutes": sim["interval_minutes"],
+        "total_steps": sim["total_steps"],
+        "rainfall_steps": sim["rainfall_steps"],
+        "recession_steps": sim["recession_steps"],
+        "routing_coefficient_k": sim["routing_coefficient_k"],
+        "peak_step_index": sim["peak_step_index"],
+        "peak_transit_lamina_mm": sim["peak_transit_lamina_mm"],
+        "peak_transit_volume_m3": sim["peak_transit_volume_m3"],
+        "max_mass_balance_error_mm": sim["max_mass_balance_error_mm"],
+        "frames": sim["frames"],
+        "particle_paths": particle_paths,
+        "warnings": list(rain_ev.get("warnings", [])),
+        "limitations": LIMITACIONES_FASE3,
+    }
+
+
+def create_field_observation(field_id: str, payload: FieldObservationIn) -> dict:
+    store.load_field(field_id)
+    carpeta = store.field_dir(field_id)
+    elev_m = None
+    if (carpeta / "dem_utm.tif").exists():
+        from geoprocessing.dem.terrain import point_info
+
+        dem = Dem.open(carpeta / "dem_utm.tif")
+        pt = point_info(dem, payload.lon, payload.lat)
+        elev_m = pt["elevation_m"]
+
+    now = store.now_iso()
+    item = {
+        "id": store.new_id(),
+        "field_id": field_id,
+        "observation_type": payload.observation_type,
+        "label": OBSERVATION_LABELS.get(payload.observation_type, payload.observation_type),
+        "lon": round(float(payload.lon), 7),
+        "lat": round(float(payload.lat), 7),
+        "elevation_m": elev_m,
+        "notes": payload.notes.strip(),
+        "value": payload.value,
+        "units": payload.units.strip() if payload.units else None,
+        "observed_at": payload.observed_at or now,
+        "created_at": now,
+    }
+    items = store.list_observations(field_id)
+    items.insert(0, item)
+    store.save_observations(field_id, items)
+    return item
+
+
+def delete_field_observation(field_id: str, obs_id: str) -> None:
+    store.load_field(field_id)
+    items = store.list_observations(field_id)
+    filtered = [it for it in items if it["id"] != obs_id]
+    if len(filtered) == len(items):
+        raise store.NotFound(f"observation:{obs_id}")
+    store.save_observations(field_id, filtered)
+
+
+def export_analysis_geojson(field_id: str) -> dict:
+    """Empaqueta límite del lote, red de drenaje, curvas de nivel, salidas, depresiones y observaciones."""
+    field = store.load_field(field_id)
+    carpeta = store.field_dir(field_id)
+    terreno = store.load_terrain(field_id) if (carpeta / "terrain.json").exists() else None
+    hydro = store.load_hydrology(field_id) if (carpeta / "hydrology.json").exists() else None
+    runs = store.list_runoff_runs(field_id)
+    active_run = next((r for r in runs if r.get("is_active")), runs[0] if runs else None)
+    observations = store.list_observations(field_id)
+
+    features: list[dict] = [
+        {
+            "type": "Feature",
+            "properties": {
+                "layer": "field_boundary",
+                "name": field["name"],
+                "area_ha": field["area_ha"],
+                "utm_epsg": field["utm_epsg"],
+            },
+            "geometry": field["geometry"],
+        }
+    ]
+
+    if hydro:
+        for feat in hydro["drainage_network"].get("features", []):
+            features.append({
+                "type": "Feature",
+                "properties": {"layer": "potential_drainage_network", **feat.get("properties", {})},
+                "geometry": feat["geometry"],
+            })
+        for feat in hydro["contours"].get("features", []):
+            features.append({
+                "type": "Feature",
+                "properties": {"layer": "contour_line", **feat.get("properties", {})},
+                "geometry": feat["geometry"],
+            })
+        for dep in hydro.get("depressions", []):
+            if dep.get("in_field"):
+                features.append({
+                    "type": "Feature",
+                    "properties": {"layer": "depression", **dep},
+                    "geometry": {"type": "Point", "coordinates": [dep["centroid_lon"], dep["centroid_lat"]]},
+                })
+        for out in hydro.get("outlets", []):
+            features.append({
+                "type": "Feature",
+                "properties": {"layer": "subbasin_outlet", **out},
+                "geometry": {"type": "Point", "coordinates": [out["lon"], out["lat"]]},
+            })
+
+    for obs in observations:
+        features.append({
+            "type": "Feature",
+            "properties": {"layer": "field_observation", **obs},
+            "geometry": {"type": "Point", "coordinates": [obs["lon"], obs["lat"]]},
+        })
+
+    return {
+        "type": "FeatureCollection",
+        "rotaterra_metadata": {
+            "exported_at": store.now_iso(),
+            "processing_version": PROCESSING_VERSION,
+            "field_id": field["id"],
+            "field_name": field["name"],
+            "area_ha": field["area_ha"],
+            "calculation_crs": f"EPSG:{field['utm_epsg']}",
+            "dem_source": terreno["source"] if terreno else None,
+            "dem_quality": terreno["quality"] if terreno else None,
+            "hydrology_parameters": hydro["parameters"] if hydro else None,
+            "active_runoff_scenario": {
+                "name": active_run["name"],
+                "cn_result": active_run["cn_result"],
+                "spatial_summary": active_run["spatial_summary"],
+            } if active_run else None,
+            "limitations": (terreno.get("limitations", []) if terreno else []) + LIMITACIONES_FASE2 + LIMITACIONES_FASE3,
+        },
+        "features": features,
+    }
+
+
+def export_technical_report_html(field_id: str) -> str:
+    """Genera un informe técnico HTML reproducible con metadatos, calidad del DEM, hidrología y limitaciones."""
+    import html
+
+    field = store.load_field(field_id)
+    carpeta = store.field_dir(field_id)
+    terreno = store.load_terrain(field_id) if (carpeta / "terrain.json").exists() else None
+    hydro = store.load_hydrology(field_id) if (carpeta / "hydrology.json").exists() else None
+    runs = store.list_runoff_runs(field_id)
+    observations = store.list_observations(field_id)
+
+    esc = lambda v: html.escape(str(v if v is not None else "s/d"))
+
+    runs_rows = "".join(
+        f"<tr><td>{esc(r['name'])}</td><td>{esc(r['rainfall_event_name'])}</td>"
+        f"<td>{r['cn_result']['precipitation_mm']:.1f} mm</td>"
+        f"<td>{r['cn_result']['cn_effective']:.1f}</td>"
+        f"<td>{r['cn_result']['initial_abstraction_ia_mm']:.1f} mm</td>"
+        f"<td><strong>{r['cn_result']['runoff_q_mm']:.2f} mm</strong></td>"
+        f"<td>{r['spatial_summary']['field_runoff_generated_m3']:.0f} m³</td>"
+        f"<td>{r['spatial_summary']['net_outflow_potential_m3']:.0f} m³</td></tr>"
+        for r in runs
+    ) or "<tr><td colspan='8'>Sin escenarios de escorrentía ejecutados.</td></tr>"
+
+    obs_rows = "".join(
+        f"<tr><td>{esc(o['label'])}</td><td>{o['lat']:.5f}°, {o['lon']:.5f}°</td>"
+        f"<td>{esc(o['elevation_m'])} m</td><td>{esc(o['value'])} {esc(o['units'] or '')}</td>"
+        f"<td>{esc(o['notes'])}</td></tr>"
+        for o in observations
+    ) or "<tr><td colspan='5'>Sin observaciones de campo registradas.</td></tr>"
+
+    warnings_items = []
+    if terreno:
+        warnings_items.extend(w["message"] for w in terreno["quality"]["warnings"])
+    if hydro:
+        warnings_items.extend(hydro.get("warnings", []))
+    warnings_html = "".join(f"<li>{esc(w)}</li>" for w in dict.fromkeys(warnings_items))
+
+    return f"""<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8" />
+<title>Informe Técnico Hidrológico — {esc(field['name'])}</title>
+<style>
+  body {{ font-family: system-ui, -apple-system, sans-serif; color: #0f172a; margin: 28px; line-height: 1.45; }}
+  h1 {{ font-size: 1.4rem; margin-bottom: 4px; color: #065f46; }}
+  h2 {{ font-size: 1.05rem; margin-top: 22px; border-bottom: 2px solid #cbd5e1; padding-bottom: 4px; }}
+  .meta {{ font-size: 0.85rem; color: #475569; margin-bottom: 16px; }}
+  table {{ width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.84rem; }}
+  th, td {{ border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }}
+  th {{ background: #f1f5f9; }}
+  .warn {{ background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px 14px; font-size: 0.84rem; margin-top: 12px; }}
+</style>
+</head>
+<body>
+  <h1>RotaTerra — Informe Técnico Topográfico e Hidrológico por Lote</h1>
+  <div class="meta">
+    Lote: <strong>{esc(field['name'])}</strong> · Superficie UTM: <strong>{field['area_ha']:.2f} ha</strong>
+    · CRS métrico de cálculo: <strong>EPSG:{field['utm_epsg']}</strong>
+    · Versión de motor: <code>{esc(PROCESSING_VERSION)}</code>
+    · Generado: {esc(store.now_iso())}
+  </div>
+
+  <h2>1. Fuente y Calidad del Modelo Digital de Elevación (MDE)</h2>
+  {f'''<table>
+    <tr><th>Fuente</th><td>{esc(terreno['source']['source_name'])} ({esc(terreno['source']['surface_type'])})</td>
+        <th>Resolución</th><td>{terreno['quality']['pixel_size_m']:.1f} m/píxel ({terreno['quality']['cells_in_field']} celdas en lote)</td></tr>
+    <tr><th>Datum vertical</th><td>{esc(terreno['source']['vertical_datum'])}</td>
+        <th>Precisión vertical declarada</th><td>±{esc(terreno['source']['vertical_accuracy_m'])} m</td></tr>
+    <tr><th>Período de adquisición</th><td>{esc(terreno['source']['acquisition_start'])} a {esc(terreno['source']['acquisition_end'])}</td>
+        <th>Rango de cotas en lote</th><td>{esc(terreno['quality']['elevation_field']['min'])} – {esc(terreno['quality']['elevation_field']['max'])} m s.n.m. (Δ {esc(terreno['quality']['elevation_field']['range'])} m)</td></tr>
+  </table>''' if terreno else '<p>Sin MDE procesado.</p>'}
+
+  <h2>2. Hidrología Estática (Acondicionamiento, D8, MFD, Depresiones y Cuencas)</h2>
+  {f'''<table>
+    <tr><th>Modo acondicionamiento</th><td>{esc(hydro['parameters']['conditioning_mode'])}</td>
+        <th>Umbral red de drenaje</th><td>{esc(hydro['parameters']['stream_threshold_ha'])} ha ({esc(hydro['parameters']['routing_basis'])})</td></tr>
+    <tr><th>Depresiones en lote</th><td>{hydro['summary']['depressions_in_field_count']} ({hydro['summary']['total_depression_area_in_field_ha']:.2f} ha · {hydro['summary']['total_depression_volume_in_field_m3']:.0f} m³)</td>
+        <th>Aporte externo al lote</th><td>{hydro['summary']['external_inflow_ha']:.2f} ha</td></tr>
+    <tr><th>Área contribuyente máx. MFD</th><td>{hydro['summary']['max_mfd_area_in_field_ha']:.2f} ha</td>
+        <th>Error balance masa MFD</th><td>{hydro['summary']['mfd_mass_balance_error']:.6f}</td></tr>
+  </table>''' if hydro else '<p>Sin corrida de hidrología estática.</p>'}
+
+  <h2>3. Escenarios de Lluvia y Escorrentía Estimada (NRCS Curve Number + MFD)</h2>
+  <table>
+    <thead>
+      <tr><th>Escenario</th><th>Evento lluvia</th><th>P</th><th>CN ef.</th><th>Ia</th><th>Escorrentía Q</th><th>Vol. generado lote</th><th>Salida neta pot.</th></tr>
+    </thead>
+    <tbody>{runs_rows}</tbody>
+  </table>
+
+  <h2>4. Observaciones Reales de Campo y Estructuras Relevadas (CU-06)</h2>
+  <table>
+    <thead>
+      <tr><th>Tipo</th><th>Coordenadas</th><th>Cota DEM</th><th>Medición</th><th>Notas</th></tr>
+    </thead>
+    <tbody>{obs_rows}</tbody>
+  </table>
+
+  <div class="warn">
+    <strong>Advertencias técnicas, supuestos y limitaciones obligatorias (SDD §1.1, §5.2 y §6.4):</strong>
+    <ul>
+      {warnings_html}
+      <li>La escorrentía directa Q (mm) y la carga acumulada MFD no representan profundidad física de inundación ni reemplazan un estudio hidráulico 2D calibrado con mediciones locales.</li>
+    </ul>
+  </div>
+</body>
+</html>"""

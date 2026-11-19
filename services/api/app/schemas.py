@@ -373,3 +373,82 @@ class ScenarioComparisonOut(BaseModel):
     delta_field_runoff_generated_m3: float
     delta_net_outflow_potential_m3: float
     delta_high_concentration_area_ha: float
+
+
+class TimelineFrameOut(BaseModel):
+    step_index: int
+    timestamp: str
+    interval_minutes: int
+    is_recession: bool
+    interval_precipitation_mm: float
+    cumulative_precipitation_mm: float
+    interval_infiltration_losses_mm: float
+    cumulative_infiltration_losses_mm: float
+    interval_runoff_generated_mm: float
+    cumulative_runoff_generated_mm: float
+    active_transit_lamina_mm: float
+    active_transit_volume_m3: float
+    depression_retained_mm: float
+    depression_retained_volume_m3: float
+    interval_outflow_mm: float
+    interval_outflow_m3: float
+    cumulative_outflow_mm: float
+    cumulative_outflow_m3: float
+    mass_balance_error_mm: float
+    transit_fraction_of_peak: float
+
+
+class RunoffTimelineOut(BaseModel):
+    run_id: str
+    run_name: str
+    rainfall_event_id: str
+    rainfall_event_name: str
+    has_time_series: bool
+    interval_minutes: int | None = None
+    total_steps: int
+    rainfall_steps: int
+    recession_steps: int
+    routing_coefficient_k: float | None = None
+    peak_step_index: int | None = None
+    peak_transit_lamina_mm: float | None = None
+    peak_transit_volume_m3: float | None = None
+    max_mass_balance_error_mm: float | None = None
+    frames: list[TimelineFrameOut] = []
+    particle_paths: list[list[list[float]]] = []
+    warnings: list[str]
+    limitations: list[str]
+
+
+ObservationType = Literal[
+    "ponding",
+    "erosion",
+    "culvert",
+    "channel",
+    "terrace",
+    "water_depth",
+]
+
+
+class FieldObservationIn(BaseModel):
+    observation_type: ObservationType
+    lon: float = Field(..., ge=-180.0, le=180.0)
+    lat: float = Field(..., ge=-90.0, le=90.0)
+    notes: str = Field(..., min_length=2, max_length=400)
+    value: float | None = None
+    units: str | None = Field(None, max_length=32)
+    observed_at: str | None = None
+
+
+class FieldObservationOut(BaseModel):
+    id: str
+    field_id: str
+    observation_type: ObservationType
+    label: str
+    lon: float
+    lat: float
+    elevation_m: float | None
+    notes: str
+    value: float | None
+    units: str | None
+    observed_at: str
+    created_at: str

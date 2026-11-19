@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from geoprocessing.rainfall.events import RainfallValidationError
 from services.api.app.schemas import (
+    FieldObservationIn,
+    FieldObservationOut,
     HydrologyOut,
     HydrologyRunIn,
     RainfallEventManualIn,
     RainfallEventOut,
     RunoffRunIn,
     RunoffRunOut,
+    RunoffTimelineOut,
     ScenarioComparisonOut,
 )
 from services.api.app.services import hydrology, store
@@ -135,3 +139,59 @@ def comparar_escenarios_escorrentia(
         return hydrology.compare_two_runs(field_id, run_a, run_b)
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/runoff-runs/{run_id}/timeline", response_model=RunoffTimelineOut)
+def obtener_linea_de_tiempo_escorrentia(field_id: str, run_id: str):
+    try:
+        return hydrology.get_runoff_timeline(field_id, run_id)
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail=f"Recurso no encontrado: {error}") from error
+
+
+@router.get("/observations", response_model=list[FieldObservationOut])
+def listar_observaciones_campo(field_id: str):
+    try:
+        store.load_field(field_id)
+        return store.list_observations(field_id)
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail="Lote no encontrado.") from error
+
+
+@router.post("/observations", response_model=FieldObservationOut, status_code=201)
+def registrar_observacion_campo(field_id: str, payload: FieldObservationIn):
+    try:
+        return hydrology.create_field_observation(field_id, payload)
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail="Lote no encontrado.") from error
+
+
+@router.delete("/observations/{obs_id}", status_code=204)
+def eliminar_observacion_campo(field_id: str, obs_id: str):
+    try:
+        hydrology.delete_field_observation(field_id, obs_id)
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail="Observación no encontrada.") from error
+
+
+@router.get("/export/geojson")
+def exportar_paquete_geojson(field_id: str):
+    try:
+        pkg = hydrology.export_analysis_geojson(field_id)
+        return JSONResponse(
+            content=pkg,
+            headers={
+                "Content-Disposition": f'attachment; filename="rotaterra_hidrologia_{field_id[:8]}.geojson"'
+            },
+        )
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail="Lote no encontrado.") from error
+
+
+@router.get("/export/report", response_class=HTMLResponse)
+def exportar_informe_tecnico_html(field_id: str):
+    try:
+        html_doc = hydrology.export_technical_report_html(field_id)
+        return HTMLResponse(content=html_doc)
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail="Lote no encontrado.") from error

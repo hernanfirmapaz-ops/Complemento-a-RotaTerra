@@ -28,7 +28,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     r = client.get("/api/v1/health")
     assert r.status_code == 200
-    assert r.json()["phase"] == "fase-2-lluvia-escorrentia-nrcs-cn"
+    assert r.json()["phase"] == "fase-3-animacion-temporal-y-exportacion"
 
     # 1. Importar lote sintético
     geojson_bytes = json.dumps(synthetic_square_field_geojson()).encode("utf-8")
@@ -186,3 +186,41 @@ def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     r = client.get(f"/api/v1/fields/{field_id}/terrain/point", params={"lon": lon, "lat": lat})
     assert r.status_code == 200
     assert r.json()["runoff_load_mm"] is not None
+
+    # 9. Fase 3: Línea de tiempo por intervalos sobre el hietograma CSV, partículas 3D, observaciones y exportación
+    r = client.get(f"/api/v1/fields/{field_id}/hydrology/runoff-runs/{run_b['id']}/timeline")
+    assert r.status_code == 200, r.text
+    tl = r.json()
+    assert tl["has_time_series"] is True
+    assert tl["total_steps"] == 12
+    assert tl["max_mass_balance_error_mm"] < 1e-5
+    assert len(tl["particle_paths"]) > 0
+
+    # Registrar observación de campo (CU-06)
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/observations",
+        json={
+            "observation_type": "ponding",
+            "lon": lon,
+            "lat": lat,
+            "notes": "Charco observado 2 horas después de lluvia de 80 mm",
+            "value": 0.18,
+            "units": "m",
+        },
+    )
+    assert r.status_code == 201, r.text
+    obs = r.json()
+    assert obs["elevation_m"] is not None
+
+    # Exportar paquete GeoJSON e informe técnico HTML
+    r = client.get(f"/api/v1/fields/{field_id}/hydrology/export/geojson")
+    assert r.status_code == 200
+    pkg = r.json()
+    assert pkg["type"] == "FeatureCollection"
+    assert pkg["rotaterra_metadata"]["field_id"] == field_id
+    layers_exported = {f["properties"]["layer"] for f in pkg["features"]}
+    assert {"field_boundary", "potential_drainage_network", "field_observation"} <= layers_exported
+
+    r = client.get(f"/api/v1/fields/{field_id}/hydrology/export/report")
+    assert r.status_code == 200
+    assert "Informe Técnico Topográfico e Hidrológico" in r.text
