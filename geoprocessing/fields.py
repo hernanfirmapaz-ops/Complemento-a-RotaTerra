@@ -187,3 +187,180 @@ def field_utm_geometry(geometry: dict, epsg: int):
     from rasterio.warp import transform_geom
 
     return shape(transform_geom(WGS84, f"EPSG:{epsg}", geometry))
+
+
+def _parse_kml_coordinates(coord_text: str) -> list[list[float]]:
+    ring: list[list[float]] = []
+    for token in coord_text.replace("\n", " ").replace("\t", " ").split():
+        parts = token.split(",")
+        if len(parts) < 2:
+            continue
+        try:
+            lon, lat = float(parts[0]), float(parts[1])
+        except ValueError as err:
+            raise FieldValidationError(f"Coordenada KML inválida: '{token}'") from err
+        ring.append([lon, lat])
+    if len(ring) >= 3 and ring[0][:2] != ring[-1][:2]:
+        ring.append(list(ring[0]))
+    return ring
+
+
+def parse_kml(kml_bytes: bytes | str, nombre_por_defecto: str = "Lote KML") -> list[ImportedField]:
+    """Extrae polígonos de lotes desde un documento KML (OGC KML 2.2)."""
+    import xml.etree.ElementTree as ET
+
+    try:
+        root = ET.fromstring(kml_bytes if isinstance(kml_bytes, bytes) else kml_bytes.encode("utf-8"))
+    except ET.ParseError as err:
+        raise FieldValidationError(f"El archivo KML no es un XML válido: {err}") from err
+
+    def _local(tag: str) -> str:
+        return tag.split("}", 1)[-1] if "}" in tag else tag
+
+    features: list[dict] = []
+    for pm in root.iter():
+        if _local(pm.tag) != "Placemark":
+            continue
+        pm_name = None
+        polys_coords: list[list[list[list[float]]]] = []
+        for child in pm.iter():
+            ltag = _local(child.tag)
+            if ltag == "name" and pm_name is None and child.text and child.text.strip():
+                pm_name = child.text.strip()
+            elif ltag == "Polygon":
+                rings: list[list[list[float]]] = []
+                for sub in child.iter():
+                    if _local(sub.tag) == "coordinates" and sub.text:
+                        ring = _parse_kml_coordinates(sub.text)
+                        if ring:
+                            rings.append(ring)
+                if rings:
+                    polys_coords.append(rings)
+        if polys_coords:
+            geom = (
+                {"type": "Polygon", "coordinates": polys_coords[0]}
+                if len(polys_coords) == 1
+                else {"type": "MultiPolygon", "coordinates": polys_coords}
+            )
+            features.append({
+                "type": "Feature",
+                "properties": {"name": pm_name or nombre_por_defecto, "source_format": "KML"},
+                "geometry": geom,
+            })
+
+    if not features:
+        raise FieldValidationError("El archivo KML no contiene ningún Placemark con geometría Polygon.")
+    return parse_geojson({"type": "FeatureCollection", "features": features}, nombre_por_defecto)
+
+
+def parse_kmz(kmz_bytes: bytes, nombre_por_defecto: str = "Lote KMZ") -> list[ImportedField]:
+    """Extrae el primer documento `.kml` dentro de un archivo comprimido `.kmz`."""
+    import io
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(kmz_bytes)) as zf:
+            kml_name = next((n for n in zf.namelist() if n.lower().endswith(".kml")), None)
+            if kml_name is None:
+                raise FieldValidationError("El archivo KMZ no contiene ningún documento .kml interno.")
+            return parse_kml(zf.read(kml_name), nombre_por_defecto)
+    except zipfile.BadZipFile as err:
+        raise FieldValidationError("El archivo KMZ está dañado o no es un ZIP válido.") from err
+
+
+def parse_shapefile_zip(zip_bytes: bytes, nombre_por_defecto: str = "Lote SHP") -> list[ImportedField]:
+    """Lee polígonos (tipo 5, 15, 25) desde un Shapefile comprimido (.zip con .shp)."""
+    import io
+    import struct
+    import zipfile
+
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    except zipfile.BadZipFile as err:
+        raise FieldValidationError("El archivo ZIP del Shapefile no es válido.") from err
+
+    with zf:
+        shp_name = next((n for n in zf.namelist() if n.lower().endswith(".shp")), None)
+        if shp_name is None:
+            raise FieldValidationError("El ZIP no contiene ningún archivo .shp.")
+        shp = zf.read(shp_name)
+
+    if len(shp) < 100:
+        raise FieldValidationError("El archivo .shp está truncado.")
+    file_code = struct.unpack(">i", shp[0:4])[0]
+    if file_code != 9994:
+        raise FieldValidationError("Cabecera de archivo .shp inválida.")
+
+    pos = 100
+    features: list[dict] = []
+    rec_idx = 0
+    while pos + 8 <= len(shp):
+        rec_num, content_len_words = struct.unpack(">ii", shp[pos:pos + 8])
+        pos += 8
+        rec_bytes = content_len_words * 2
+        rec = shp[pos:pos + rec_bytes]
+        pos += rec_bytes
+        if len(rec) < 4:
+            break
+        shape_type = struct.unpack("<i", rec[0:4])[0]
+        if shape_type == 0:
+            continue
+        if shape_type not in (5, 15, 25):  # Polygon, PolygonZ, PolygonM
+            raise FieldValidationError(
+                f"El registro #{rec_num} del Shapefile tiene tipo {shape_type}; solo se admiten polígonos."
+            )
+        num_parts, num_points = struct.unpack("<ii", rec[36:44])
+        parts = list(struct.unpack(f"<{num_parts}i", rec[44:44 + 4 * num_parts]))
+        pts_offset = 44 + 4 * num_parts
+        coords_flat = struct.unpack(f"<{2 * num_points}d", rec[pts_offset:pts_offset + 16 * num_points])
+        pts = [[coords_flat[2 * i], coords_flat[2 * i + 1]] for i in range(num_points)]
+        rings: list[list[list[float]]] = []
+        for p_i, start_idx in enumerate(parts):
+            end_idx = parts[p_i + 1] if p_i + 1 < num_parts else num_points
+            ring = pts[start_idx:end_idx]
+            if len(ring) >= 3 and ring[0][:2] != ring[-1][:2]:
+                ring.append(list(ring[0]))
+            rings.append(ring)
+        rec_idx += 1
+        features.append({
+            "type": "Feature",
+            "properties": {"name": f"{nombre_por_defecto} {rec_idx}", "source_format": "Shapefile"},
+            "geometry": {"type": "Polygon", "coordinates": rings},
+        })
+
+    if not features:
+        raise FieldValidationError("El Shapefile no contiene polígonos.")
+    return parse_geojson({"type": "FeatureCollection", "features": features}, nombre_por_defecto)
+
+
+def parse_field_file(
+    contenido: bytes | str,
+    filename: str | None = None,
+    nombre_por_defecto: str = "Lote",
+) -> list[ImportedField]:
+    """Detecta el formato del archivo de lote (GeoJSON, KML, KMZ o Shapefile ZIP) y devuelve los lotes validados."""
+    fname = (filename or "").lower()
+    raw = contenido.encode("utf-8") if isinstance(contenido, str) else contenido
+
+    if fname.endswith(".kmz"):
+        return parse_kmz(raw, nombre_por_defecto)
+    if fname.endswith(".zip") or raw[:2] == b"PK":
+        # Un ZIP puede ser un KMZ o un Shapefile comprimido
+        import io
+        import zipfile
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+                names = [n.lower() for n in zf.namelist()]
+                if any(n.endswith(".kml") for n in names):
+                    return parse_kmz(raw, nombre_por_defecto)
+                if any(n.endswith(".shp") for n in names):
+                    return parse_shapefile_zip(raw, nombre_por_defecto)
+        except zipfile.BadZipFile as err:
+            raise FieldValidationError("El archivo ZIP/KMZ no es válido.") from err
+        raise FieldValidationError("El archivo ZIP debe contener un Shapefile (.shp) o un documento KML (.kml).")
+
+    if fname.endswith(".kml") or raw.lstrip().startswith(b"<"):
+        return parse_kml(raw, nombre_por_defecto)
+
+    return parse_geojson(raw, nombre_por_defecto)
