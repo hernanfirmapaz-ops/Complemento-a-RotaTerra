@@ -71,6 +71,177 @@ def slope_aspect(z: np.ndarray, dx: float, dy: float) -> tuple[np.ndarray, np.nd
     return pct.astype("float32"), grados.astype("float32"), aspecto.astype("float32")
 
 
+def hillshade(z: np.ndarray, dx: float, dy: float, azimuth_deg: float = 315.0,
+              altitude_deg: float = 45.0) -> np.ndarray:
+    """Sombreado analítico de relieve (0..1) con iluminación solar configurable (SDD §4.3 y §6.2).
+
+    Por defecto: sol desde el noroeste (315°) a 45° sobre el horizonte.
+    """
+    p = np.pad(z.astype("float64"), 1, mode="constant", constant_values=np.nan)
+    a, b, c = p[:-2, :-2], p[:-2, 1:-1], p[:-2, 2:]
+    d, f = p[1:-1, :-2], p[1:-1, 2:]
+    g, h, i = p[2:, :-2], p[2:, 1:-1], p[2:, 2:]
+    dzdx = ((c + 2 * f + i) - (a + 2 * d + g)) / (8 * dx)
+    dzdy = ((g + 2 * h + i) - (a + 2 * b + c)) / (8 * dy)
+    slope_rad = np.arctan(np.hypot(dzdx, dzdy))
+    aspect_rad = np.arctan2(dzdy, -dzdx)
+    zenith_rad = math.radians(90.0 - altitude_deg)
+    az_math = math.radians((360.0 - azimuth_deg + 90.0) % 360.0)
+    hs = (math.cos(zenith_rad) * np.cos(slope_rad)
+          + math.sin(zenith_rad) * np.sin(slope_rad) * np.cos(az_math - aspect_rad))
+    return np.clip(hs, 0.0, 1.0).astype("float32")
+
+
+def contours_geojson(dem: Dem, interval_m: float | None = None, max_levels: int = 30) -> dict:
+    """Extrae curvas de nivel (GeoJSON FeatureCollection de LineString) mediante marching squares en UTM."""
+    z = dem.z
+    zf = z[np.isfinite(z)]
+    if zf.size < 4:
+        return {"type": "FeatureCollection", "interval_m": interval_m or 0.0, "features": []}
+    z_min, z_max = float(zf.min()), float(zf.max())
+    span = z_max - z_min
+    if span < 0.2:
+        return {"type": "FeatureCollection", "interval_m": interval_m or 0.0, "features": []}
+
+    if interval_m is None or interval_m <= 0:
+        # Elegir equidistancia legible según el desnivel total
+        raw = span / 10.0
+        for cand in (0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 20.0, 25.0, 50.0, 100.0):
+            if cand >= raw:
+                interval_m = cand
+                break
+        else:
+            interval_m = round(raw, 1)
+
+    first = math.ceil(z_min / interval_m) * interval_m
+    levels = np.arange(first, z_max, interval_m)
+    if len(levels) > max_levels:
+        step = math.ceil(len(levels) / max_levels)
+        interval_m = interval_m * step
+        first = math.ceil(z_min / interval_m) * interval_m
+        levels = np.arange(first, z_max, interval_m)
+
+    alto, ancho = z.shape
+    z00 = z[:-1, :-1]
+    z10 = z[:-1, 1:]   # derecha (col+1)
+    z11 = z[1:, 1:]    # abajo-derecha
+    z01 = z[1:, :-1]   # abajo (row+1)
+    valid_cell = np.isfinite(z00) & np.isfinite(z10) & np.isfinite(z11) & np.isfinite(z01)
+
+    features = []
+    # Tabla de aristas de marching squares: 0=arriba, 1=derecha, 2=abajo, 3=izquierda
+    edge_table: dict[int, list[tuple[int, int]]] = {
+        1: [(3, 0)], 2: [(0, 1)], 3: [(3, 1)], 4: [(1, 2)],
+        5: [(3, 0), (1, 2)], 6: [(0, 2)], 7: [(3, 2)], 8: [(2, 3)],
+        9: [(0, 2)], 10: [(0, 3), (1, 2)], 11: [(1, 2)], 12: [(1, 3)],
+        13: [(0, 1)], 14: [(3, 0)],
+    }
+
+    for lvl in levels:
+        lvl_f = float(lvl)
+        code = ((z00 >= lvl_f).astype(int)
+                | ((z10 >= lvl_f).astype(int) << 1)
+                | ((z11 >= lvl_f).astype(int) << 2)
+                | ((z01 >= lvl_f).astype(int) << 3))
+        code = np.where(valid_cell, code, 0)
+        rs, cs = np.nonzero((code > 0) & (code < 15))
+        if len(rs) == 0:
+            continue
+
+        segs_utm: list[tuple[tuple[float, float], tuple[float, float]]] = []
+        for r, c in zip(rs.tolist(), cs.tolist()):
+            k = int(code[r, c])
+            pairs = edge_table.get(k)
+            if not pairs:
+                continue
+            v00, v10, v11, v01 = float(z00[r, c]), float(z10[r, c]), float(z11[r, c]), float(z01[r, c])
+
+            def _edge_pt(e: int) -> tuple[float, float]:
+                if e == 0:  # arriba: (r, c) -> (r, c+1)
+                    t = (lvl_f - v00) / (v10 - v00) if v10 != v00 else 0.5
+                    rr, cc = float(r), c + float(np.clip(t, 0.0, 1.0))
+                elif e == 1:  # derecha: (r, c+1) -> (r+1, c+1)
+                    t = (lvl_f - v10) / (v11 - v10) if v11 != v10 else 0.5
+                    rr, cc = r + float(np.clip(t, 0.0, 1.0)), float(c + 1)
+                elif e == 2:  # abajo: (r+1, c) -> (r+1, c+1)
+                    t = (lvl_f - v01) / (v11 - v01) if v11 != v01 else 0.5
+                    rr, cc = float(r + 1), c + float(np.clip(t, 0.0, 1.0))
+                else:  # izquierda: (r, c) -> (r+1, c)
+                    t = (lvl_f - v00) / (v01 - v00) if v01 != v00 else 0.5
+                    rr, cc = r + float(np.clip(t, 0.0, 1.0)), float(c)
+                x = dem.transform.c + (cc + 0.5) * dem.transform.a
+                y = dem.transform.f + (rr + 0.5) * dem.transform.e
+                return (round(float(x), 2), round(float(y), 2))
+
+            for e1, e2 in pairs:
+                p1, p2 = _edge_pt(e1), _edge_pt(e2)
+                if p1 != p2:
+                    segs_utm.append((p1, p2))
+
+        if not segs_utm:
+            continue
+
+        # Coser segmentos que comparten extremo en polilíneas continuas
+        adj: dict[tuple[float, float], list[int]] = {}
+        for idx, (p1, p2) in enumerate(segs_utm):
+            adj.setdefault(p1, []).append(idx)
+            adj.setdefault(p2, []).append(idx)
+        used = [False] * len(segs_utm)
+        lines_utm: list[list[tuple[float, float]]] = []
+        for idx, (p1, p2) in enumerate(segs_utm):
+            if used[idx]:
+                continue
+            used[idx] = True
+            chain = [p1, p2]
+            # extender hacia adelante
+            while True:
+                cur = chain[-1]
+                nxt = next((j for j in adj.get(cur, []) if not used[j]), None)
+                if nxt is None:
+                    break
+                used[nxt] = True
+                a, b = segs_utm[nxt]
+                chain.append(b if a == cur else a)
+            # extender hacia atrás
+            while True:
+                cur = chain[0]
+                prv = next((j for j in adj.get(cur, []) if not used[j]), None)
+                if prv is None:
+                    break
+                used[prv] = True
+                a, b = segs_utm[prv]
+                chain.insert(0, b if a == cur else a)
+            lines_utm.append(chain)
+
+        # Transformar todos los vértices del nivel a WGS84 en una sola llamada
+        flat_x = [pt[0] for line in lines_utm for pt in line]
+        flat_y = [pt[1] for line in lines_utm for pt in line]
+        flat_lon, flat_lat = to_crs(flat_x, flat_y, dem.crs, WGS84)
+        pos = 0
+        coords_lines = []
+        for line in lines_utm:
+            n = len(line)
+            coords_lines.append(
+                [[round(float(flat_lon[pos + i]), 7), round(float(flat_lat[pos + i]), 7)] for i in range(n)]
+            )
+            pos += n
+
+        features.append({
+            "type": "Feature",
+            "properties": {"elevation_m": round(lvl_f, 2)},
+            "geometry": {
+                "type": "MultiLineString" if len(coords_lines) > 1 else "LineString",
+                "coordinates": coords_lines if len(coords_lines) > 1 else coords_lines[0],
+            },
+        })
+
+    return {
+        "type": "FeatureCollection",
+        "interval_m": round(float(interval_m), 2),
+        "features": features,
+    }
+
+
 def bilinear(dem: Dem, x: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Cota interpolada bilinealmente. NaN si el punto cae fuera o si alguna de las 4 celdas no tiene dato."""
     row, col = dem.rowcol_f(np.atleast_1d(x), np.atleast_1d(y))
@@ -157,11 +328,11 @@ def profile(dem: Dem, coords_lonlat: list[list[float]], paso_m: float | None = N
 
 
 def mesh(dem: Dem, mascara_lote: np.ndarray, anillos_lote_utm: list[np.ndarray],
-         max_lado: int = 256) -> dict:
+         max_lado: int = 256, extra_grids: dict[str, np.ndarray] | None = None) -> dict:
     """Grilla de alturas para la escena 3D, con coordenadas lon/lat por vértice y el perímetro del lote con cota.
 
-    Si el DEM supera `max_lado` celdas por lado se submuestrea por paso fijo (nivel de detalle simple de Fase 0)
-    y se informa el factor; el cálculo de cota, pendiente y perfil siempre usa la resolución completa.
+    Si el DEM supera `max_lado` celdas por lado se submuestrea por paso fijo
+    y se informa el factor; el cálculo de cota, pendiente, hidrología y perfil siempre usa la resolución completa.
     """
     max_lado = int(min(max(max_lado, 16), MAX_LADO_MALLA))
     alto, ancho = dem.z.shape
@@ -172,6 +343,11 @@ def mesh(dem: Dem, mascara_lote: np.ndarray, anillos_lote_utm: list[np.ndarray],
     rr, cc = np.meshgrid(filas, cols, indexing="ij")
     x, y = dem.xy_of_cell(rr.ravel(), cc.ravel())
     lon, lat = to_crs(x, y, dem.crs, WGS84)
+
+    pct_full, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    hs_full = hillshade(dem.z, dem.pixel, dem.pixel)
+    pct_sub = pct_full[np.ix_(filas, cols)].ravel()
+    hs_sub = hs_full[np.ix_(filas, cols)].ravel()
 
     perimetro = []
     for anillo in anillos_lote_utm:
@@ -185,7 +361,7 @@ def mesh(dem: Dem, mascara_lote: np.ndarray, anillos_lote_utm: list[np.ndarray],
         perimetro.append([[round(float(a), 7), round(float(b), 7), _r(c)] for a, b, c in zip(plon, plat, pz)])
 
     zf = z[np.isfinite(z)]
-    return {
+    out = {
         "rows": int(len(filas)), "cols": int(len(cols)), "decimation": k,
         "pixel_size_m": dem.pixel, "mesh_cell_size_m": dem.pixel * k,
         "z_min": _r(zf.min()) if zf.size else None, "z_max": _r(zf.max()) if zf.size else None,
@@ -193,8 +369,18 @@ def mesh(dem: Dem, mascara_lote: np.ndarray, anillos_lote_utm: list[np.ndarray],
         "lat": [round(float(v), 7) for v in lat],
         "z": [None if not np.isfinite(v) else round(float(v), 2) for v in z.ravel()],
         "in_field": [bool(v) for v in mascara_lote[np.ix_(filas, cols)].ravel()],
+        "slope_pct": [_r(v, 2) for v in pct_sub],
+        "hillshade": [_r(v, 3) for v in hs_sub],
         "boundary": perimetro,
     }
+    if extra_grids:
+        for key, arr in extra_grids.items():
+            sub = arr[np.ix_(filas, cols)].ravel()
+            if np.issubdtype(sub.dtype, np.integer):
+                out[key] = [int(v) for v in sub]
+            else:
+                out[key] = [_r(v, 4) for v in sub]
+    return out
 
 
 def field_rings_utm(geometria_utm) -> list[np.ndarray]:
