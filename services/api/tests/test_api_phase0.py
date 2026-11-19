@@ -28,7 +28,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     r = client.get("/api/v1/health")
     assert r.status_code == 200
-    assert r.json()["phase"] == "fase-1-hidrologia-estatica"
+    assert r.json()["phase"] == "fase-2-lluvia-escorrentia-nrcs-cn"
 
     # 1. Importar lote sintético
     geojson_bytes = json.dumps(synthetic_square_field_geojson()).encode("utf-8")
@@ -128,3 +128,61 @@ def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     malla_hyd = r.json()
     assert malla_hyd["mfd_area_ha"] is not None
     assert len(malla_hyd["mfd_area_ha"]) == malla_hyd["rows"] * malla_hyd["cols"]
+
+    # 8. Fase 2: Eventos de lluvia (manual + CSV de muestra), corridas NRCS-CN y comparación de escenarios
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/rainfall-events",
+        json={"name": "Lluvia moderada 45 mm", "total_mm": 45.0, "source_type": "manual"},
+    )
+    assert r.status_code == 201, r.text
+    ev_manual = r.json()
+
+    r = client.post(f"/api/v1/fields/{field_id}/hydrology/rainfall-events/sample")
+    assert r.status_code == 201, r.text
+    ev_csv = r.json()
+    assert ev_csv["has_time_series"] is True
+    assert ev_csv["total_mm"] == pytest.approx(80.0)
+
+    # Corrida A (45 mm, suelo B, humedad media)
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/runoff-runs",
+        json={
+            "name": "Escenario A: 45 mm · Suelo B · AMC II",
+            "rainfall_event_id": ev_manual["id"],
+            "soil_group": "B",
+            "cover_code": "soja_maiz_sd_buena",
+            "antecedent_moisture": "medium",
+        },
+    )
+    assert r.status_code == 201, r.text
+    run_a = r.json()
+
+    # Corrida B (80 mm CSV, suelo C, humedad húmeda AMC III)
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/runoff-runs",
+        json={
+            "name": "Escenario B: 80 mm · Suelo C · AMC III",
+            "rainfall_event_id": ev_csv["id"],
+            "soil_group": "C",
+            "cover_code": "barbecho_suelo_desnudo",
+            "antecedent_moisture": "wet",
+        },
+    )
+    assert r.status_code == 201, r.text
+    run_b = r.json()
+    assert run_b["cn_result"]["runoff_q_mm"] > run_a["cn_result"]["runoff_q_mm"]
+
+    # Comparación entre Escenario A y Escenario B
+    r = client.get(
+        f"/api/v1/fields/{field_id}/hydrology/compare",
+        params={"run_a": run_a["id"], "run_b": run_b["id"]},
+    )
+    assert r.status_code == 200
+    comp = r.json()
+    assert comp["delta_runoff_q_mm"] > 0
+    assert comp["delta_field_runoff_generated_m3"] > 0
+
+    # La malla y el punto ahora incluyen la carga de escorrentía (runoff_load_mm) de la corrida activa
+    r = client.get(f"/api/v1/fields/{field_id}/terrain/point", params={"lon": lon, "lat": lat})
+    assert r.status_code == 200
+    assert r.json()["runoff_load_mm"] is not None

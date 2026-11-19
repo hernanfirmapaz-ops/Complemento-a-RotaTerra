@@ -91,3 +91,31 @@ def load_hydrology(field_id: str) -> dict:
     if not ruta.exists():
         raise NotFound(f"hydrology:{field_id}")
     return json.loads(ruta.read_text(encoding="utf-8"))
+
+
+def list_rainfall_events(field_id: str) -> list[dict]:
+    ruta = field_dir(field_id) / "rainfall_events.json"
+    if not ruta.exists():
+        return []
+    return json.loads(ruta.read_text(encoding="utf-8"))
+
+
+def save_rainfall_events(field_id: str, events: list[dict]) -> None:
+    (field_dir(field_id) / "rainfall_events.json").write_text(
+        json.dumps(events, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+
+
+def list_runoff_runs(field_id: str) -> list[dict]:
+    ruta = field_dir(field_id) / "runoff_runs.json"
+    if not ruta.exists():
+        return []
+    return json.loads(ruta.read_text(encoding="utf-8"))
+
+
+def save_runoff_runs(field_id: str, runs: list[dict]) -> None:
+    (field_dir(field_id) / "runoff_runs.json").write_text(
+        json.dumps(runs, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )

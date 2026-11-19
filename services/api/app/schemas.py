@@ -106,6 +106,8 @@ class MeshOut(BaseModel):
     d8_area_ha: list[float | None] | None = None
     d8_code: list[int] | None = None
     subbasin_id: list[int] | None = None
+    runoff_load_mm: list[float | None] | None = None
+    cumulative_runoff_m3: list[float | None] | None = None
     boundary: list[list[list[float | None]]]
 
 
@@ -132,6 +134,9 @@ class PointOut(BaseModel):
     mfd_area_m2: float | None = None
     mfd_area_ha: float | None = None
     subbasin_id: int | None = None
+    runoff_generated_q_mm: float | None = None
+    runoff_load_mm: float | None = None
+    cumulative_runoff_m3: float | None = None
     row: int
     col: int
     pixel_size_m: float
@@ -258,3 +263,113 @@ class HydrologyOut(BaseModel):
     contours: ContoursOut
     warnings: list[str]
     limitations: list[str]
+
+
+class RainfallIntervalOut(BaseModel):
+    timestamp: str
+    precipitation_mm: float
+    interval_minutes: int
+    station_id: str | None = None
+
+
+class RainfallEventManualIn(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    total_mm: float = Field(..., gt=0.0, le=1500.0)
+    source_type: Literal["gauge", "SMN", "IMERG", "CHIRPS", "ERA5-Land", "manual"] = "manual"
+    start_at: str | None = None
+    end_at: str | None = None
+    source_product: str | None = None
+    spatial_resolution: str | None = None
+    quality_flag: str | None = None
+    uncertainty_note: str | None = None
+
+
+class RainfallEventOut(BaseModel):
+    id: str
+    field_id: str
+    name: str
+    total_mm: float
+    source_type: str
+    start_at: str
+    end_at: str
+    has_time_series: bool
+    interval_minutes: int | None = None
+    intervals: list[RainfallIntervalOut] = []
+    max_intensity_mm_h: float | None = None
+    source_metadata: dict
+    warnings: list[str]
+    created_at: str
+
+
+class RunoffRunIn(BaseModel):
+    name: str | None = Field(None, max_length=140)
+    rainfall_event_id: str
+    soil_group: Literal["A", "B", "C", "D"] = "B"
+    cover_code: str = "soja_maiz_sd_buena"
+    cover_percent: float | None = Field(60.0, ge=0.0, le=100.0)
+    compaction_high: bool = False
+    antecedent_moisture: Literal["dry", "medium", "wet"] = "medium"
+    lambda_ratio: float = Field(0.2, ge=0.01, le=0.5)
+    custom_cn_ii: float | None = Field(None, ge=30.0, le=99.0)
+
+
+class CnResultOut(BaseModel):
+    precipitation_mm: float
+    cn_ii_base: float
+    cn_effective: float
+    antecedent_moisture: str
+    lambda_ratio: float
+    potential_retention_s_mm: float
+    initial_abstraction_ia_mm: float
+    infiltration_after_ia_f_mm: float
+    total_retention_losses_mm: float
+    runoff_q_mm: float
+    runoff_coefficient: float
+    mass_balance_error_mm: float
+
+
+class SpatialRunoffSummaryOut(BaseModel):
+    runoff_generated_q_mm: float
+    field_runoff_generated_m3: float
+    external_runoff_inflow_m3: float
+    total_runoff_supply_m3: float
+    potential_depression_retention_m3: float
+    net_outflow_potential_m3: float
+    max_cell_cumulative_runoff_m3: float
+    max_cell_runoff_load_mm: float
+    mean_cell_runoff_load_mm: float
+    high_concentration_area_ha: float
+
+
+class RunoffRunOut(BaseModel):
+    id: str
+    field_id: str
+    name: str
+    rainfall_event_id: str
+    rainfall_event_name: str
+    model: str
+    processing_version: str
+    created_at: str
+    is_active: bool
+    field_conditions: dict
+    cn_result: CnResultOut
+    spatial_summary: SpatialRunoffSummaryOut
+    assumptions_and_notes: list[str]
+    warnings: list[str]
+    limitations: list[str]
+
+
+class ScenarioComparisonOut(BaseModel):
+    run_a_id: str
+    run_a_name: str
+    run_b_id: str
+    run_b_name: str
+    delta_precipitation_mm: float
+    delta_cn_effective: float
+    delta_initial_abstraction_ia_mm: float
+    delta_runoff_q_mm: float
+    delta_runoff_q_pct: float | None
+    delta_runoff_coefficient: float
+    delta_field_runoff_generated_m3: float
+    delta_net_outflow_potential_m3: float
+    delta_high_concentration_area_ha: float

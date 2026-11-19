@@ -109,16 +109,20 @@ def _avisos_basicos(terreno: dict) -> list[str]:
 def terrain_mesh(field_id: str, max_size: int) -> dict:
     _, field, dem, mascara = _contexto(field_id)
     anillos = field_rings_utm(field_utm_geometry(field["geometry"], field["utm_epsg"]))
-    extra: dict[str, np.ndarray] | None = None
+    extra: dict[str, np.ndarray] = {}
     if grids := hydrology.optional_hydrology_grids(field_id):
-        extra = {
+        extra.update({
             "sink_depth_m": grids["sink_depth_m"],
             "mfd_area_ha": (grids["mfd_area_m2"] / 10_000.0).astype("float32"),
             "d8_area_ha": (grids["d8_area_m2"] / 10_000.0).astype("float32"),
             "d8_code": grids["d8_code"],
             "subbasin_id": grids["subbasin_id"],
-        }
-    return mesh(dem, mascara, anillos, max_size, extra_grids=extra)
+        })
+    if active_run := hydrology.optional_active_runoff(field_id):
+        _, r_grids = active_run
+        extra["runoff_load_mm"] = r_grids["runoff_load_mm"]
+        extra["cumulative_runoff_m3"] = r_grids["cumulative_runoff_m3"]
+    return mesh(dem, mascara, anillos, max_size, extra_grids=extra or None)
 
 
 def terrain_point(field_id: str, lon: float, lat: float) -> dict:
@@ -137,6 +141,13 @@ def terrain_point(field_id: str, lon: float, lat: float) -> dict:
         info["hillshade"] = round(float(hs), 3) if np.isfinite(hs) else None
         if grids := hydrology.optional_hydrology_grids(field_id):
             info.update(hydrology.point_hydrology_attrs(grids, r, c))
+        if active_run := hydrology.optional_active_runoff(field_id):
+            run_doc, r_grids = active_run
+            load_v = float(r_grids["runoff_load_mm"][r, c])
+            vol_v = float(r_grids["cumulative_runoff_m3"][r, c])
+            info["runoff_generated_q_mm"] = run_doc["cn_result"]["runoff_q_mm"]
+            info["runoff_load_mm"] = round(load_v, 2) if np.isfinite(load_v) else None
+            info["cumulative_runoff_m3"] = round(vol_v, 2) if np.isfinite(vol_v) else None
     return info | {"pixel_size_m": dem.pixel, "crs": dem.crs, "source_name": terreno["source"]["source_name"],
                    "warnings": avisos}
 
