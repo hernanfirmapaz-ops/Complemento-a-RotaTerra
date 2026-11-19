@@ -29,6 +29,8 @@ export type SurfaceColorMode =
   | 'water_depth'
   | 'velocity'
   | 'agronomic_zones'
+  | 'erosion'
+  | 'ndvi'
 
 export interface LayerVisibility {
   basemap: BasemapMode
@@ -267,6 +269,30 @@ function agronomicZoneColor(
   return attenuateOutside(rgb[0] * shade, rgb[1] * shade, rgb[2] * shade, inField)
 }
 
+/** Color de NDVI (vigor vegetativo): marrón suelo desnudo -> amarillo -> verde intenso. */
+function ndviColor(
+  ndviVal: number | null,
+  inField: boolean,
+): [number, number, number] {
+  const v = ndviVal ?? 0.35
+  const u = Math.min(1, Math.max(0, (v - 0.15) / 0.65))
+  let r = 0
+  let g = 0
+  let b = 0
+  if (u < 0.45) {
+    const k = u / 0.45
+    r = 0.78 + 0.14 * k
+    g = 0.32 + 0.48 * k
+    b = 0.16
+  } else {
+    const k = (u - 0.45) / 0.55
+    r = 0.92 - 0.80 * k
+    g = 0.80 - 0.12 * k
+    b = 0.16 + 0.10 * k
+  }
+  return attenuateOutside(r, g, b, inField)
+}
+
 interface ThreeLayerController extends CustomLayerInterface {
   rebuild: (
     meshData: MeshOut | null,
@@ -374,6 +400,8 @@ function createTerrainCustomLayer(
       const wdArr = meshData.water_depth_m
       const velArr = meshData.velocity_m_s
       const zoneArr = meshData.agronomic_zone_id
+      const lossArr = meshData.soil_loss_t_ha
+      const ndviArr = meshData.ndvi
       const slopeArr = meshData.slope_pct
       const hsArr = meshData.hillshade
 
@@ -471,6 +499,17 @@ function createTerrainCustomLayer(
               hsArr?.[i] ?? null,
               inside,
             )
+            break
+          case 'erosion':
+            rgb = slopeColor(
+              lossArr?.[i] !== null && lossArr?.[i] !== undefined
+                ? (lossArr[i] as number) * 2.5
+                : null,
+              inside,
+            )
+            break
+          case 'ndvi':
+            rgb = ndviColor(ndviArr?.[i] ?? null, inside)
             break
           case 'elevation':
           default: {
@@ -1265,6 +1304,32 @@ export function TerrainScene3D({
               </div>
               <div className="legend-labels">
                 <span>3: Vía conc. (naranja) · 4: Bajo (azul)</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'erosion' && (
+            <>
+              <span className="legend-title">
+                Pérdida de suelo por tormenta USLE (t/ha)
+              </span>
+              <div className="legend-gradient legend-slope" />
+              <div className="legend-labels">
+                <span>0 t/ha</span>
+                <span>1,5 t/ha</span>
+                <span>≥ 3,5 t/ha</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'ndvi' && (
+            <>
+              <span className="legend-title">
+                Monitor de Vigor Vegetativo (NDVI)
+              </span>
+              <div className="legend-gradient" />
+              <div className="legend-labels">
+                <span>&lt; 0,30 (Débil)</span>
+                <span>0,50</span>
+                <span>&gt; 0,75 (Alto)</span>
               </div>
             </>
           )}

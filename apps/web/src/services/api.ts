@@ -1,6 +1,8 @@
 /** Cliente HTTP de la API v1 (`/api/v1`). */
 
 import type {
+  AgronomicToolkitIn,
+  AgronomicToolkitOut,
   FieldObservationIn,
   FieldObservationOut,
   FieldOut,
@@ -318,4 +320,23 @@ export async function runHydrodynamic2DSolver(
     },
   )
   return check<RunoffRunOut>(res)
+}
+
+export async function getAgronomicToolkit(
+  fieldId: string,
+): Promise<AgronomicToolkitOut> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/toolkit`)
+  return check<AgronomicToolkitOut>(res)
+}
+
+export async function runAgronomicToolkit(
+  fieldId: string,
+  payload: AgronomicToolkitIn,
+): Promise<AgronomicToolkitOut> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/toolkit/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return check<AgronomicToolkitOut>(res)
 }

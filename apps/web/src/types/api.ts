@@ -107,6 +107,8 @@ export interface MeshOut {
   cumulative_runoff_m3?: (number | null)[] | null
   water_depth_m?: (number | null)[] | null
   velocity_m_s?: (number | null)[] | null
+  soil_loss_t_ha?: (number | null)[] | null
+  ndvi?: (number | null)[] | null
   boundary: (number | null)[][][]
 }
 
@@ -142,6 +144,8 @@ export interface PointOut {
   cumulative_runoff_m3?: number | null
   water_depth_m?: number | null
   velocity_m_s?: number | null
+  soil_loss_t_ha?: number | null
+  ndvi?: number | null
   row: number
   col: number
   pixel_size_m: number
@@ -505,4 +509,157 @@ export interface FieldObservationOut {
   units: string | null
   observed_at: string
   created_at: string
+}
+
+export interface AgronomicToolkitIn {
+  soil_group: SoilGroup
+  cover_code: string
+  storm_precipitation_mm: number
+  crop_code: string
+  environment_zone: 'loma' | 'media_loma' | 'bajo'
+  target_yield_t_ha?: number | null
+}
+
+export interface AgronomicToolkitOut {
+  field_id: string
+  processed_at: string
+  parameters: Record<string, unknown>
+  erosion_usle: {
+    r_storm_mj_mm_ha_h: number
+    k_factor: number
+    c_factor: number
+    p_factor: number
+    ls_mean_in_field: number
+    ls_max_in_field: number
+    mean_soil_loss_t_ha: number
+    max_soil_loss_t_ha: number
+    total_field_soil_loss_tons: number
+    gully_initiation_cells: number
+    gully_risk_area_ha: number
+    erosion_severity: string
+  }
+  water_balance_monthly: {
+    source: string
+    available_water_capacity_max_mm: number
+    annual_precipitation_mm: number
+    annual_et0_mm: number
+    deficit_months_count: number
+    excess_months_count: number
+    final_available_water_mm: number
+    final_available_water_pct: number
+    months: {
+      label: string
+      precipitation_mm: number
+      et0_mm: number
+      available_water_mm: number
+      available_water_pct: number
+      deficit_mm: number
+      excess_drainage_mm: number
+      status: string
+    }[]
+  }
+  real_waterlogging_by_date: {
+    source: string
+    evaluated_days: number
+    significant_storms_count: number
+    high_waterlogging_events_count: number
+    top_historical_events: {
+      date: string
+      precipitation_mm: number
+      prior_5d_rain_mm: number
+      antecedent_moisture_amc: string
+      runoff_q_mm: number
+      estimated_waterlogged_area_ha: number
+      waterlogging_risk: string
+    }[]
+  }
+  contour_terraces: {
+    mean_field_slope_pct: number
+    recommended_vertical_interval_m: number
+    recommended_horizontal_spacing_m: number
+    terrace_levels_count: number
+    estimated_total_terrace_length_m: number
+    runoff_before_mm: number
+    runoff_after_mm: number
+    water_retained_by_terraces_m3: number
+    runoff_reduction_pct: number
+    soil_loss_before_t_ha: number
+    soil_loss_after_t_ha: number
+    soil_loss_saved_tons: number
+    erosion_reduction_pct: number
+    terraces_geojson: GeoJSON.FeatureCollection
+  }
+  seeding_calculator_inta: {
+    crop_label: string
+    sowing_window_inta: string
+    target_plants_ha: number
+    achievement_ratio_pct: number
+    seeds_to_sow_ha: number
+    seeds_per_linear_m: number
+    seed_density_kg_ha: number
+    total_seed_kg_for_field: number
+    commercial_bags_needed: number
+    bag_unit: string
+    target_yield_t_ha: number
+    nutrients_required_kg_ha: {
+      N: number
+      P_elemental: number
+      P2O5_equiv: number
+      S: number
+    }
+    commercial_fertilizer_guide_kg_ha: {
+      MAP_11_52_0_kg_ha: number
+      Urea_46_0_0_kg_ha: number
+      Yeso_agricola_17S_kg_ha: number
+    }
+  }
+  rotation_comparator_3yr: {
+    design_storm_mm: number
+    sequence_a: {
+      name: string
+      mean_cn_3yr: number
+      mean_cover_pct_3yr: number
+      cumulative_runoff_3yr_mm: number
+      cumulative_soil_loss_3yr_t_ha: number
+      cumulative_field_soil_loss_3yr_tons: number
+    }
+    sequence_b: {
+      name: string
+      mean_cn_3yr: number
+      mean_cover_pct_3yr: number
+      cumulative_runoff_3yr_mm: number
+      cumulative_soil_loss_3yr_t_ha: number
+      cumulative_field_soil_loss_3yr_tons: number
+    }
+    delta_b_vs_a: {
+      soil_saved_by_b_tons: number
+      runoff_saved_by_b_mm: number
+      cover_gain_pct: number
+    }
+  }
+  ndvi_vigor_monitor: {
+    source: string
+    acquisition_date: string
+    mean_ndvi_in_field: number
+    low_vigor_area_ha: number
+    low_vigor_pct: number
+    moderate_vigor_pct: number
+    high_vigor_pct: number
+    weak_zones_explained_by_waterlogging_or_erosion_pct: number
+  }
+  frost_risk_sowing: {
+    source: string
+    mean_meteorological_frost_days_yr: number
+    mean_agronomic_frost_days_yr: number
+    median_last_spring_frost_date: string
+    safe_spring_sowing_start_date: string
+    median_first_autumn_frost_date: string
+    frost_free_period_days: number
+    safe_sowing_windows_by_crop: {
+      crop: string
+      safe_start: string
+      note: string
+    }[]
+  }
+  warnings: string[]
 }

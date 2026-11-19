@@ -433,6 +433,31 @@ body,
   text-decoration: none;
 }
 
+.toolkit-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.tab-btn {
+  background: var(--bg-0);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 5px 6px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tab-btn.active {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
 .hydro-summary {
   margin-top: 10px;
   padding-top: 10px;

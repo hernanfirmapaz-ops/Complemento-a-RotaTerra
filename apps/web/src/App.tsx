@@ -9,6 +9,7 @@ import {
   executeRunoffRun,
   exportGeoJsonUrl,
   exportReportUrl,
+  getAgronomicToolkit,
   getRunoffTimeline,
   getStaticHydrology,
   getTerrain,
@@ -23,10 +24,13 @@ import {
   loadSampleRainfallEvent,
   processTerrain,
   queryTerrainPoint,
+  runAgronomicToolkit,
   runHydrodynamic2DSolver,
   runStaticHydrology,
 } from './services/api'
 import type {
+  AgronomicToolkitIn,
+  AgronomicToolkitOut,
   FieldObservationOut,
   FieldOut,
   HydrologyOut,
@@ -50,6 +54,7 @@ import {
   TerrainScene3D,
 } from './components/TerrainScene3D'
 import { FlowTimelinePlayer } from './components/FlowTimelinePlayer'
+import { AgronomicToolkitPanel } from './components/AgronomicToolkitPanel'
 import { HydrologyPanel } from './components/HydrologyPanel'
 import { ProfileChart } from './components/ProfileChart'
 import { QualityPanel } from './components/QualityPanel'
@@ -77,6 +82,7 @@ export function App() {
     'Anegamiento observado tras tormenta',
   )
   const [obsDraftVal, setObsDraftVal] = useState<string>('')
+  const [toolkit, setToolkit] = useState<AgronomicToolkitOut | null>(null)
 
   const [sourceId, setSourceId] = useState<'copernicus_glo30' | 'upload'>(
     'copernicus_glo30',
@@ -135,6 +141,7 @@ export function App() {
     setTimeline(null)
     setPlaying(false)
     setObservations([])
+    setToolkit(null)
     setSelectedPoint(null)
     setProfileDraft([])
     setProfileResult(null)
@@ -151,9 +158,10 @@ export function App() {
       listRainfallEvents(activeField.id).catch(() => []),
       listRunoffRuns(activeField.id).catch(() => []),
       listFieldObservations(activeField.id).catch(() => []),
+      getAgronomicToolkit(activeField.id).catch(() => null),
     ]
     Promise.all(tasks)
-      .then(async ([t, m, h, evs, rns, obs]) => {
+      .then(async ([t, m, h, evs, rns, obs, tk]) => {
         setTerrain(t as TerrainOut)
         setMesh(m as MeshOut)
         setHydrology((h as HydrologyOut | null) ?? null)
@@ -161,6 +169,7 @@ export function App() {
         const runsList = rns as RunoffRunOut[]
         setRunoffRuns(runsList)
         setObservations(obs as FieldObservationOut[])
+        setToolkit((tk as AgronomicToolkitOut | null) ?? null)
         const activeRun =
           runsList.find((r) => r.is_active) ?? runsList[0] ?? null
         if (activeRun) {
@@ -393,6 +402,30 @@ export function App() {
       setMesh(m)
       setRunoffRuns(rns)
       setLayers((prev) => ({ ...prev, surfaceColor: 'water_depth' }))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleRunToolkit = async (params: AgronomicToolkitIn) => {
+    if (!activeField) return
+    setError(null)
+    setBusy(
+      'Calculando 8 herramientas: Erosión USLE, Balance Hídrico NASA POWER, Anegamiento por fecha real, Terrazas a nivel, Siembra INTA, Rotaciones 3a, Vigor NDVI y Heladas...',
+    )
+    try {
+      const tk = await runAgronomicToolkit(activeField.id, params)
+      const [h, m, all] = await Promise.all([
+        getStaticHydrology(activeField.id),
+        getTerrainMesh(activeField.id),
+        listFields(),
+      ])
+      setToolkit(tk)
+      setHydrology(h)
+      setMesh(m)
+      setFields(all)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -762,6 +795,12 @@ export function App() {
                 <option value="velocity" disabled={!mesh?.velocity_m_s}>
                   Velocidad superficial 2D Manning (velocity_m_s · Fase 4)
                 </option>
+                <option value="erosion" disabled={!mesh?.soil_loss_t_ha}>
+                  Pérdida de suelo por tormenta USLE (t/ha)
+                </option>
+                <option value="ndvi" disabled={!mesh?.ndvi}>
+                  Monitor de Vigor Vegetativo (NDVI)
+                </option>
               </select>
             </label>
 
@@ -866,8 +905,18 @@ export function App() {
           />
         </main>
 
-        {/* Panel derecho: Animación Fase 3, Inspector, Perfil, Observaciones, Salidas y Calidad */}
+        {/* Panel derecho: Animación Fase 3, 8 Herramientas RotaTerra, Inspector, Perfil, Observaciones, Salidas y Calidad */}
         <aside className="sidebar sidebar-right">
+          <AgronomicToolkitPanel
+            hasTerrain={Boolean(terrain)}
+            toolkit={toolkit}
+            busy={Boolean(busy)}
+            onRun={handleRunToolkit}
+            onSelect3DLayer={(layer) =>
+              setLayers((prev) => ({ ...prev, surfaceColor: layer }))
+            }
+          />
+
           {timeline && (
             <FlowTimelinePlayer
               timeline={timeline}

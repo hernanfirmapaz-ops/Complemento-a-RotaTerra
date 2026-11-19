@@ -8,7 +8,16 @@ Módulo web geoespacial para **RotaTerra** orientado a la visualización 3D del 
 > - **Fase 2:** registro manual de lluvias e importación/validación de series temporales CSV (`timestamp,precipitation_mm,interval_minutes,station_id`), metadatos obligatorios de fuente/incertidumbre, parametrización edáfica y de cobertura/manejo (grupos A–D, AMC I/II/III, $\lambda$), cálculo de escorrentía directa **NRCS Curve Number ($S, I_a, F, Q$)** combinada con MFD y comparador lado a lado entre escenarios (CU-04).  
 > - **Fase 3:** tránsito temporal por intervalos sobre el hietograma con balance de masa estricto paso a paso, reproductor de línea de tiempo (play/pause/velocidad/slider), partículas 3D vinculadas a las rutas calculadas, registro de observaciones reales de campo y estructuras hidráulicas (CU-06), y exportación de paquete GeoJSON e informe técnico HTML/PDF.  
 > - **Fase 4:** solver hidrodinámico 2D de onda difusiva con ley de Manning ($n$ parametrizado por cobertura/rastrojo y apertura de alcantarillas/canales relevados) que resuelve `water_depth_m` y `velocity_m_s` verificando conservación de volumen.  
-> - **Fase 5:** clasificación automática del lote en 4 **ambientes hidro-agronómicos** (*Loma bien drenada*, *Media loma*, *Vía de escurrimiento concentrado* y *Bajo receptor anegable*), estimación de días de espera de transitabilidad de maquinaria post-lluvia y criterios multicriterio para el planificador trienal de **RotaTerra**.
+> - **Fase 5:** clasificación automática del lote en 4 **ambientes hidro-agronómicos** (*Loma bien drenada*, *Media loma*, *Vía de escurrimiento concentrado* y *Bajo receptor anegable*), estimación de días de espera de transitabilidad de maquinaria post-lluvia y criterios multicriterio para el planificador trienal de **RotaTerra**.  
+> - **Suite de 8 Herramientas Complementarias RotaTerra (`/api/v1/fields/{id}/hydrology/toolkit/run`)**:
+>   1. **Erosión en escurrimiento (USLE/RUSLE + focos de cárcavas)** sobre el relieve UTM + mapa 3D de pérdida de suelo (`t/ha`).
+>   2. **Balance hídrico mensual del lote** (12 meses con datos diarios de **NASA POWER**: lluvia, $ET_0$, agua útil, meses de déficit y exceso).
+>   3. **Riesgo de anegamiento por fecha con lluvias reales** (tormentas reales con ajuste de humedad antecedente de 5 días previos AMC I/II/III).
+>   4. **Curvas de nivel y Terrazas** (trazado automático de terrazas a nivel en el lote y simulación antes vs. después: $\text{m}^3$ de agua frenada, % reducción de escorrentía y toneladas de suelo ahorradas).
+>   5. **Calculadora de Siembra y Fertilizante (Tablas INTA)** según cultivo, ambiente del lote y rinde objetivo (`pl/ha`, `sem/m`, `kg/ha`, bolsas comerciales y `N-P2O5-S` / guía MAP, Urea, Yeso).
+>   6. **Comparador de Rotaciones Trienales (3 años)** lado a lado (escurrimiento acumulado, erosión USLE en `t/ha` y cobertura entre 2 secuencias).
+>   7. **Monitor de Vigor (NDVI)** conectando al catálogo público **STAC de Sentinel-2 L2A (COG 10 m en AWS Element84 Earth Search, sin necesitar Google Earth Engine)** + mapa 3D de NDVI y cruce de zonas débiles con bajos anegables y vías erosivas.
+>   8. **Riesgo de Heladas y Fechas Seguras de Siembra** (**NASA POWER `T2M_MIN`**: última helada primaveral, primera otoñal, período libre de heladas y ventana segura por cultivo).
 
 ---
 
