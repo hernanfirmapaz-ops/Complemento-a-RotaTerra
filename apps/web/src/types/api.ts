@@ -100,8 +100,13 @@ export interface MeshOut {
   d8_area_ha?: (number | null)[] | null
   d8_code?: number[] | null
   subbasin_id?: number[] | null
+  twi?: (number | null)[] | null
+  spi?: (number | null)[] | null
+  agronomic_zone_id?: number[] | null
   runoff_load_mm?: (number | null)[] | null
   cumulative_runoff_m3?: (number | null)[] | null
+  water_depth_m?: (number | null)[] | null
+  velocity_m_s?: (number | null)[] | null
   boundary: (number | null)[][][]
 }
 
@@ -128,9 +133,15 @@ export interface PointOut {
   mfd_area_m2: number | null
   mfd_area_ha: number | null
   subbasin_id: number | null
+  twi?: number | null
+  spi?: number | null
+  agronomic_zone_id?: number | null
+  agronomic_zone_label?: string | null
   runoff_generated_q_mm?: number | null
   runoff_load_mm?: number | null
   cumulative_runoff_m3?: number | null
+  water_depth_m?: number | null
+  velocity_m_s?: number | null
   row: number
   col: number
   pixel_size_m: number
@@ -232,6 +243,37 @@ export interface ContoursOut {
   features: GeoJSON.Feature[]
 }
 
+export interface AgronomicZoneSummary {
+  zone_id: number
+  code: string
+  label: string
+  cells: number
+  area_ha: number
+  percentage_of_field: number
+  mean_elevation_m: number | null
+  mean_slope_pct: number | null
+  mean_twi: number | null
+  mean_spi: number | null
+  hydro_behavior: string
+  management_guideline: string
+}
+
+export interface AgronomicZonationOut {
+  twi_field_mean: number
+  twi_field_p90: number
+  spi_field_mean: number
+  spi_field_p90: number
+  zones: AgronomicZoneSummary[]
+  trafficability: {
+    risk_level: string
+    soil_group_assumed: string
+    estimated_wait_days_high_ground: number
+    estimated_wait_days_low_ground: number
+    summary: string
+  }
+  rotaterra_criteria: string[]
+}
+
 export interface HydrologyOut {
   field_id: string
   processing_version: string
@@ -245,6 +287,7 @@ export interface HydrologyOut {
     basis?: string
   }
   contours: ContoursOut
+  agronomic_zonation?: AgronomicZonationOut | null
   warnings: string[]
   limitations: string[]
 }
@@ -332,6 +375,26 @@ export interface SpatialRunoffSummaryOut {
   high_concentration_area_ha: number
 }
 
+export interface Hydrodynamic2DSummaryOut {
+  manning_n: number
+  ponding_threshold_m: number
+  hydraulic_structures_applied: number
+  Effective_runoff_input_mm: number
+  infiltration_losses_mm: number
+  max_water_depth_in_field_m: number
+  mean_max_water_depth_in_field_m: number
+  final_retained_water_depth_max_m: number
+  max_velocity_in_field_m_s: number
+  max_unit_discharge_in_field_m2_s: number
+  ponded_area_in_field_ha: number
+  ponded_area_in_field_pct: number
+  ponded_retained_volume_in_field_m3: number
+  domain_input_volume_m3: number
+  domain_final_storage_m3: number
+  domain_boundary_outflow_m3: number
+  mass_balance_relative_error: number
+}
+
 export interface RunoffRunOut {
   id: string
   field_id: string
@@ -345,6 +408,8 @@ export interface RunoffRunOut {
   field_conditions: Record<string, unknown>
   cn_result: CnResultOut
   spatial_summary: SpatialRunoffSummaryOut
+  hydrodynamic_2d_summary?: Hydrodynamic2DSummaryOut | null
+  agronomic_zonation?: AgronomicZonationOut | null
   assumptions_and_notes: string[]
   warnings: string[]
   limitations: string[]

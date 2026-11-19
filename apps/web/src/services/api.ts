@@ -299,3 +299,23 @@ export function exportGeoJsonUrl(fieldId: string): string {
 export function exportReportUrl(fieldId: string): string {
   return `${BASE}/fields/${fieldId}/hydrology/export/report`
 }
+
+export async function runHydrodynamic2DSolver(
+  fieldId: string,
+  runId: string,
+  params: {
+    manning_n?: number | null
+    ponding_threshold_m?: number
+    recession_minutes?: number
+  },
+): Promise<RunoffRunOut> {
+  const res = await fetch(
+    `${BASE}/fields/${fieldId}/hydrology/runoff-runs/${runId}/simulate-2d`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    },
+  )
+  return check<RunoffRunOut>(res)
+}

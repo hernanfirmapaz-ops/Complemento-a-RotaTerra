@@ -21,6 +21,7 @@ interface Props {
   onImportCsvEvent: (file: File, name: string, sourceType: string) => void
   onRunRunoff: (payload: RunoffRunIn) => void
   onActivateRun: (runId: string) => void
+  onRun2DSolver: (runId: string) => void
   onCompare: (runA: string, runB: string) => void
 }
 
@@ -70,6 +71,7 @@ export function RainfallRunoffPanel({
   onImportCsvEvent,
   onRunRunoff,
   onActivateRun,
+  onRun2DSolver,
   onCompare,
 }: Props) {
   const [rainName, setRainName] = useState<string>('Tormenta diseño 60 mm')
@@ -420,6 +422,63 @@ export function RainfallRunoffPanel({
               escorrentía directa del evento; no debe interpretarse como
               profundidad física de inundación.
             </div>
+
+            <button
+              className="btn-secondary full-width"
+              style={{ marginTop: 8 }}
+              onClick={() => onRun2DSolver(activeRun.id)}
+              disabled={busy}
+            >
+              {activeRun.hydrodynamic_2d_summary
+                ? '↻ Recalcular Solver Hidrodinámico 2D (Manning · Fase 4)'
+                : '⚡ Ejecutar Solver Hidrodinámico 2D (water_depth_m + velocity_m_s · Fase 4)'}
+            </button>
+
+            {activeRun.hydrodynamic_2d_summary && (
+              <dl className="kv-grid" style={{ marginTop: 8 }}>
+                <div>
+                  <dt>Prof. máx. 2D (h_max)</dt>
+                  <dd>
+                    {activeRun.hydrodynamic_2d_summary.max_water_depth_in_field_m.toFixed(
+                      3,
+                    )}{' '}
+                    m
+                  </dd>
+                </div>
+                <div>
+                  <dt>Velocidad máx. 2D</dt>
+                  <dd>
+                    {activeRun.hydrodynamic_2d_summary.max_velocity_in_field_m_s.toFixed(
+                      2,
+                    )}{' '}
+                    m/s (n={activeRun.hydrodynamic_2d_summary.manning_n})
+                  </dd>
+                </div>
+                <div>
+                  <dt>Área anegada (≥5 cm)</dt>
+                  <dd>
+                    {activeRun.hydrodynamic_2d_summary.ponded_area_in_field_ha.toFixed(
+                      2,
+                    )}{' '}
+                    ha (
+                    {activeRun.hydrodynamic_2d_summary.ponded_area_in_field_pct.toFixed(
+                      1,
+                    )}{' '}
+                    %)
+                  </dd>
+                </div>
+                <div>
+                  <dt>Error balance 2D</dt>
+                  <dd>
+                    {(
+                      activeRun.hydrodynamic_2d_summary
+                        .mass_balance_relative_error * 100
+                    ).toFixed(4)}{' '}
+                    %
+                  </dd>
+                </div>
+              </dl>
+            )}
           </div>
         )}
       </section>

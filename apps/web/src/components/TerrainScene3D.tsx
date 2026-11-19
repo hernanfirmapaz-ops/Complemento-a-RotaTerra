@@ -24,6 +24,11 @@ export type SurfaceColorMode =
   | 'depressions'
   | 'subbasins'
   | 'runoff'
+  | 'twi'
+  | 'spi'
+  | 'water_depth'
+  | 'velocity'
+  | 'agronomic_zones'
 
 export interface LayerVisibility {
   basemap: BasemapMode
@@ -201,6 +206,67 @@ function runoffLoadColor(
   return attenuateOutside(r, g, b, inField)
 }
 
+/** Color TWI (humedad topográfica): ocre seco -> verde -> azul húmedo. */
+function twiColor(
+  twiVal: number | null,
+  inField: boolean,
+): [number, number, number] {
+  const v = twiVal ?? 5.0
+  const u = Math.min(1, Math.max(0, (v - 4.0) / 8.0))
+  const r = 0.78 * (1 - u) + 0.08 * u
+  const g = 0.65 * (1 - u) + 0.58 * u
+  const b = 0.25 * (1 - u) + 0.96 * u
+  return attenuateOutside(r, g, b, inField)
+}
+
+/** Color SPI (potencia erosiva): gris verdoso -> amarillo -> rojo intenso. */
+function spiColor(
+  spiVal: number | null,
+  maxSpi: number,
+  inField: boolean,
+): [number, number, number] {
+  const v = Math.max(0, spiVal ?? 0)
+  const denom = Math.log10(1 + Math.max(2, maxSpi) * 10)
+  const u = Math.min(1, Math.max(0, Math.log10(1 + v * 10) / denom))
+  const r = 0.25 + 0.73 * u
+  const g = 0.60 * (1 - u * 0.75)
+  const b = 0.25 * (1 - u)
+  return attenuateOutside(r, g, b, inField)
+}
+
+/** Color de lámina de agua 2D simulada (water_depth_m, Fase 4). */
+function waterDepth2DColor(
+  depthM: number | null,
+  hsVal: number | null,
+  inField: boolean,
+): [number, number, number] {
+  const d = depthM ?? 0
+  const base = 0.30 + 0.45 * (hsVal ?? 0.65)
+  if (d < 0.01) {
+    return attenuateOutside(base * 0.9, base * 0.95, base * 0.85, inField)
+  }
+  const u = Math.min(1, d / 0.35)
+  const r = 0.18 * (1 - u) + 0.03 * u
+  const g = 0.78 * (1 - u) + 0.38 * u
+  const b = 0.95
+  return attenuateOutside(r, g, b, inField)
+}
+
+/** Color de ambientes hidro-agronómicos RotaTerra (Fase 5: 1=Loma, 2=Media loma, 3=Vía conc., 4=Bajo). */
+function agronomicZoneColor(
+  zoneId: number | null | undefined,
+  hsVal: number | null,
+  inField: boolean,
+): [number, number, number] {
+  const shade = 0.62 + 0.38 * (hsVal ?? 0.7)
+  let rgb: [number, number, number] = [0.45, 0.50, 0.55]
+  if (zoneId === 1) rgb = [0.88, 0.74, 0.32] // Loma bien drenada (dorado)
+  else if (zoneId === 2) rgb = [0.22, 0.76, 0.44] // Media loma (verde)
+  else if (zoneId === 3) rgb = [0.96, 0.48, 0.16] // Vía escurrimiento (naranja erosivo)
+  else if (zoneId === 4) rgb = [0.20, 0.52, 0.96] // Bajo anegable (azul)
+  return attenuateOutside(rgb[0] * shade, rgb[1] * shade, rgb[2] * shade, inField)
+}
+
 interface ThreeLayerController extends CustomLayerInterface {
   rebuild: (
     meshData: MeshOut | null,
@@ -303,6 +369,11 @@ function createTerrainCustomLayer(
       const sinkArr = meshData.sink_depth_m
       const basArr = meshData.subbasin_id
       const runoffArr = meshData.runoff_load_mm
+      const twiArr = meshData.twi
+      const spiArr = meshData.spi
+      const wdArr = meshData.water_depth_m
+      const velArr = meshData.velocity_m_s
+      const zoneArr = meshData.agronomic_zone_id
       const slopeArr = meshData.slope_pct
       const hsArr = meshData.hillshade
 
@@ -317,6 +388,10 @@ function createTerrainCustomLayer(
       let maxRunoff = 20.0
       if (runoffArr) {
         for (const v of runoffArr) if (v !== null && v > maxRunoff) maxRunoff = v
+      }
+      let maxSpi = 2.0
+      if (spiArr) {
+        for (const v of spiArr) if (v !== null && v > maxSpi) maxSpi = v
       }
 
       for (let i = 0; i < nVerts; i++) {
@@ -364,6 +439,36 @@ function createTerrainCustomLayer(
                 ? (runoffArr[i] as number) * activeFraction
                 : null,
               maxRunoff,
+              inside,
+            )
+            break
+          case 'twi':
+            rgb = twiColor(twiArr?.[i] ?? null, inside)
+            break
+          case 'spi':
+            rgb = spiColor(spiArr?.[i] ?? null, maxSpi, inside)
+            break
+          case 'water_depth':
+            rgb = waterDepth2DColor(
+              wdArr?.[i] !== null && wdArr?.[i] !== undefined
+                ? (wdArr[i] as number) * activeFraction
+                : null,
+              hsArr?.[i] ?? null,
+              inside,
+            )
+            break
+          case 'velocity':
+            rgb = slopeColor(
+              velArr?.[i] !== null && velArr?.[i] !== undefined
+                ? (velArr[i] as number) * 10.0 * activeFraction
+                : null,
+              inside,
+            )
+            break
+          case 'agronomic_zones':
+            rgb = agronomicZoneColor(
+              zoneArr?.[i] ?? null,
+              hsArr?.[i] ?? null,
               inside,
             )
             break
@@ -1097,6 +1202,69 @@ export function TerrainScene3D({
               <div className="legend-labels">
                 <span>Ladera (Q)</span>
                 <span>Vías de concentración</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'twi' && (
+            <>
+              <span className="legend-title">
+                Índice de Humedad Topográfica (TWI = ln(a/tan β))
+              </span>
+              <div className="legend-gradient legend-runoff" />
+              <div className="legend-labels">
+                <span>Loma seca</span>
+                <span>Propensión a humedad</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'spi' && (
+            <>
+              <span className="legend-title">
+                Índice de Potencia Erosiva (SPI = a · tan β)
+              </span>
+              <div className="legend-gradient legend-slope" />
+              <div className="legend-labels">
+                <span>Baja energía</span>
+                <span>Riesgo erosión concentrada</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'water_depth' && (
+            <>
+              <span className="legend-title">
+                Profundidad de agua simulada 2D Manning (water_depth_m)
+              </span>
+              <div className="legend-gradient legend-flow" />
+              <div className="legend-labels">
+                <span>0,00 m</span>
+                <span>0,15 m</span>
+                <span>≥ 0,35 m</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'velocity' && (
+            <>
+              <span className="legend-title">
+                Velocidad superficial 2D Manning (velocity_m_s)
+              </span>
+              <div className="legend-gradient legend-slope" />
+              <div className="legend-labels">
+                <span>0,0 m/s</span>
+                <span>0,4 m/s</span>
+                <span>≥ 0,8 m/s</span>
+              </div>
+            </>
+          )}
+          {layers.surfaceColor === 'agronomic_zones' && (
+            <>
+              <span className="legend-title">
+                Ambientes Hidro-Agronómicos RotaTerra (Fase 5)
+              </span>
+              <div className="legend-labels">
+                <span>1: Loma (dorado) · 2: Media (verde)</span>
+              </div>
+              <div className="legend-labels">
+                <span>3: Vía conc. (naranja) · 4: Bajo (azul)</span>
               </div>
             </>
           )}

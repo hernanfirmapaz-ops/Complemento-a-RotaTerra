@@ -23,6 +23,7 @@ import {
   loadSampleRainfallEvent,
   processTerrain,
   queryTerrainPoint,
+  runHydrodynamic2DSolver,
   runStaticHydrology,
 } from './services/api'
 import type {
@@ -374,6 +375,31 @@ export function App() {
     }
   }
 
+  const handleRun2DSolver = async (runId: string) => {
+    if (!activeField) return
+    setError(null)
+    setBusy(
+      'Ejecutando Solver Hidrodinámico 2D de onda difusiva (Manning · water_depth_m + velocity_m_s) y Zonificación RotaTerra (Fase 4 + Fase 5)...',
+    )
+    try {
+      await runHydrodynamic2DSolver(activeField.id, runId, {
+        ponding_threshold_m: 0.05,
+        recession_minutes: 30,
+      })
+      const [m, rns] = await Promise.all([
+        getTerrainMesh(activeField.id),
+        listRunoffRuns(activeField.id),
+      ])
+      setMesh(m)
+      setRunoffRuns(rns)
+      setLayers((prev) => ({ ...prev, surfaceColor: 'water_depth' }))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const handleMapClick = async (lon: number, lat: number) => {
     if (!activeField || !terrain) return
     setError(null)
@@ -421,7 +447,7 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <span className="badge-phase">
-            MVP COMPLETO · FASES 0 A 3 · 3D + D8/MFD + NRCS-CN + ANIMACIÓN
+            SUITE COMPLETA · FASES 0 A 5 · 3D + D8/MFD + NRCS-CN + 2D MANNING + ROTATERRA
           </span>
           <h1>RotaTerra — Visor 3D de Lotes y Drenaje Superficial</h1>
         </div>
@@ -520,10 +546,10 @@ export function App() {
                 Cargar lote real (San Luis)
               </button>
               <label className="btn-secondary">
-                Importar GeoJSON
+                Importar Lote (GeoJSON/KML/SHP)
                 <input
                   type="file"
-                  accept=".geojson,.json,application/geo+json,application/json"
+                  accept=".geojson,.json,.kml,.kmz,.zip,application/geo+json,application/json"
                   onChange={handleImportGeoJSON}
                   hidden
                 />
@@ -663,6 +689,7 @@ export function App() {
             onImportCsvEvent={handleImportCsvEvent}
             onRunRunoff={handleRunRunoff}
             onActivateRun={handleActivateRunoff}
+            onRun2DSolver={handleRun2DSolver}
             onCompare={handleCompareScenarios}
           />
 
@@ -714,8 +741,26 @@ export function App() {
                 <option value="subbasins" disabled={!hydrology}>
                   Subcuencas por punto de salida
                 </option>
+                <option value="twi" disabled={!hydrology}>
+                  Índice Humedad Topográfica (TWI)
+                </option>
+                <option value="spi" disabled={!hydrology}>
+                  Índice Potencia Erosiva (SPI)
+                </option>
+                <option value="agronomic_zones" disabled={!hydrology}>
+                  Ambientes Hidro-Agronómicos RotaTerra (Fase 5)
+                </option>
                 <option value="runoff" disabled={runoffRuns.length === 0}>
                   Escorrentía estimada NRCS-CN + MFD (mm equiv.)
+                </option>
+                <option
+                  value="water_depth"
+                  disabled={!mesh?.water_depth_m}
+                >
+                  Profundidad de agua 2D Manning (water_depth_m · Fase 4)
+                </option>
+                <option value="velocity" disabled={!mesh?.velocity_m_s}>
+                  Velocidad superficial 2D Manning (velocity_m_s · Fase 4)
                 </option>
               </select>
             </label>
@@ -1023,6 +1068,35 @@ export function App() {
                       </div>
                     </>
                   )}
+                {selectedPoint.twi !== undefined &&
+                  selectedPoint.twi !== null && (
+                    <>
+                      <div>
+                        <dt>Índices TWI / SPI</dt>
+                        <dd>
+                          TWI {selectedPoint.twi.toFixed(2)} · SPI{' '}
+                          {selectedPoint.spi?.toFixed(3)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Ambiente RotaTerra</dt>
+                        <dd>{selectedPoint.agronomic_zone_label ?? 's/d'}</dd>
+                      </div>
+                    </>
+                  )}
+                {selectedPoint.water_depth_m !== undefined &&
+                  selectedPoint.water_depth_m !== null && (
+                    <>
+                      <div>
+                        <dt>Lámina 2D (water_depth)</dt>
+                        <dd>{selectedPoint.water_depth_m.toFixed(3)} m</dd>
+                      </div>
+                      <div>
+                        <dt>Velocidad 2D Manning</dt>
+                        <dd>{selectedPoint.velocity_m_s?.toFixed(3)} m/s</dd>
+                      </div>
+                    </>
+                  )}
               </dl>
               {selectedPoint.warnings.map((w, idx) => (
                 <div key={idx} className="alert alert-advertencia">
@@ -1040,6 +1114,86 @@ export function App() {
                 setProfileResult(null)
               }}
             />
+          )}
+
+          {(runoffRuns.find((r) => r.is_active)?.agronomic_zonation ??
+            hydrology?.agronomic_zonation) && (
+            <div className="card">
+              <h4>
+                Ambientes Hidro-Agronómicos y Transitabilidad RotaTerra (Fase 5)
+              </h4>
+              {(() => {
+                const az =
+                  runoffRuns.find((r) => r.is_active)?.agronomic_zonation ??
+                  hydrology?.agronomic_zonation
+                if (!az) return null
+                return (
+                  <>
+                    <dl className="kv-grid">
+                      <div>
+                        <dt>Riesgo transitabilidad</dt>
+                        <dd>{az.trafficability.risk_level.toUpperCase()}</dd>
+                      </div>
+                      <div>
+                        <dt>Espera lomas / bajos</dt>
+                        <dd>
+                          ~{az.trafficability.estimated_wait_days_high_ground} d
+                          / ~{az.trafficability.estimated_wait_days_low_ground} d
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>TWI medio / P90</dt>
+                        <dd>
+                          {az.twi_field_mean.toFixed(2)} /{' '}
+                          {az.twi_field_p90.toFixed(2)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>SPI medio / P90</dt>
+                        <dd>
+                          {az.spi_field_mean.toFixed(3)} /{' '}
+                          {az.spi_field_p90.toFixed(3)}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="mini-table-wrap">
+                      <table className="mini-table">
+                        <thead>
+                          <tr>
+                            <th>Ambiente</th>
+                            <th>Área</th>
+                            <th>% Lote</th>
+                            <th>Pend.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {az.zones.map((z) => (
+                            <tr key={z.zone_id}>
+                              <td>{z.label.replace('Ambiente ', 'A')}</td>
+                              <td>{z.area_ha.toFixed(1)} ha</td>
+                              <td>{z.percentage_of_field.toFixed(1)} %</td>
+                              <td>
+                                {z.mean_slope_pct !== null
+                                  ? `${z.mean_slope_pct.toFixed(1)} %`
+                                  : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <ul
+                      className="limitations-list"
+                      style={{ marginTop: 8 }}
+                    >
+                      {az.rotaterra_criteria.map((c, idx) => (
+                        <li key={idx}>{c}</li>
+                      ))}
+                    </ul>
+                  </>
+                )
+              })()}
+            </div>
           )}
 
           {hydrology && (
