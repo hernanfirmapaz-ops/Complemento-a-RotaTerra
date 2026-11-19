@@ -118,10 +118,22 @@ def terrain_mesh(field_id: str, max_size: int) -> dict:
             "d8_code": grids["d8_code"],
             "subbasin_id": grids["subbasin_id"],
         })
+        if "twi" in grids:
+            extra["twi"] = grids["twi"]
+        if "spi" in grids:
+            extra["spi"] = grids["spi"]
+        if "agronomic_zone_id" in grids:
+            extra["agronomic_zone_id"] = grids["agronomic_zone_id"]
     if active_run := hydrology.optional_active_runoff(field_id):
         _, r_grids = active_run
         extra["runoff_load_mm"] = r_grids["runoff_load_mm"]
         extra["cumulative_runoff_m3"] = r_grids["cumulative_runoff_m3"]
+        if "water_depth_m" in r_grids:
+            extra["water_depth_m"] = r_grids["water_depth_m"]
+        if "velocity_m_s" in r_grids:
+            extra["velocity_m_s"] = r_grids["velocity_m_s"]
+        if "agronomic_zone_id" in r_grids:
+            extra["agronomic_zone_id"] = r_grids["agronomic_zone_id"]
     return mesh(dem, mascara, anillos, max_size, extra_grids=extra or None)
 
 
@@ -148,6 +160,12 @@ def terrain_point(field_id: str, lon: float, lat: float) -> dict:
             info["runoff_generated_q_mm"] = run_doc["cn_result"]["runoff_q_mm"]
             info["runoff_load_mm"] = round(load_v, 2) if np.isfinite(load_v) else None
             info["cumulative_runoff_m3"] = round(vol_v, 2) if np.isfinite(vol_v) else None
+            if "water_depth_m" in r_grids:
+                wd = float(r_grids["water_depth_m"][r, c])
+                info["water_depth_m"] = round(wd, 3) if np.isfinite(wd) else None
+            if "velocity_m_s" in r_grids:
+                vel = float(r_grids["velocity_m_s"][r, c])
+                info["velocity_m_s"] = round(vel, 3) if np.isfinite(vel) else None
     return info | {"pixel_size_m": dem.pixel, "crs": dem.crs, "source_name": terreno["source"]["source_name"],
                    "warnings": avisos}
 

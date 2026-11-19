@@ -106,8 +106,13 @@ class MeshOut(BaseModel):
     d8_area_ha: list[float | None] | None = None
     d8_code: list[int] | None = None
     subbasin_id: list[int] | None = None
+    twi: list[float | None] | None = None
+    spi: list[float | None] | None = None
+    agronomic_zone_id: list[int] | None = None
     runoff_load_mm: list[float | None] | None = None
     cumulative_runoff_m3: list[float | None] | None = None
+    water_depth_m: list[float | None] | None = None
+    velocity_m_s: list[float | None] | None = None
     boundary: list[list[list[float | None]]]
 
 
@@ -134,9 +139,15 @@ class PointOut(BaseModel):
     mfd_area_m2: float | None = None
     mfd_area_ha: float | None = None
     subbasin_id: int | None = None
+    twi: float | None = None
+    spi: float | None = None
+    agronomic_zone_id: int | None = None
+    agronomic_zone_label: str | None = None
     runoff_generated_q_mm: float | None = None
     runoff_load_mm: float | None = None
     cumulative_runoff_m3: float | None = None
+    water_depth_m: float | None = None
+    velocity_m_s: float | None = None
     row: int
     col: int
     pixel_size_m: float
@@ -261,6 +272,7 @@ class HydrologyOut(BaseModel):
     outlets: list[OutletOut]
     drainage_network: dict
     contours: ContoursOut
+    agronomic_zonation: dict | None = None
     warnings: list[str]
     limitations: list[str]
 
@@ -354,6 +366,8 @@ class RunoffRunOut(BaseModel):
     field_conditions: dict
     cn_result: CnResultOut
     spatial_summary: SpatialRunoffSummaryOut
+    hydrodynamic_2d_summary: dict | None = None
+    agronomic_zonation: dict | None = None
     assumptions_and_notes: list[str]
     warnings: list[str]
     limitations: list[str]
@@ -452,3 +466,9 @@ class FieldObservationOut(BaseModel):
     units: str | None
     observed_at: str
     created_at: str
+
+
+class Hydrodynamic2DIn(BaseModel):
+    manning_n: float | None = Field(None, ge=0.015, le=0.50)
+    ponding_threshold_m: float = Field(0.05, ge=0.01, le=2.0)
+    recession_minutes: int = Field(30, ge=5, le=360)

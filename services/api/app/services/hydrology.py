@@ -8,8 +8,9 @@ import numpy as np
 import rasterio
 
 from geoprocessing import PROCESSING_VERSION
+from geoprocessing.agronomy.zonation import ZONE_CATALOG, classify_hydro_agronomic_zones
 from geoprocessing.dem.quality import field_mask
-from geoprocessing.dem.terrain import Dem, contours_geojson
+from geoprocessing.dem.terrain import Dem, contours_geojson, slope_aspect
 from geoprocessing.hydrology.conditioning import condition_dem
 from geoprocessing.hydrology.flow import (
     CODE_TO_LABEL,
@@ -17,6 +18,11 @@ from geoprocessing.hydrology.flow import (
     default_stream_threshold_ha,
     extract_drainage_network_and_basins,
     mfd_accumulation,
+)
+from geoprocessing.hydrology.indices import compute_twi_and_spi
+from geoprocessing.hydrology.shallow_water_2d import (
+    MANNING_N_BY_COVER,
+    run_2d_diffusive_wave_simulation,
 )
 from geoprocessing.rainfall.events import (
     SOURCE_PRESETS,
@@ -37,6 +43,7 @@ from geoprocessing.rainfall.timeline import (
 from services.api.app.core.config import SAMPLE_DIR
 from services.api.app.schemas import (
     FieldObservationIn,
+    Hydrodynamic2DIn,
     HydrologyRunIn,
     RainfallEventManualIn,
     RunoffRunIn,
@@ -123,6 +130,19 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
 
     contours = contours_geojson(dem, interval_m=params.contour_interval_m)
 
+    # Calcular índices topográficos TWI y SPI + Zonificación hidro-agronómica inicial (Fase 5)
+    pct_grid, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    twi_grid, spi_grid = compute_twi_and_spi(mfd_area_m2, pct_grid, dem.pixel)
+    agro_zone_grid, agro_zonation = classify_hydro_agronomic_zones(
+        z=dem.z,
+        slope_pct=pct_grid,
+        sink_depth_m=sink_depth_m,
+        twi=twi_grid,
+        spi=spi_grid,
+        mascara_lote=mascara,
+        pixel_size_m=dem.pixel,
+    )
+
     # Persistir grillas hidrológicas comprimidas para consulta rápida en malla 3D e inspector de punto
     np.savez_compressed(
         carpeta / "hydrology_grids.npz",
@@ -134,6 +154,9 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         d8_area_m2=d8_area_m2,
         mfd_area_m2=mfd_area_m2,
         subbasin_id=subbasin_grid,
+        twi=twi_grid,
+        spi=spi_grid,
+        agronomic_zone_id=agro_zone_grid,
     )
 
     deps_in_field = [d for d in depressions if d.in_field]
@@ -194,6 +217,7 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         "outlets": outlets_info,
         "drainage_network": network_geojson,
         "contours": contours,
+        "agronomic_zonation": agro_zonation,
         "warnings": avisos,
         "limitations": LIMITACIONES_FASE1,
     }
@@ -225,6 +249,9 @@ def point_hydrology_attrs(grids: dict[str, np.ndarray], row: int, col: int) -> d
     sink_d = float(grids["sink_depth_m"][row, col])
     dep_id = int(grids["depression_id"][row, col])
     bas_id = int(grids["subbasin_id"][row, col])
+    twi_v = float(grids["twi"][row, col]) if "twi" in grids else np.nan
+    spi_v = float(grids["spi"][row, col]) if "spi" in grids else np.nan
+    zone_id = int(grids["agronomic_zone_id"][row, col]) if "agronomic_zone_id" in grids else 0
     return {
         "sink_depth_m": round(sink_d, 3) if np.isfinite(sink_d) else None,
         "depression_id": dep_id if dep_id > 0 else None,
@@ -236,6 +263,10 @@ def point_hydrology_attrs(grids: dict[str, np.ndarray], row: int, col: int) -> d
         "mfd_area_m2": round(mfd_m2, 1) if np.isfinite(mfd_m2) else None,
         "mfd_area_ha": round(mfd_m2 / 10_000.0, 4) if np.isfinite(mfd_m2) else None,
         "subbasin_id": bas_id if bas_id > 0 else None,
+        "twi": round(twi_v, 2) if np.isfinite(twi_v) else None,
+        "spi": round(spi_v, 3) if np.isfinite(spi_v) else None,
+        "agronomic_zone_id": zone_id if zone_id > 0 else None,
+        "agronomic_zone_label": ZONE_CATALOG[zone_id]["label"] if zone_id in ZONE_CATALOG else None,
     }
 
 
@@ -501,6 +532,102 @@ def compare_two_runs(field_id: str, run_a_id: str, run_b_id: str) -> dict:
     if run_a is None or run_b is None:
         raise store.NotFound("No se encontraron ambas corridas para comparar.")
     return compare_runoff_scenarios(run_a, run_b)
+
+
+def execute_hydrodynamic_2d_on_run(
+    field_id: str,
+    run_id: str,
+    params: Hydrodynamic2DIn,
+) -> dict:
+    """Fase 4 + Fase 5: ejecuta el solver 2D de onda difusiva con ley de Manning sobre un escenario
+    de escorrentía y actualiza la zonificación hidro-agronómica de RotaTerra.
+    """
+    field = store.load_field(field_id)
+    carpeta = store.field_dir(field_id)
+    runs = store.list_runoff_runs(field_id)
+    target = next((r for r in runs if r["id"] == run_id), None)
+    if target is None:
+        raise store.NotFound(f"runoff_run:{run_id}")
+
+    events = store.list_rainfall_events(field_id)
+    rain_ev = next((e for e in events if e["id"] == target["rainfall_event_id"]), None)
+    if rain_ev is None:
+        raise store.NotFound(f"rainfall_event:{target['rainfall_event_id']}")
+
+    hydro = store.load_hydrology(field_id)
+    grids = load_hydrology_grids(field_id, hydro["processed_at"])
+    dem = Dem.open(carpeta / "dem_utm.tif")
+    mascara = field_mask(field["geometry"], field["utm_epsg"], dem.transform, dem.z.shape)
+
+    # Si el evento tiene serie temporal CSV se usan sus intervalos reales; si es acumulado manual
+    # se divide en 4 pasos uniformes de 15 min declarando explícitamente el supuesto para el solver 2D
+    if rain_ev.get("has_time_series") and rain_ev.get("intervals"):
+        intervals = rain_ev["intervals"]
+    else:
+        q_step = float(rain_ev["total_mm"]) / 4.0
+        intervals = [
+            {"timestamp": f"Paso {i + 1}", "precipitation_mm": q_step, "interval_minutes": 15}
+            for i in range(4)
+        ]
+
+    cover_code = target["field_conditions"].get("cover_code", "soja_maiz_sd_buena")
+    manning_n = (
+        float(params.manning_n)
+        if params.manning_n is not None
+        else MANNING_N_BY_COVER.get(cover_code, 0.10)
+    )
+    observations = store.list_observations(field_id)
+
+    sim2d = run_2d_diffusive_wave_simulation(
+        dem=dem,
+        z_cond=grids["z_cond"],
+        mascara_lote=mascara,
+        intervals=intervals,
+        cn_ii_base=target["cn_result"]["cn_ii_base"],
+        antecedent_moisture=target["field_conditions"]["antecedent_moisture"],
+        lambda_ratio=target["field_conditions"]["lambda_ratio"],
+        manning_n=manning_n,
+        ponding_threshold_m=params.ponding_threshold_m,
+        observations=observations,
+        recession_minutes=params.recession_minutes,
+    )
+
+    pct_grid, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    twi_grid = grids["twi"] if "twi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[0]
+    spi_grid = grids["spi"] if "spi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[1]
+
+    agro_zone_grid, agro_zonation = classify_hydro_agronomic_zones(
+        z=dem.z,
+        slope_pct=pct_grid,
+        sink_depth_m=grids["sink_depth_m"],
+        twi=twi_grid,
+        spi=spi_grid,
+        mascara_lote=mascara,
+        pixel_size_m=dem.pixel,
+        max_water_depth_m=sim2d["max_water_depth_m"],
+        ponding_threshold_m=params.ponding_threshold_m,
+        soil_group=target["field_conditions"].get("soil_group", "B"),
+    )
+
+    # Guardar water_depth_m y velocity_m_s en el archivo .npz de la corrida
+    run_npz = carpeta / "runoff_grids" / f"{run_id}.npz"
+    existing_arrays = {}
+    if run_npz.exists():
+        with np.load(run_npz) as data:
+            existing_arrays = {k: data[k] for k in data.files}
+    existing_arrays["water_depth_m"] = sim2d["max_water_depth_m"]
+    existing_arrays["final_water_depth_m"] = sim2d["final_water_depth_m"]
+    existing_arrays["velocity_m_s"] = sim2d["max_velocity_m_s"]
+    existing_arrays["agronomic_zone_id"] = agro_zone_grid
+    np.savez_compressed(run_npz, **existing_arrays)
+
+    for r in runs:
+        r["is_active"] = (r["id"] == run_id)
+    target["hydrodynamic_2d_summary"] = sim2d["summary"]
+    target["agronomic_zonation"] = agro_zonation
+    store.save_runoff_runs(field_id, runs)
+    load_active_runoff_grids.cache_clear()
+    return target
 
 
 @lru_cache(maxsize=8)

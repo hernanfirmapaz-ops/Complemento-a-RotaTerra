@@ -11,15 +11,16 @@ from services.api.app.api.routes import fields, hydrology, terrain
 from services.api.app.core.config import CORS_ORIGINS, WEB_DIST
 
 app = FastAPI(
-    title="RotaTerra — Visor 3D e Hidrología (Fases 0 a 3 · MVP Completo)",
+    title="RotaTerra — Visor 3D e Hidrología (Fases 0 a 5 · Suite Completa)",
     description=(
-        "Módulo geoespacial para visualización 3D de lotes agrícolas, control de calidad de DEM, "
-        "inspección de cota/pendiente, perfiles altimétricos, hidrología estática (D8, MFD, "
-        "depresiones, red de drenaje y subcuencas), estimación de escorrentía por evento "
-        "(NRCS Curve Number + comparación de escenarios), animación temporal por hietograma, "
-        "observaciones de campo y exportación técnica."
+        "Módulo geoespacial para visualización 3D de lotes agrícolas (GeoJSON/KML/KMZ/Shapefile), "
+        "control de calidad de DEM, inspección de cota/pendiente, perfiles altimétricos, hidrología "
+        "estática (D8, MFD, TWI, SPI, depresiones, red de drenaje y subcuencas), estimación de "
+        "escorrentía por evento (NRCS Curve Number + comparación de escenarios), animación temporal "
+        "por hietograma, solver hidrodinámico 2D de onda difusiva (Manning) y zonificación de "
+        "ambientes hidro-agronómicos y transitabilidad para RotaTerra."
     ),
-    version="0.4.0",
+    version="1.0.0",
 )
 
 app.add_middleware(
@@ -39,7 +40,7 @@ app.include_router(hydrology.router, prefix="/api/v1")
 def health():
     return {
         "status": "ok",
-        "phase": "fase-3-animacion-temporal-y-exportacion",
+        "phase": "fase-5-suite-completa-rotaterra",
         "processing_version": PROCESSING_VERSION,
     }
 

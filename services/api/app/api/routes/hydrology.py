@@ -9,6 +9,7 @@ from geoprocessing.rainfall.events import RainfallValidationError
 from services.api.app.schemas import (
     FieldObservationIn,
     FieldObservationOut,
+    Hydrodynamic2DIn,
     HydrologyOut,
     HydrologyRunIn,
     RainfallEventManualIn,
@@ -147,6 +148,21 @@ def obtener_linea_de_tiempo_escorrentia(field_id: str, run_id: str):
         return hydrology.get_runoff_timeline(field_id, run_id)
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail=f"Recurso no encontrado: {error}") from error
+
+
+@router.post("/runoff-runs/{run_id}/simulate-2d", response_model=RunoffRunOut)
+def ejecutar_solver_hidrodinamico_2d(
+    field_id: str,
+    run_id: str,
+    payload: Hydrodynamic2DIn | None = None,
+):
+    try:
+        params = payload or Hydrodynamic2DIn()
+        return hydrology.execute_hydrodynamic_2d_on_run(field_id, run_id, params)
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail=f"Recurso no encontrado: {error}") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.get("/observations", response_model=list[FieldObservationOut])

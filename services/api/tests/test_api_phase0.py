@@ -28,7 +28,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     r = client.get("/api/v1/health")
     assert r.status_code == 200
-    assert r.json()["phase"] == "fase-3-animacion-temporal-y-exportacion"
+    assert r.json()["phase"] == "fase-5-suite-completa-rotaterra"
 
     # 1. Importar lote sintético
     geojson_bytes = json.dumps(synthetic_square_field_geojson()).encode("utf-8")
@@ -224,3 +224,23 @@ def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     r = client.get(f"/api/v1/fields/{field_id}/hydrology/export/report")
     assert r.status_code == 200
     assert "Informe Técnico Topográfico e Hidrológico" in r.text
+
+    # 10. Fase 4 y Fase 5: Solver hidrodinámico 2D (Manning) + Zonificación hidro-agronómica RotaTerra
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/runoff-runs/{run_b['id']}/simulate-2d",
+        json={"manning_n": 0.08, "ponding_threshold_m": 0.04, "recession_minutes": 15},
+    )
+    assert r.status_code == 200, r.text
+    run_2d = r.json()
+    assert run_2d["hydrodynamic_2d_summary"]["mass_balance_relative_error"] < 1e-4
+    assert run_2d["hydrodynamic_2d_summary"]["max_water_depth_in_field_m"] > 0.0
+    assert len(run_2d["agronomic_zonation"]["zones"]) == 4
+
+    # El punto y la malla ahora exponen water_depth_m, velocity_m_s, twi, spi y agronomic_zone_id
+    r = client.get(f"/api/v1/fields/{field_id}/terrain/point", params={"lon": lon, "lat": lat})
+    assert r.status_code == 200
+    pt_full = r.json()
+    assert pt_full["water_depth_m"] is not None
+    assert pt_full["velocity_m_s"] is not None
+    assert pt_full["twi"] is not None
+    assert pt_full["agronomic_zone_id"] in (1, 2, 3, 4)

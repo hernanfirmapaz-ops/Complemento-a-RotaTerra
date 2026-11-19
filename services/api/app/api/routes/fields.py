@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from geoprocessing.fields import FieldValidationError, parse_geojson
+from geoprocessing.fields import FieldValidationError, parse_field_file
 from services.api.app.core.config import MAX_GEOJSON_BYTES, SAMPLE_DIR
 from services.api.app.schemas import FieldImportOut, FieldOut
 from services.api.app.services import store
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/fields", tags=["fields"])
 
 def _guardar_lotes(contenido: bytes | str, nombre_base: str, origen: str | None) -> list[dict]:
     try:
-        importados = parse_geojson(contenido, nombre_por_defecto=nombre_base)
+        importados = parse_field_file(contenido, filename=origen, nombre_por_defecto=nombre_base)
     except FieldValidationError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
