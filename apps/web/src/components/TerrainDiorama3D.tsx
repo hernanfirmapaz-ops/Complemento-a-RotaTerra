@@ -500,8 +500,8 @@ export function TerrainDiorama3D({
     const surfaceMat = new THREE.MeshStandardMaterial({
       map: satTexture,
       vertexColors: true,
-      roughness: 0.78,
-      metalness: 0.05,
+      roughness: isPlayingRain ? 0.36 : 0.78,
+      metalness: isPlayingRain ? 0.22 : 0.05,
       side: THREE.DoubleSide,
     })
     const terrainMesh = new THREE.Mesh(surfaceGeom, surfaceMat)
@@ -630,7 +630,105 @@ export function TerrainDiorama3D({
       }
     }
 
+    // 3.5 Malla 3D de lámina de agua reflectante en bajos, cañadas y sectores de anegamiento
+    const waterDepthArr = new Float32Array(rows * cols)
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c
+        const wd = mesh.water_depth_m?.[idx] ?? 0
+        const sd = mesh.sink_depth_m?.[idx] ?? 0
+        const mfd = mfdArr?.[idx] ?? 0
+        let depth = 0
+        if (wd > 0.015) {
+          depth = Math.min(2.2, wd * 1.6)
+        } else if (sd > 0.03) {
+          depth = Math.min(1.8, sd * 1.1)
+        } else if (mfd > 3.5) {
+          depth = 0.18 + Math.min(1.2, (mfd - 3.5) * 0.07)
+        } else if (overlayMode === 'waterlogging' && mfd > 1.8) {
+          depth = 0.28 + Math.min(1.4, (mfd - 1.8) * 0.1)
+        }
+        waterDepthArr[idx] = depth
+      }
+    }
+
+    const waterPositions: number[] = []
+    const waterIndices: number[] = []
+    const waterUVs: number[] = []
+    let waterVertCount = 0
+
+    for (let r = 0; r < rows - 1; r++) {
+      for (let c = 0; c < cols - 1; c++) {
+        const i00 = r * cols + c
+        const i10 = i00 + 1
+        const i01 = i00 + cols
+        const i11 = i01 + 1
+
+        const d00 = waterDepthArr[i00]
+        const d10 = waterDepthArr[i10]
+        const d01 = waterDepthArr[i01]
+        const d11 = waterDepthArr[i11]
+
+        if (d00 > 0.02 || d10 > 0.02 || d01 > 0.02 || d11 > 0.02) {
+          const zLift = 0.16
+          const p00z = positions[3 * i00 + 2] + Math.max(0.06, d00) * (exaggeration / 2.0) * 0.35 + zLift
+          const p10z = positions[3 * i10 + 2] + Math.max(0.06, d10) * (exaggeration / 2.0) * 0.35 + zLift
+          const p01z = positions[3 * i01 + 2] + Math.max(0.06, d01) * (exaggeration / 2.0) * 0.35 + zLift
+          const p11z = positions[3 * i11 + 2] + Math.max(0.06, d11) * (exaggeration / 2.0) * 0.35 + zLift
+
+          const startIdx = waterVertCount
+          waterPositions.push(
+            positions[3 * i00], positions[3 * i00 + 1], p00z,
+            positions[3 * i10], positions[3 * i10 + 1], p10z,
+            positions[3 * i01], positions[3 * i01 + 1], p01z,
+            positions[3 * i11], positions[3 * i11 + 1], p11z,
+          )
+          waterUVs.push(
+            c / (cols - 1), 1 - r / (rows - 1),
+            (c + 1) / (cols - 1), 1 - r / (rows - 1),
+            c / (cols - 1), 1 - (r + 1) / (rows - 1),
+            (c + 1) / (cols - 1), 1 - (r + 1) / (rows - 1),
+          )
+          waterIndices.push(
+            startIdx, startIdx + 2, startIdx + 1,
+            startIdx + 1, startIdx + 2, startIdx + 3,
+          )
+          waterVertCount += 4
+        }
+      }
+    }
+
+    let waterMesh: THREE.Mesh | null = null
+    let waterBaseZ: Float32Array | null = null
+    if (waterPositions.length > 0) {
+      const waterGeom = new THREE.BufferGeometry()
+      waterGeom.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(waterPositions, 3),
+      )
+      waterGeom.setAttribute('uv', new THREE.Float32BufferAttribute(waterUVs, 2))
+      waterGeom.setIndex(waterIndices)
+      waterGeom.computeVertexNormals()
+
+      waterBaseZ = new Float32Array(waterPositions.length / 3)
+      for (let i = 0; i < waterBaseZ.length; i++) {
+        waterBaseZ[i] = waterPositions[3 * i + 2]
+      }
+
+      const waterMat = new THREE.MeshStandardMaterial({
+        color: 0x0284c7, // Azul profundo reflectante
+        roughness: 0.10, // Reflejo especular espejo
+        metalness: 0.35,
+        transparent: true,
+        opacity: Math.min(0.88, 0.68 + 0.22 * rainIntensityFactor),
+        side: THREE.DoubleSide,
+      })
+      waterMesh = new THREE.Mesh(waterGeom, waterMat)
+      dioramaGroup.add(waterMesh)
+    }
+
     // 4. Venas / cauces de escurrimiento celestes permanentes donde converge el flujo MFD
+    let streamMat: THREE.LineBasicMaterial | null = null
     if (mfdArr) {
       // Dibujar pequeños trazos celestes en las celdas de concentración para que las vías de agua
       // se vean nítidas sobre la imagen satelital, tal como en la imagen de referencia
@@ -674,17 +772,17 @@ export function TerrainDiorama3D({
           'position',
           new THREE.Float32BufferAttribute(streamSegs, 3),
         )
-        const sMat = new THREE.LineBasicMaterial({
+        streamMat = new THREE.LineBasicMaterial({
           color: 0x00e5ff,
           transparent: true,
           opacity: Math.min(0.95, 0.45 + 0.4 * rainIntensityFactor),
         })
-        dioramaGroup.add(new THREE.LineSegments(sGeom, sMat))
+        dioramaGroup.add(new THREE.LineSegments(sGeom, streamMat))
       }
     }
 
     // 5. Sistema físico de gotas/estelas de agua celestes escurriendo por las pendientes del relieve 3D
-    const numDrops = Math.round(820 * Math.max(0.25, rainIntensityFactor))
+    const numDrops = Math.round(950 * Math.max(0.3, rainIntensityFactor))
     const dropU = new Float32Array(numDrops)
     const dropV = new Float32Array(numDrops)
     const dropPrevU = new Float32Array(numDrops)
@@ -737,6 +835,78 @@ export function TerrainDiorama3D({
     })
     const headPoints = new THREE.Points(headGeom, headMat)
     dioramaGroup.add(headPoints)
+
+    // 5.5 Sistema volumétrico de lluvia cayendo desde el cielo hacia el terreno
+    const numFallingRain = Math.round(1500 * Math.max(0.35, rainIntensityFactor))
+    const rainPosX = new Float32Array(numFallingRain)
+    const rainPosY = new Float32Array(numFallingRain)
+    const rainPosZ = new Float32Array(numFallingRain)
+    const rainSpeed = new Float32Array(numFallingRain)
+    const rainLength = new Float32Array(numFallingRain)
+
+    const respawnRainDrop = (k: number, initHigh: boolean = false) => {
+      const u = Math.random()
+      const v = Math.random()
+      rainPosX[k] = (u - 0.5) * boxW
+      rainPosY[k] = (0.5 - v) * boxH
+      const gz = sampleZUnits(u, v)
+      rainPosZ[k] = initHigh ? gz + 5 + Math.random() * 45 : gz + 35 + Math.random() * 20
+      rainSpeed[k] = 1.45 + Math.random() * 0.9 + rainIntensityFactor * 0.5
+      rainLength[k] = 3.5 + Math.random() * 2.5
+    }
+    for (let k = 0; k < numFallingRain; k++) respawnRainDrop(k, true)
+
+    const fallingRainPositions = new Float32Array(numFallingRain * 6)
+    const fallingRainGeom = new THREE.BufferGeometry()
+    fallingRainGeom.setAttribute(
+      'position',
+      new THREE.BufferAttribute(fallingRainPositions, 3),
+    )
+    const fallingRainMat = new THREE.LineBasicMaterial({
+      color: 0xbae6fd, // Celeste lluvia brillante
+      transparent: true,
+      opacity: 0.65,
+      blending: THREE.AdditiveBlending,
+    })
+    const fallingRainLines = new THREE.LineSegments(fallingRainGeom, fallingRainMat)
+    dioramaGroup.add(fallingRainLines)
+
+    // 5.6 Salpicaduras y ondas de impacto en el suelo
+    const numSplashes = 60
+    const splashX = new Float32Array(numSplashes)
+    const splashY = new Float32Array(numSplashes)
+    const splashZ = new Float32Array(numSplashes)
+    const splashAge = new Float32Array(numSplashes)
+    const splashMaxAge = new Float32Array(numSplashes)
+    const splashActive = new Uint8Array(numSplashes)
+    let nextSplashIdx = 0
+
+    const splashSegsCount = 8
+    const splashPositions = new Float32Array(numSplashes * splashSegsCount * 6)
+    const splashGeom = new THREE.BufferGeometry()
+    splashGeom.setAttribute(
+      'position',
+      new THREE.BufferAttribute(splashPositions, 3),
+    )
+    const splashMat = new THREE.LineBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.72,
+      blending: THREE.AdditiveBlending,
+    })
+    const splashLines = new THREE.LineSegments(splashGeom, splashMat)
+    dioramaGroup.add(splashLines)
+
+    const triggerSplash = (sx: number, sy: number, sz: number) => {
+      const idx = nextSplashIdx
+      nextSplashIdx = (nextSplashIdx + 1) % numSplashes
+      splashX[idx] = sx
+      splashY[idx] = sy
+      splashZ[idx] = sz + 0.12
+      splashAge[idx] = 0
+      splashMaxAge[idx] = 16 + Math.floor(Math.random() * 12)
+      splashActive[idx] = 1
+    }
 
     // Precalcular gradiente descendente (du, dv) en cada celda de la malla
     const gradU = new Float32Array(rows * cols)
@@ -862,9 +1032,125 @@ export function TerrainDiorama3D({
     const animate = () => {
       controls.update()
 
+      // 1. Pulso y brillo de corriente en las venas y arroyos
+      if (streamMat) {
+        const pulse = 0.58 + 0.38 * Math.sin(Date.now() * 0.0055)
+        streamMat.opacity = Math.min(
+          0.98,
+          pulse * (0.65 + 0.35 * rainIntensityFactor),
+        )
+      }
+
+      // 2. Ondulación dinámica de la lámina de agua reflectante en bajos y lagunas
+      if (waterMesh && waterBaseZ) {
+        const posAttr = waterMesh.geometry.getAttribute(
+          'position',
+        ) as THREE.BufferAttribute
+        const arr = posAttr.array as Float32Array
+        const time = Date.now() * 0.0035
+        const nVerts = waterBaseZ.length
+        for (let i = 0; i < nVerts; i++) {
+          const x = arr[3 * i]
+          const y = arr[3 * i + 1]
+          const wave =
+            Math.sin(x * 0.28 + time) * Math.cos(y * 0.24 - time * 0.8) * 0.12 +
+            Math.sin(x * 0.52 - time * 1.3 + y * 0.38) * 0.06
+          arr[3 * i + 2] = waterBaseZ[i] + wave
+        }
+        posAttr.needsUpdate = true
+        waterMesh.geometry.computeVertexNormals()
+      }
+
+      // 3. Simulación de lluvia activa
       if (isPlayingRain && rainIntensityFactor > 0.05) {
         streakLines.visible = true
         headPoints.visible = true
+        fallingRainLines.visible = true
+        splashLines.visible = true
+
+        // 3a. Lluvia volumétrica cayendo desde el cielo
+        const rPos = (
+          fallingRainGeom.getAttribute('position') as THREE.BufferAttribute
+        ).array as Float32Array
+        const slantX = -0.14
+        const slantY = -0.09
+        for (let k = 0; k < numFallingRain; k++) {
+          const uNorm = rainPosX[k] / boxW + 0.5
+          const vNorm = 0.5 - rainPosY[k] / boxH
+          const groundZ =
+            uNorm >= 0 && uNorm <= 1 && vNorm >= 0 && vNorm <= 1
+              ? sampleZUnits(uNorm, vNorm)
+              : 0
+
+          rainPosZ[k] -= rainSpeed[k]
+          if (rainPosZ[k] <= groundZ) {
+            // Impactó el terreno: generar salpicadura / onda
+            if (Math.random() < 0.3) {
+              triggerSplash(rainPosX[k], rainPosY[k], groundZ)
+            }
+            respawnRainDrop(k, false)
+          }
+
+          const topX = rainPosX[k]
+          const topY = rainPosY[k]
+          const topZ = rainPosZ[k]
+          const len = rainLength[k]
+          const botX = topX + slantX * len
+          const botY = topY + slantY * len
+          const botZ = Math.max(groundZ, topZ - len)
+
+          rPos[6 * k] = topX
+          rPos[6 * k + 1] = topY
+          rPos[6 * k + 2] = topZ
+          rPos[6 * k + 3] = botX
+          rPos[6 * k + 4] = botY
+          rPos[6 * k + 5] = botZ
+        }
+        ;(
+          fallingRainGeom.getAttribute('position') as THREE.BufferAttribute
+        ).needsUpdate = true
+
+        // 3b. Ondas de impacto y salpicaduras en el suelo
+        const sPos = (
+          splashGeom.getAttribute('position') as THREE.BufferAttribute
+        ).array as Float32Array
+        for (let k = 0; k < numSplashes; k++) {
+          if (!splashActive[k]) {
+            for (let seg = 0; seg < splashSegsCount * 6; seg++) {
+              sPos[k * splashSegsCount * 6 + seg] = 0
+            }
+            continue
+          }
+          splashAge[k] += 1
+          const progress = splashAge[k] / splashMaxAge[k]
+          if (progress >= 1.0) {
+            splashActive[k] = 0
+            for (let seg = 0; seg < splashSegsCount * 6; seg++) {
+              sPos[k * splashSegsCount * 6 + seg] = 0
+            }
+            continue
+          }
+          const radius = 0.25 + progress * 1.55
+          const cx = splashX[k]
+          const cy = splashY[k]
+          const cz = splashZ[k]
+          for (let seg = 0; seg < splashSegsCount; seg++) {
+            const a1 = (seg / splashSegsCount) * Math.PI * 2
+            const a2 = ((seg + 1) / splashSegsCount) * Math.PI * 2
+            const baseIdx = k * splashSegsCount * 6 + seg * 6
+            sPos[baseIdx] = cx + Math.cos(a1) * radius
+            sPos[baseIdx + 1] = cy + Math.sin(a1) * radius
+            sPos[baseIdx + 2] = cz
+            sPos[baseIdx + 3] = cx + Math.cos(a2) * radius
+            sPos[baseIdx + 4] = cy + Math.sin(a2) * radius
+            sPos[baseIdx + 5] = cz
+          }
+        }
+        ;(
+          splashGeom.getAttribute('position') as THREE.BufferAttribute
+        ).needsUpdate = true
+
+        // 3c. Gotas y chorros de agua escurriendo por las pendientes del terreno
         const sArr = (
           streakGeom.getAttribute('position') as THREE.BufferAttribute
         ).array as Float32Array
@@ -907,7 +1193,6 @@ export function TerrainDiorama3D({
 
           const pu = dropPrevU[i]
           const pv = dropPrevV[i]
-          // Estirar ligeramente la cola para que se vea como chorro de agua
           const tailU = u - (u - pu) * 2.8
           const tailV = v - (v - pv) * 2.8
 
@@ -939,6 +1224,8 @@ export function TerrainDiorama3D({
       } else {
         streakLines.visible = false
         headPoints.visible = false
+        fallingRainLines.visible = false
+        splashLines.visible = false
       }
 
       // Guardar orientación y posición actual de la cámara para que nunca se resetee al interactuar
@@ -985,6 +1272,18 @@ export function TerrainDiorama3D({
       streakMat.dispose()
       headGeom.dispose()
       headMat.dispose()
+      fallingRainGeom.dispose()
+      fallingRainMat.dispose()
+      splashGeom.dispose()
+      splashMat.dispose()
+      waterMesh?.geometry.dispose()
+      if (waterMesh?.material) {
+        if (Array.isArray(waterMesh.material)) {
+          waterMesh.material.forEach((m) => m.dispose())
+        } else {
+          waterMesh.material.dispose()
+        }
+      }
       pinGroup.traverse((obj) => {
         if (obj instanceof THREE.Mesh) {
           obj.geometry.dispose()
