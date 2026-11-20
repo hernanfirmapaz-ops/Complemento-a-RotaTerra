@@ -128,22 +128,29 @@ def fetch_copernicus(bbox: tuple[float, float, float, float], destino: Path) -> 
     cliente = client()
     with rasterio.Env(**_GDAL_ENV):
         fuentes = []
+        conexion_fallo = False
         try:
             for nombre in copernicus_tiles(bbox):
                 try:
                     fuentes.append(rasterio.open(copernicus_tif_url(nombre), opener=http_opener))
-                except (RasterioIOError, FileNotFoundError):
+                except (RasterioIOError, FileNotFoundError) as error:
+                    err_str = str(error)
+                    if any(s in err_str.lower() for s in ("connect", "network", "timeout", "offline", "unreachable")):
+                        conexion_fallo = True
+                        break
                     continue  # en el mar no hay mosaico
                 except httpx.HTTPError as error:
-                    raise DemSourceError(f"No se pudo conectar con Copernicus GLO-30: {error}") from error
+                    raise DemSourceError("Sin conexión: no se pudo descargar el relieve") from error
+                except Exception as error:
+                    raise DemSourceError("Sin conexión: no se pudo descargar el relieve") from error
                 try:
                     r = cliente.get(copernicus_xml_url(nombre))
                     if r.status_code == 200 and (p := parse_acquisition_period(r.text)):
                         periodos.append(p)
                 except httpx.HTTPError:
                     pass  # sin XML no se inventa fecha: queda None
-            if not fuentes:
-                raise DemSourceError("Copernicus GLO-30 no tiene mosaicos para esta área (o no hubo conexión).")
+            if conexion_fallo or not fuentes:
+                raise DemSourceError("Sin conexión: no se pudo descargar el relieve")
             rx = min(abs(f.transform.a) for f in fuentes)
             ry = min(abs(f.transform.e) for f in fuentes)
             x0, y0 = fuentes[0].transform.c, fuentes[0].transform.f

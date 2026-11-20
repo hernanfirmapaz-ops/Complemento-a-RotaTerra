@@ -1,0 +1,15 @@
+{
+  "source_id": "copernicus_glo30_sample_offline",
+  "source_name": "Copernicus DEM GLO-30 (ESA · Respaldo local de ejemplo)",
+  "source_url": "https://registry.opendata.aws/copernicus-dem/",
+  "downloaded_at": "2026-11-19T23:30:40+00:00",
+  "license": "Copernicus DEM: uso libre con atribución. © DLR e.V. 2010-2014 y © Airbus Defence and Space GmbH 2014-2018, provisto bajo COPERNICUS por la Unión Europea y la ESA.",
+  "surface_type": "DSM",
+  "nominal_resolution_m": 30.0,
+  "vertical_datum": "EGM2008 (alturas ortométricas)",
+  "vertical_accuracy_m": 4.0,
+  "vertical_accuracy_note": "Precisión vertical absoluta < 4 m (LE90) según especificación ESA.",
+  "acquisition_start": "2011-02-24",
+  "acquisition_end": "2014-03-11",
+  "acquisition_method": "Interferometría radar TanDEM-X"
+}

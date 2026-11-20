@@ -29,6 +29,14 @@ Erosión eólica, vista previa 2D en GPU, multiusuario (`organizacion_id`), dise
 | Napa freática | Freatímetro del productor | GRACE solo como contexto regional | Modo estacional |
 | Caminos, canales, alcantarillas | Productor / IGN | — | Opcional |
 
+> [!NOTE]
+> **Estado de implementación de la cadena de relieve:**
+> - `MDT 5 m IGN`: Pendiente (sin conector automatizado público; requiere descarga manual o WCS del IGN).
+> - `MDE-Ar v2.1`: Pendiente (sin endpoint automatizado).
+> - `Copernicus DEM GLO-30` (ESA / AWS S3): **Implementado** (fuente principal en línea).
+> - `NASADEM` (OpenTopography API): **Implementado** (fuente de respaldo vía API).
+> - Respaldo local de relieve (`data/sample/`): **Implementado** para lotes de muestra offline (con metadatos completos y sin inventar relieve sintético en producción). Lotes de usuario sin conexión devuelven error claro `"Sin conexión: no se pudo descargar el relieve"` (HTTP 503).
+
 ## 4. Proceso
 
 1. Descargar y recortar el relieve; reproyectar a UTM 20S; registrar fuente, resolución y **datum vertical**.
