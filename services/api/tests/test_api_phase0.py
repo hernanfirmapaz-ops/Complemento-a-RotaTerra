@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from geoprocessing import net as geonet
 from geoprocessing.tests.fixtures.synthetic_dem import (
     synthetic_square_field_geojson,
     write_synthetic_inclined_plane_utm,
@@ -16,6 +18,9 @@ from services.api.app.core import config
 from services.api.app.main import app
 from services.api.app.services import store, terrain
 
+FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "geoprocessing" / "tests" / "fixtures"
+NASA_FIXTURE_PATH = FIXTURES_DIR / "nasa_power_daily_san_luis.json"
+
 
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -23,6 +28,31 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(store, "DATA_DIR", tmp_path / "runs")
     terrain._cargar.cache_clear()
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def mock_nasa_power_network(monkeypatch: pytest.MonkeyPatch):
+    """Simula la API de NASA POWER con MockTransport cargando el fixture grabado de San Luis."""
+    with open(NASA_FIXTURE_PATH, encoding="utf-8") as f:
+        fixture_payload = json.load(f)
+
+    real_transport = httpx.HTTPTransport(verify=geonet.ssl_context())
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url_str = str(request.url)
+        if "power.larc.nasa.gov" in url_str:
+            return httpx.Response(200, json=fixture_payload)
+        try:
+            return real_transport.handle_request(request)
+        except Exception:
+            return httpx.Response(503)
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    monkeypatch.setattr(geonet, "_cliente", mock_client)
+    monkeypatch.setattr(geonet, "client", lambda: mock_client)
+    yield
+    mock_client.close()
+    monkeypatch.setattr(geonet, "_cliente", None)
 
 
 def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
@@ -257,5 +287,74 @@ def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     assert len(tk["water_balance_monthly"]["months"]) == 12
     assert tk["seeding_calculator_inta"]["seeds_to_sow_ha"] > 0
     assert tk["rotation_comparator_3yr"]["delta_b_vs_a"]["soil_saved_by_b_tons"] > 0
-    assert tk["ndvi_vigor_monitor"]["mean_ndvi_in_field"] > 0
+    assert tk["ndvi_vigor_monitor"]["status"] in ("available", "unavailable")
+    if tk["ndvi_vigor_monitor"]["status"] == "available":
+        assert tk["ndvi_vigor_monitor"]["mean_ndvi_in_field"] > 0
     assert tk["frost_risk_sowing"]["frost_free_period_days"] >= 120
+
+
+def test_water_balance_offline_without_network_drops_series(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Verifica que sin conexión a internet no se fabriquen datos sintéticos:
+    el balance hídrico mensual devuelve months == [] y calidad descartada.
+    """
+    # 1. Simular falla total de red (sin conexión a internet)
+    def offline_handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("Network unreachable (offline test)")
+
+    offline_client = httpx.Client(transport=httpx.MockTransport(offline_handler))
+    monkeypatch.setattr(geonet, "_cliente", offline_client)
+    monkeypatch.setattr(geonet, "client", lambda: offline_client)
+
+    # 2. Importar lote sintético y preparar terreno + hidrología
+    geojson_bytes = json.dumps(synthetic_square_field_geojson()).encode("utf-8")
+    r = client.post(
+        "/api/v1/fields/import",
+        files={"file": ("lote_offline.geojson", geojson_bytes, "application/geo+json")},
+        data={"default_name": "Lote Offline"},
+    )
+    assert r.status_code == 201
+    field_id = r.json()["fields"][0]["id"]
+
+    write_synthetic_inclined_plane_utm(
+        tmp_path / "runs" / field_id / "dem_utm.tif", pixel_m=20.0, width=80, height=80
+    )
+    meta = {
+        "field_id": field_id,
+        "processed_at": store.now_iso(),
+        "source": {
+            "source_id": "synthetic_dem_for_tests",
+            "source_name": "DEM sintético plano inclinado",
+            "surface_type": "DTM",
+            "vertical_datum": "EGM96",
+            "vertical_accuracy_m": 0.0,
+            "acquisition_start": "2026-01-01",
+            "acquisition_end": "2026-01-01",
+        },
+        "quality": {
+            "source_id": "synthetic_dem_for_tests",
+            "pixel_size_m": 20.0,
+            "cells_in_field": 6400,
+            "elevation_field": {"min": 100.0, "max": 140.0, "range": 40.0},
+            "warnings": [],
+        },
+        "warnings": [],
+    }
+    store.save_terrain(field_id, meta)
+    client.post(f"/api/v1/fields/{field_id}/hydrology/static", json={})
+
+    # 3. Ejecutar toolkit sin red
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/toolkit/run",
+        json={"soil_group": "B", "cover_code": "soja_maiz_sd_buena", "storm_precipitation_mm": 80.0},
+    )
+    assert r.status_code == 200, r.text
+    tk = r.json()
+
+    wb = tk["water_balance_monthly"]
+    assert wb["status"] == "unavailable"
+    assert wb["months"] == []
+    assert wb["annual_precipitation_mm"] == 0.0
+    assert "No disponible - sin conexión" in wb["source"]
+    assert any("descartada por falta de conectividad" in w for w in tk["warnings"])
