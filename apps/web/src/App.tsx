@@ -20,8 +20,7 @@ import {
   listFields,
   listRainfallEvents,
   listRunoffRuns,
-  loadSampleField,
-  loadSampleRainfallEvent,
+  loadGaugeRainfallEvent,
   processTerrain,
   queryTerrainPoint,
   runAgronomicToolkit,
@@ -234,71 +233,6 @@ export function App() {
       .catch((err: Error) => setError(err.message))
       .finally(() => setBusy(null))
   }, [activeField?.id, activeField?.has_terrain, activeField?.has_hydrology])
-
-  /** Flujo de 1 clic para el agrónomo: carga el lote, descarga el DEM 3D, calcula drenaje, lluvia y las 8 herramientas. */
-  const handleQuickLoadAndSimulateField = async (
-    preset: 'serrano' | 'llanura',
-  ) => {
-    setError(null)
-    setBusy(
-      preset === 'serrano'
-        ? 'Cargando Lote Piedemonte Serrano (223 ha) y generando maqueta 3D con simulación de lluvia...'
-        : 'Cargando Lote Agrícola #205 (199 ha) y generando maqueta 3D con simulación de lluvia...',
-    )
-    try {
-      const imported = await loadSampleField(preset)
-      const fld = imported[0]
-      if (!fld) return
-      if (!fld.has_terrain) {
-        await processTerrain(fld.id, {
-          sourceId: 'copernicus_glo30',
-          bufferM: 300,
-        })
-      }
-      if (!fld.has_hydrology) {
-        await runStaticHydrology(fld.id, {
-          conditioning_mode: 'fill_small',
-          max_fill_depth_m: 0.35,
-          max_fill_area_m2: 4500,
-          mfd_exponent: 1.1,
-          routing_basis: 'MFD',
-        })
-      }
-      const ev = await loadSampleRainfallEvent(fld.id)
-      const rns = await listRunoffRuns(fld.id)
-      if (rns.length === 0) {
-        const created = await executeRunoffRun(fld.id, {
-          name: `Tormenta ${ev.total_mm} mm · Suelo B · Siembra Directa`,
-          rainfall_event_id: ev.id,
-          soil_group: 'B',
-          cover_code: 'soja_maiz_sd_buena',
-          antecedent_moisture: 'medium',
-          compaction_high: false,
-          lambda_ratio: 0.2,
-        })
-        await runHydrodynamic2DSolver(fld.id, created.id, {
-          ponding_threshold_m: 0.05,
-          recession_minutes: 30,
-        })
-      }
-      await getAgronomicToolkit(fld.id).catch(() =>
-        runAgronomicToolkit(fld.id, {
-          soil_group: 'B',
-          cover_code: 'soja_maiz_sd_buena',
-          storm_precipitation_mm: 80,
-          crop_code: 'maiz_temprano',
-          environment_zone: 'media_loma',
-        }),
-      )
-      const all = await listFields()
-      setFields(all)
-      setActiveFieldId(fld.id)
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(null)
-    }
-  }
 
   /** Simulación rápida de lluvia para el agrónomo en 1 clic. */
   const handleQuickSimulateRain = async (
@@ -583,12 +517,12 @@ export function App() {
     }
   }
 
-  const handleLoadSampleEvent = async () => {
+  const handleLoadGaugeEvent = async () => {
     if (!activeField) return
     setError(null)
-    setBusy('Importando tormenta CSV de muestra (80 mm · 15 min)...')
+    setBusy('Importando tormenta patrón de pluviómetro (80 mm · 15 min)...')
     try {
-      await loadSampleRainfallEvent(activeField.id)
+      await loadGaugeRainfallEvent(activeField.id)
       setRainfallEvents(await listRainfallEvents(activeField.id))
     } catch (err) {
       setError((err as Error).message)
@@ -886,7 +820,7 @@ export function App() {
               </div>
               <p className="agro-help">
                 Marcá las esquinas de tu terreno directamente en el mapa
-                satelital con polígonos, o probá un campo real precargado:
+                satelital con polígonos, o subí el archivo de tu lote:
               </p>
               <div className="btn-stack">
                 <button
@@ -896,20 +830,6 @@ export function App() {
                   disabled={Boolean(busy)}
                 >
                   ✏️ Dibujar mi Terreno con Polígonos en el Mapa
-                </button>
-                <button
-                  className="btn-agro-primary"
-                  onClick={() => handleQuickLoadAndSimulateField('serrano')}
-                  disabled={Boolean(busy)}
-                >
-                  ⛰️ Ejemplo 1: Lote Piedemonte Serrano (223 ha · Alto relieve)
-                </button>
-                <button
-                  className="btn-agro-secondary"
-                  onClick={() => handleQuickLoadAndSimulateField('llanura')}
-                  disabled={Boolean(busy)}
-                >
-                  🌾 Ejemplo 2: Lote Agrícola #205 (199 ha · Llanura ondulada)
                 </button>
                 <label className="btn-agro-outline">
                   📂 Subir archivo de mi lote (.kml, .kmz, .geojson, .zip)
@@ -1994,18 +1914,12 @@ export function App() {
               </div>
               <div className="btn-row">
                 <button
-                  className="btn-primary"
-                  onClick={() => handleQuickLoadAndSimulateField('serrano')}
+                  type="button"
+                  className="btn-primary full-width"
+                  onClick={() => setIsMapDrawerOpen(true)}
                   disabled={Boolean(busy)}
                 >
-                  Lote Serrano #492
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => handleQuickLoadAndSimulateField('llanura')}
-                  disabled={Boolean(busy)}
-                >
-                  Lote Llanura #205
+                  ✏️ Dibujar mi lote en el mapa
                 </button>
               </div>
               <label className="btn-secondary full-width">
@@ -2137,7 +2051,7 @@ export function App() {
               comparison={comparison}
               busy={Boolean(busy)}
               onCreateManualEvent={handleCreateManualEvent}
-              onLoadSampleEvent={handleLoadSampleEvent}
+              onLoadGaugeEvent={handleLoadGaugeEvent}
               onImportCsvEvent={handleImportCsvEvent}
               onRunRunoff={handleRunRunoff}
               onActivateRun={handleActivateRunoff}

@@ -35,7 +35,7 @@ def _buffer_bbox_4326(field: dict, buffer_m: float) -> tuple[float, float, float
     return transform_bounds(f"EPSG:{field['utm_epsg']}", "EPSG:4326", *caja, densify_pts=21)
 
 
-SAMPLE_DIR = Path(__file__).resolve().parents[4] / "data" / "sample"
+SAMPLE_DIR = Path(__file__).resolve().parents[4] / "tests" / "fixtures" / "lotes"
 
 
 def _find_sample_dem_backup(field: dict) -> tuple[Path, dict] | None:

@@ -17,7 +17,7 @@ from services.api.app.core import config
 from services.api.app.main import app
 from services.api.app.services import store, terrain
 
-DATA_SAMPLE_DIR = Path(__file__).resolve().parents[3] / "data" / "sample"
+DATA_SAMPLE_DIR = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "lotes"
 
 
 @pytest.fixture()

@@ -33,7 +33,7 @@ def test_utm_epsg_argentina():
 
 
 def test_parse_valid_sample_parcel():
-    sample = Path(__file__).resolve().parents[2] / "data" / "sample" / "san_luis_parcela_205.geojson"
+    sample = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "lotes" / "san_luis_parcela_205.geojson"
     lotes = parse_geojson(sample.read_bytes())
     assert len(lotes) == 1
     lote = lotes[0]

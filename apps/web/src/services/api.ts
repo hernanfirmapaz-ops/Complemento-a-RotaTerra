@@ -53,16 +53,6 @@ export async function listFields(): Promise<FieldOut[]> {
   return check<FieldOut[]>(res)
 }
 
-export async function loadSampleField(
-  preset: 'llanura' | 'serrano' = 'serrano',
-): Promise<FieldOut[]> {
-  const res = await fetch(`${BASE}/fields/sample?preset=${preset}`, {
-    method: 'POST',
-  })
-  const data = await check<{ fields: FieldOut[] }>(res)
-  return data.fields
-}
-
 export async function importFieldGeoJSON(
   file: File,
   defaultName?: string,
@@ -207,7 +197,7 @@ export async function createManualRainfallEvent(
   return check<RainfallEventOut>(res)
 }
 
-export async function loadSampleRainfallEvent(
+export async function loadGaugeRainfallEvent(
   fieldId: string,
 ): Promise<RainfallEventOut> {
   const res = await fetch(
@@ -216,6 +206,8 @@ export async function loadSampleRainfallEvent(
   )
   return check<RainfallEventOut>(res)
 }
+export const loadSampleRainfallEvent = loadGaugeRainfallEvent
+
 
 export async function importCsvRainfallEvent(
   fieldId: string,

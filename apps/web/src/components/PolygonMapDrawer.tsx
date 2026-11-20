@@ -17,15 +17,6 @@ interface PresetLocation {
   zoom: number
 }
 
-interface PresetLot {
-  id: string
-  title: string
-  province: string
-  areaHa: number
-  description: string
-  coordinates: [number, number][]
-}
-
 const AGRO_ZONES: PresetLocation[] = [
   {
     label: 'El Trapiche / Piedemonte',
@@ -82,72 +73,6 @@ const AGRO_ZONES: PresetLocation[] = [
     lon: -60.45,
     lat: -31.85,
     zoom: 13,
-  },
-]
-
-/** Lotes agrícolas reales precargados en Argentina para pruebas en 1 clic. */
-const PRESET_REAL_LOTS: PresetLot[] = [
-  {
-    id: 'san_luis_205',
-    title: 'Parcela Rural #205',
-    province: 'San Luis',
-    areaHa: 199.1,
-    description: 'Llanura ondulada agrícola con pendientes suaves y vías de escurrimiento',
-    coordinates: [
-      [-65.692134, -33.291132],
-      [-65.699221, -33.291166],
-      [-65.703666, -33.291201],
-      [-65.703631, -33.299113],
-      [-65.702041, -33.299106],
-      [-65.701973, -33.309184],
-      [-65.692046, -33.309277],
-    ],
-  },
-  {
-    id: 'san_luis_492',
-    title: 'Piedemonte Serrano #492',
-    province: 'San Luis (El Trapiche)',
-    areaHa: 223.4,
-    description: 'Alto relieve con quebradas marcadas y fuerte concentración hídrica',
-    coordinates: [
-      [-66.03954, -33.149419],
-      [-66.04748, -33.148671],
-      [-66.045899, -33.155386],
-      [-66.047467, -33.159149],
-      [-66.053387, -33.173345],
-      [-66.052012, -33.172855],
-      [-66.049687, -33.173671],
-      [-66.048538, -33.174829],
-      [-66.048308, -33.174136],
-      [-66.045553, -33.165829],
-      [-66.04012, -33.15578],
-    ],
-  },
-  {
-    id: 'pergamino_148',
-    title: 'Cuadro Agrícola Pergamino',
-    province: 'Buenos Aires',
-    areaHa: 148.2,
-    description: 'Zona núcleo maicera con microrelieves y sectores bajos de retención',
-    coordinates: [
-      [-60.582, -33.882],
-      [-60.568, -33.883],
-      [-60.569, -33.896],
-      [-60.583, -33.895],
-    ],
-  },
-  {
-    id: 'marcos_juarez_175',
-    title: 'Potrero Marcos Juárez',
-    province: 'Córdoba',
-    areaHa: 175.6,
-    description: 'Suelo típico Argiudol con pendiente laminar suave',
-    coordinates: [
-      [-62.115, -32.692],
-      [-62.098, -32.693],
-      [-62.099, -32.707],
-      [-62.116, -32.706],
-    ],
   },
 ]
 
@@ -538,25 +463,16 @@ export function PolygonMapDrawer({
         }
       }
       setSearchStatus(
-        'No se encontró esa localidad. Probá con otra ciudad o ingresá coordenadas (ej: -33.12, -66.08).',
+        'No se encontró esa localidad. Probá con otra ciudad o ingresá coordenadas (formato: -33.12, -66.08).',
       )
     } catch {
       setSearchStatus(
-        'Búsqueda externa no disponible. Elegí una zona rápida abajo o escribí coordenadas (ej: -33.12, -66.08).',
+        'Búsqueda externa no disponible. Elegí una zona rápida abajo o escribí coordenadas (formato: -33.12, -66.08).',
       )
     }
   }
 
-  /** Carga un lote de ejemplo real en 1 clic sobre el mapa satelital. */
-  const handleLoadPresetLot = (preset: PresetLot) => {
-    setVertices(preset.coordinates)
-    setLotName(preset.title)
-    setRectFirstCorner(null)
-    fitToVertices(preset.coordinates)
-    setSearchStatus(`Cargado lote de ejemplo: ${preset.title} (${preset.areaHa} ha, ${preset.province})`)
-  }
-
-  /** Crea un polígono de ejemplo de ~160 ha centrado en la vista actual del mapa con 1 clic. */
+  /** Crea un polígono base de ~160 ha centrado en la vista actual del mapa con 1 clic. */
   const handleStampPolygonAtCenter = () => {
     const map = mapRef.current
     if (!map) return
@@ -742,29 +658,13 @@ export function PolygonMapDrawer({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Buscar ciudad, paraje o coordenadas GPS (ej: Río Cuarto, Pergamino o -33.12, -66.08)..."
+              placeholder="🔍 Buscar ciudad, paraje o coordenadas GPS (como Río Cuarto, Pergamino o -33.12, -66.08)..."
               className="drawer-search-input"
             />
             <button type="submit" className="drawer-search-btn">
               Ir a zona
             </button>
           </form>
-
-          {/* Lotes de ejemplo reales precargados en 1 clic */}
-          <div className="drawer-preset-lots-row">
-            <span className="drawer-quick-label">🌱 Lotes reales para probar:</span>
-            {PRESET_REAL_LOTS.map((lot) => (
-              <button
-                key={lot.id}
-                type="button"
-                className="drawer-preset-lot-btn"
-                onClick={() => handleLoadPresetLot(lot)}
-                title={`${lot.title} (${lot.areaHa} ha, ${lot.province}) · ${lot.description}`}
-              >
-                📍 {lot.title} ({lot.areaHa} ha)
-              </button>
-            ))}
-          </div>
 
           <div className="drawer-quick-zones">
             <span className="drawer-quick-label">Centrar región:</span>
