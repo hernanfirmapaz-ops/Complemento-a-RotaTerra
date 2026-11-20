@@ -17,7 +17,7 @@ interface Props {
   comparison: ScenarioComparisonOut | null
   busy: boolean
   onCreateManualEvent: (payload: RainfallEventManualIn) => void
-  onLoadSampleEvent: () => void
+  onLoadGaugeEvent: () => void
   onImportCsvEvent: (file: File, name: string, sourceType: string) => void
   onRunRunoff: (payload: RunoffRunIn) => void
   onActivateRun: (runId: string) => void
@@ -67,7 +67,7 @@ export function RainfallRunoffPanel({
   comparison,
   busy,
   onCreateManualEvent,
-  onLoadSampleEvent,
+  onLoadGaugeEvent,
   onImportCsvEvent,
   onRunRunoff,
   onActivateRun,
@@ -139,7 +139,7 @@ export function RainfallRunoffPanel({
         <div className="btn-row">
           <button
             className="btn-primary"
-            onClick={onLoadSampleEvent}
+            onClick={onLoadGaugeEvent}
             disabled={!hasTerrain || busy}
           >
             Tormenta CSV 80 mm (Pluviómetro)

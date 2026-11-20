@@ -18,7 +18,7 @@ if env_file.exists():
         pass
 
 DATA_DIR = Path(os.environ.get("ROTATERRA_DATA_DIR", REPO_ROOT / "data" / "runs"))
-SAMPLE_DIR = REPO_ROOT / "data" / "sample"
+SAMPLE_DIR = REPO_ROOT / "tests" / "fixtures" / "lotes"
 WEB_DIST = REPO_ROOT / "apps" / "web" / "dist"
 
 MAX_GEOJSON_BYTES = int(os.environ.get("ROTATERRA_MAX_GEOJSON_MB", "5")) * 1024 * 1024

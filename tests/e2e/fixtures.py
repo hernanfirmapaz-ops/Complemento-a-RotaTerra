@@ -21,7 +21,7 @@ from shapely import wkb as shapely_wkb
 from shapely.geometry import Polygon
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SAMPLE_DIR = REPO_ROOT / "data" / "sample"
+SAMPLE_DIR = REPO_ROOT / "tests" / "fixtures" / "lotes"
 
 WGS84_ESRI_WKT = (
     'GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",'

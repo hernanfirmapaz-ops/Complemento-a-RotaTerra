@@ -22,7 +22,7 @@ from geoprocessing.rainfall.nrcs_cn import (
 
 
 def test_parse_valid_sample_rainfall_csv():
-    sample_csv = Path(__file__).resolve().parents[2] / "data" / "sample" / "evento_tormenta_pluvio.csv"
+    sample_csv = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "lotes" / "evento_tormenta_pluvio.csv"
     rep = parse_rainfall_csv(sample_csv.read_bytes(), declared_total_mm=80.0)
     assert rep.total_mm == pytest.approx(80.0, abs=1e-2)
     assert rep.interval_minutes == 15
