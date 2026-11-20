@@ -3,9 +3,12 @@
 import type {
   AgronomicToolkitIn,
   AgronomicToolkitOut,
+  CatalogOut,
+  ContoursOut,
   FieldObservationIn,
   FieldObservationOut,
   FieldOut,
+  HealthOut,
   HydrologyOut,
   HydrologyRunIn,
   MeshOut,
@@ -21,6 +24,11 @@ import type {
 } from '../types/api'
 
 const BASE = '/api/v1'
+
+export async function getHealthCheck(): Promise<HealthOut> {
+  const res = await fetch(`${BASE}/health`)
+  return check<HealthOut>(res)
+}
 
 async function check<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -136,13 +144,24 @@ export async function queryTerrainPoint(
 export async function computeTerrainProfile(
   fieldId: string,
   coordinates: [number, number][],
+  step_m?: number | null,
 ): Promise<ProfileOut> {
+  const payload: { coordinates: [number, number][]; step_m?: number } = { coordinates }
+  if (step_m != null) payload.step_m = step_m
   const res = await fetch(`${BASE}/fields/${fieldId}/terrain/profile`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ coordinates }),
+    body: JSON.stringify(payload),
   })
   return check<ProfileOut>(res)
+}
+
+export async function getTerrainContours(
+  fieldId: string,
+  interval_m: number = 5,
+): Promise<ContoursOut> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/terrain/contours?interval_m=${interval_m}`)
+  return check<ContoursOut>(res)
 }
 
 export async function getStaticHydrology(
@@ -201,11 +220,15 @@ export async function importCsvRainfallEvent(
   file: File,
   name: string,
   sourceType: string,
+  declared_total_mm?: number | null,
 ): Promise<RainfallEventOut> {
   const form = new FormData()
   form.append('file', file)
   form.append('name', name)
   form.append('source_type', sourceType)
+  if (declared_total_mm != null) {
+    form.append('declared_total_mm', String(declared_total_mm))
+  }
   const res = await fetch(
     `${BASE}/fields/${fieldId}/hydrology/rainfall-events/import-csv`,
     {
@@ -214,6 +237,11 @@ export async function importCsvRainfallEvent(
     },
   )
   return check<RainfallEventOut>(res)
+}
+
+export async function getHydrologyCatalog(fieldId: string): Promise<CatalogOut> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/catalog`)
+  return check<CatalogOut>(res)
 }
 
 export async function listRunoffRuns(

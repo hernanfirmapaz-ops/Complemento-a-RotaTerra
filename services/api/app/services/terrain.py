@@ -47,6 +47,12 @@ def process_terrain(field_id: str, source_id: str, buffer_m: float, upload_path:
     if source_id == sources.COPERNICUS_ID:
         original = carpeta_fuente / "copernicus_glo30_window.tif"
         info = sources.fetch_copernicus(_buffer_bbox_4326(field, buffer_m), original)
+    elif source_id == sources.OPENTOPOGRAPHY_COP30_ID:
+        original = carpeta_fuente / "opentopography_cop30.tif"
+        info = sources.fetch_opentopography(_buffer_bbox_4326(field, buffer_m), original, demtype="COP30")
+    elif source_id == sources.OPENTOPOGRAPHY_NASADEM_ID:
+        original = carpeta_fuente / "opentopography_nasadem.tif"
+        info = sources.fetch_opentopography(_buffer_bbox_4326(field, buffer_m), original, demtype="NASADEM")
     elif source_id == sources.UPLOAD_ID:
         if upload_path is None:
             raise sources.DemSourceError("Falta el archivo GeoTIFF del DEM.")
@@ -126,7 +132,7 @@ def terrain_mesh(field_id: str, max_size: int) -> dict:
             extra["agronomic_zone_id"] = grids["agronomic_zone_id"]
         if "soil_loss_t_ha" in grids:
             extra["soil_loss_t_ha"] = grids["soil_loss_t_ha"]
-        if "ndvi" in grids:
+        if "ndvi" in grids and grids["ndvi"] is not None and getattr(grids["ndvi"], "ndim", 0) == 2:
             extra["ndvi"] = grids["ndvi"]
     if active_run := hydrology.optional_active_runoff(field_id):
         _, r_grids = active_run

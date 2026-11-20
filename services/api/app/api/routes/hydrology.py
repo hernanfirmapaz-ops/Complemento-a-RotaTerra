@@ -8,6 +8,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from geoprocessing.rainfall.events import RainfallValidationError
 from services.api.app.schemas import (
     AgronomicToolkitIn,
+    AgronomicToolkitOut,
+    CatalogOut,
     FieldObservationIn,
     FieldObservationOut,
     Hydrodynamic2DIn,
@@ -25,7 +27,7 @@ from services.api.app.services import hydrology, store
 router = APIRouter(prefix="/fields/{field_id}/hydrology", tags=["hydrology"])
 
 
-@router.get("/catalog")
+@router.get("/catalog", response_model=CatalogOut)
 def obtener_catalogo_hidrologico(field_id: str):
     return hydrology.get_hydrology_catalog()
 
@@ -214,7 +216,7 @@ def exportar_informe_tecnico_html(field_id: str):
         raise HTTPException(status_code=404, detail="Lote no encontrado.") from error
 
 
-@router.get("/toolkit")
+@router.get("/toolkit", response_model=AgronomicToolkitOut)
 def obtener_toolkit_agronomico(field_id: str):
     try:
         store.load_field(field_id)
@@ -226,7 +228,7 @@ def obtener_toolkit_agronomico(field_id: str):
         ) from error
 
 
-@router.post("/toolkit/run")
+@router.post("/toolkit/run", response_model=AgronomicToolkitOut)
 def ejecutar_toolkit_agronomico(
     field_id: str,
     payload: AgronomicToolkitIn | None = None,

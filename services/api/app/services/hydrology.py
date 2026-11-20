@@ -589,6 +589,10 @@ def execute_hydrodynamic_2d_on_run(
             {"timestamp": f"Paso {i + 1}", "precipitation_mm": q_step, "interval_minutes": 15}
             for i in range(4)
         ]
+        uniform_warn = "El evento de lluvia es manual sin hietograma detallado: la lluvia se aplica de forma uniforme en 4 pasos."
+        target.setdefault("warnings", [])
+        if uniform_warn not in target["warnings"]:
+            target["warnings"].append(uniform_warn)
 
     cover_code = target["field_conditions"].get("cover_code", "soja_maiz_sd_buena")
     manning_n = (
@@ -775,12 +779,19 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
 
     # Guardar grillas soil_loss_t_ha y ndvi dentro de hydrology_grids.npz para visualización 3D
     grids["soil_loss_t_ha"] = soil_loss_grid
-    grids["ndvi"] = ndvi_res["grid"]
+    if ndvi_res["grid"] is not None:
+        grids["ndvi"] = ndvi_res["grid"]
+    elif "ndvi" in grids:
+        del grids["ndvi"]
     np.savez_compressed(carpeta / "hydrology_grids.npz", **grids)
-    # Actualizar timestamp en hydrology.json para invalidar cache LRU
-    hydro["processed_at"] = store.now_iso()
     store.save_hydrology(field_id, hydro)
     load_hydrology_grids.cache_clear()
+
+    all_warnings = list(climate_warnings)
+    if not daily_series:
+        all_warnings.append("NASA POWER no disponible: balance hídrico y riesgo climático en modo degradado.")
+    if ndvi_res["summary"].get("status") == "unavailable":
+        all_warnings.append("Sentinel-2 STAC no disponible o nubosidad excesiva: monitor de vigor en modo degradado.")
 
     toolkit_doc = {
         "field_id": field_id,
@@ -794,7 +805,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         "rotation_comparator_3yr": rotation_comp,
         "ndvi_vigor_monitor": ndvi_res["summary"],
         "frost_risk_sowing": frost_risk,
-        "warnings": climate_warnings,
+        "warnings": all_warnings,
     }
     (carpeta / "toolkit.json").write_text(
         json.dumps(toolkit_doc, ensure_ascii=False, indent=1),

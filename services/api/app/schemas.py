@@ -326,7 +326,15 @@ class RunoffRunIn(BaseModel):
     compaction_high: bool = False
     antecedent_moisture: Literal["dry", "medium", "wet"] = "medium"
     lambda_ratio: float = Field(0.2, ge=0.01, le=0.5)
-    custom_cn_ii: float | None = Field(None, ge=30.0, le=99.0)
+    custom_cn_ii: float | None = Field(None, ge=30.0, le=98.0)
+
+    @field_validator("cover_code")
+    @classmethod
+    def _val_cover(cls, v: str) -> str:
+        from geoprocessing.rainfall.nrcs_cn import TABLE_CN_II
+        if v not in TABLE_CN_II:
+            raise ValueError(f"cover_code '{v}' no reconocido. Opciones válidas: {list(TABLE_CN_II.keys())}")
+        return v
 
 
 class CnResultOut(BaseModel):
@@ -497,3 +505,61 @@ class AgronomicToolkitIn(BaseModel):
         "trigo_cereal_invierno_sd",
         "cultivo_cobertura_vicia_centeno",
     ]
+
+
+class Hydrodynamic2DSummaryOut(BaseModel):
+    manning_n: float
+    ponding_threshold_m: float
+    hydraulic_structures_applied: int
+    Effective_runoff_input_mm: float
+    infiltration_losses_mm: float
+    max_water_depth_in_field_m: float
+    mean_max_water_depth_in_field_m: float
+    final_retained_water_depth_max_m: float
+    max_velocity_in_field_m_s: float
+    max_unit_discharge_in_field_m2_s: float
+    ponded_area_in_field_ha: float
+    ponded_area_in_field_pct: float
+    ponded_retained_volume_in_field_m3: float
+    domain_input_volume_m3: float
+    domain_final_storage_m3: float
+    domain_boundary_outflow_m3: float
+    mass_balance_relative_error: float
+
+
+class AgronomicZonationOut(BaseModel):
+    twi_field_mean: float
+    twi_field_p90: float
+    spi_field_mean: float
+    spi_field_p90: float
+    zones: list[dict]
+    trafficability: dict
+    rotaterra_criteria: list[str]
+
+
+class AgronomicToolkitOut(BaseModel):
+    field_id: str
+    processed_at: str
+    parameters: dict
+    erosion_usle: dict
+    water_balance_monthly: dict
+    real_waterlogging_by_date: dict
+    contour_terraces: dict
+    seeding_calculator_inta: dict
+    rotation_comparator_3yr: dict
+    ndvi_vigor_monitor: dict
+    frost_risk_sowing: dict
+    warnings: list[str]
+
+
+class CatalogOut(BaseModel):
+    covers: list[dict]
+    soil_groups: list[dict]
+    antecedent_moisture_options: list[dict]
+    rainfall_sources: list[dict]
+
+
+class HealthOut(BaseModel):
+    status: str
+    phase: str
+    processing_version: str

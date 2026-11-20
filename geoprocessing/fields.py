@@ -279,11 +279,34 @@ def parse_shapefile_zip(zip_bytes: bytes, nombre_por_defecto: str = "Lote SHP") 
     except zipfile.BadZipFile as err:
         raise FieldValidationError("El archivo ZIP del Shapefile no es válido.") from err
 
+    prj_wkt = None
+    record_names: list[str] = []
     with zf:
         shp_name = next((n for n in zf.namelist() if n.lower().endswith(".shp")), None)
         if shp_name is None:
             raise FieldValidationError("El ZIP no contiene ningún archivo .shp.")
         shp = zf.read(shp_name)
+        prj_name = next((n for n in zf.namelist() if n.lower().endswith(".prj")), None)
+        if prj_name:
+            try:
+                prj_wkt = zf.read(prj_name).decode("utf-8", errors="ignore").strip()
+            except Exception:
+                prj_wkt = None
+        dbf_name_file = next((n for n in zf.namelist() if n.lower().endswith(".dbf")), None)
+        if dbf_name_file:
+            try:
+                dbf_bytes = zf.read(dbf_name_file)
+                if len(dbf_bytes) >= 32:
+                    num_records, header_len, record_len = struct.unpack("<IHH", dbf_bytes[4:12])
+                    for r_i in range(num_records):
+                        offset = header_len + r_i * record_len
+                        if offset + record_len <= len(dbf_bytes):
+                            raw_val = dbf_bytes[offset + 1:offset + record_len]
+                            val_str = raw_val.decode("utf-8", errors="ignore").replace("\x00", "").strip()
+                            if val_str:
+                                record_names.append(val_str)
+            except Exception:
+                pass
 
     if len(shp) < 100:
         raise FieldValidationError("El archivo .shp está truncado.")
@@ -314,6 +337,18 @@ def parse_shapefile_zip(zip_bytes: bytes, nombre_por_defecto: str = "Lote SHP") 
         pts_offset = 44 + 4 * num_parts
         coords_flat = struct.unpack(f"<{2 * num_points}d", rec[pts_offset:pts_offset + 16 * num_points])
         pts = [[coords_flat[2 * i], coords_flat[2 * i + 1]] for i in range(num_points)]
+        if prj_wkt:
+            try:
+                from rasterio.crs import CRS
+                from rasterio.warp import transform
+                src_crs = CRS.from_user_input(prj_wkt)
+                if not src_crs.is_geographic:
+                    xs = [p[0] for p in pts]
+                    ys = [p[1] for p in pts]
+                    lons, lats = transform(src_crs, "EPSG:4326", xs, ys)
+                    pts = [[lons[i], lats[i]] for i in range(num_points)]
+            except Exception:
+                pass
         rings: list[list[list[float]]] = []
         for p_i, start_idx in enumerate(parts):
             end_idx = parts[p_i + 1] if p_i + 1 < num_parts else num_points
@@ -321,12 +356,13 @@ def parse_shapefile_zip(zip_bytes: bytes, nombre_por_defecto: str = "Lote SHP") 
             if len(ring) >= 3 and ring[0][:2] != ring[-1][:2]:
                 ring.append(list(ring[0]))
             rings.append(ring)
-        rec_idx += 1
+        feature_name = record_names[rec_idx] if rec_idx < len(record_names) else f"{nombre_por_defecto} {rec_idx + 1}"
         features.append({
             "type": "Feature",
-            "properties": {"name": f"{nombre_por_defecto} {rec_idx}", "source_format": "Shapefile"},
+            "properties": {"name": feature_name, "source_format": "Shapefile"},
             "geometry": {"type": "Polygon", "coordinates": rings},
         })
+        rec_idx += 1
 
     if not features:
         raise FieldValidationError("El Shapefile no contiene polígonos.")

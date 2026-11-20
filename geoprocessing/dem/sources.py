@@ -17,6 +17,8 @@ import numpy as np
 
 COPERNICUS_ID = "copernicus_glo30"
 UPLOAD_ID = "upload"
+OPENTOPOGRAPHY_COP30_ID = "opentopography_cop30"
+OPENTOPOGRAPHY_NASADEM_ID = "opentopography_nasadem"
 
 _COP_URL_BASE = "https://copernicus-dem-30m.s3.amazonaws.com"  # AWS Open Data (archivos de la ESA tal cual)
 _COP_INVALIDO = -32767
@@ -167,6 +169,93 @@ def fetch_copernicus(bbox: tuple[float, float, float, float], destino: Path) -> 
 
     toma = (min(p[0] for p in periodos), max(p[1] for p in periodos)) if periodos else None
     return copernicus_info(toma)
+
+
+# ---------- OpenTopography: Copernicus GLO-30 / NASADEM ----------
+
+def opentopography_info(demtype: str = "COP30") -> DemSourceInfo:
+    dem_u = demtype.upper()
+    if dem_u == "NASADEM":
+        return DemSourceInfo(
+            source_id=OPENTOPOGRAPHY_NASADEM_ID,
+            source_name="NASADEM Merged DEM Global 1 arcsecond (NASA / OpenTopography)",
+            source_url="https://doi.org/10.5069/G93T9FD9",
+            license="Dominio público (NASA / USGS). Accedido vía OpenTopography.",
+            surface_type="DSM",
+            nominal_resolution_m=30.0,
+            vertical_datum="EGM96",
+            vertical_accuracy_m=5.0,
+            vertical_accuracy_note="Precisión vertical absoluta estimada ~5 m en llanura.",
+            acquisition_start="2000-02-11",
+            acquisition_end="2000-02-22",
+            acquisition_method="SRTM re-procesado con ALOS PRISM y GDEM",
+        )
+    return DemSourceInfo(
+        source_id=OPENTOPOGRAPHY_COP30_ID,
+        source_name="Copernicus DEM GLO-30 (OpenTopography)",
+        source_url="https://doi.org/10.5069/G9028PQB",
+        license="Copernicus DEM: uso libre con atribución (ESA). Accedido vía OpenTopography.",
+        surface_type="DSM",
+        nominal_resolution_m=30.0,
+        vertical_datum="EGM2008 (alturas ortométricas)",
+        vertical_accuracy_m=4.0,
+        vertical_accuracy_note="Precisión vertical absoluta < 4 m (LE90).",
+        acquisition_start="2010-12-12",
+        acquisition_end="2015-01-16",
+        acquisition_method="Interferometría radar TanDEM-X",
+    )
+
+
+def fetch_opentopography(
+    bbox: tuple[float, float, float, float],
+    destino: Path,
+    demtype: str = "COP30",
+    api_key: str | None = None,
+) -> DemSourceInfo:
+    """Descarga el DEM desde la API Global de OpenTopography recortado al bbox."""
+    import os
+    import httpx
+    import rasterio
+    from geoprocessing.net import client
+
+    key = api_key or os.environ.get("OPENTOPOGRAPHY_API_KEY")
+    if not key:
+        raise DemSourceError("Se requiere una API key de OpenTopography (OPENTOPOGRAPHY_API_KEY).")
+
+    oeste, sur, este, norte = bbox
+    url = "https://portal.opentopography.org/API/globaldem"
+    params = {
+        "demtype": demtype,
+        "south": f"{sur:.6f}",
+        "north": f"{norte:.6f}",
+        "west": f"{oeste:.6f}",
+        "east": f"{este:.6f}",
+        "outputFormat": "GTiff",
+        "API_Key": key,
+    }
+
+    try:
+        with client(timeout=60.0) as cl:
+            r = cl.get(url, params=params)
+            if r.status_code != 200:
+                raise DemSourceError(
+                    f"OpenTopography respondió HTTP {r.status_code}: {r.text[:200]}"
+                )
+            content = r.content
+    except httpx.HTTPError as err:
+        raise DemSourceError(f"Error de conexión con OpenTopography: {err}") from err
+
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_bytes(content)
+
+    try:
+        with rasterio.open(destino) as src:
+            if src.count < 1 or src.crs is None:
+                raise DemSourceError("El archivo recibido de OpenTopography no es un ráster georreferenciado válido.")
+    except Exception as err:
+        raise DemSourceError(f"No se pudo leer el DEM de OpenTopography: {err}") from err
+
+    return opentopography_info(demtype)
 
 
 # ---------- GeoTIFF subido por el usuario ----------

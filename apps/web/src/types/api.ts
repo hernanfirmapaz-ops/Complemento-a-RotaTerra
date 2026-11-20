@@ -154,6 +154,11 @@ export interface PointOut {
   warnings: string[]
 }
 
+export interface ProfileIn {
+  coordinates: [number, number][]
+  step_m?: number | null
+}
+
 export interface ProfileSample {
   distance_m: number
   elevation_m: number | null
@@ -192,6 +197,8 @@ export interface HydrologyRunIn {
   stream_threshold_ha?: number | null
   routing_basis: 'MFD' | 'D8'
   contour_interval_m?: number | null
+  burn_lines?: [number, number][][] | null
+  burn_depth_m?: number | null
 }
 
 export interface DepressionOut {
@@ -317,6 +324,10 @@ export interface RainfallEventManualIn {
   source_type: RainfallSourceType
   start_at?: string | null
   end_at?: string | null
+  source_product?: string | null
+  spatial_resolution?: string | null
+  quality_flag?: string | null
+  uncertainty_note?: string | null
 }
 
 export interface RainfallEventOut {
@@ -494,6 +505,7 @@ export interface FieldObservationIn {
   notes: string
   value?: number | null
   units?: string | null
+  observed_at?: string | null
 }
 
 export interface FieldObservationOut {
@@ -511,6 +523,12 @@ export interface FieldObservationOut {
   created_at: string
 }
 
+export interface Hydrodynamic2DIn {
+  manning_n?: number | null
+  ponding_threshold_m: number
+  recession_minutes: number
+}
+
 export interface AgronomicToolkitIn {
   soil_group: SoilGroup
   cover_code: string
@@ -518,6 +536,10 @@ export interface AgronomicToolkitIn {
   crop_code: string
   environment_zone: 'loma' | 'media_loma' | 'bajo'
   target_yield_t_ha?: number | null
+  sequence_a_name?: string
+  sequence_a_crops?: string[]
+  sequence_b_name?: string
+  sequence_b_crops?: string[]
 }
 
 export interface AgronomicToolkitOut {
@@ -662,4 +684,17 @@ export interface AgronomicToolkitOut {
     }[]
   }
   warnings: string[]
+}
+
+export interface CatalogOut {
+  covers: Record<string, unknown>[]
+  soil_groups: Record<string, unknown>[]
+  antecedent_moisture_options: Record<string, unknown>[]
+  rainfall_sources: Record<string, unknown>[]
+}
+
+export interface HealthOut {
+  status: string
+  phase: string
+  processing_version: string
 }

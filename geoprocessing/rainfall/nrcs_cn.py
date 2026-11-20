@@ -58,6 +58,8 @@ CN_II_LOOKUP: dict[str, dict[str, any]] = {
     },
 }
 
+TABLE_CN_II = CN_II_LOOKUP
+
 
 @dataclass
 class CnEventResult:

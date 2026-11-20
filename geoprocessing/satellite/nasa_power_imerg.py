@@ -42,7 +42,7 @@ def fetch_nasa_power_daily_series(
     Si no hay conexión de red disponible (p. ej. en tests offline), genera una serie climatológica
     regional calibrada para la latitud/longitud del lote etiquetada explícitamente como respaldo offline.
     """
-    end_dt = date(2025, 12, 31)
+    end_dt = date.today()
     start_dt = date(end_dt.year - max(1, years) + 1, 1, 1)
 
     try:
@@ -97,41 +97,12 @@ def fetch_nasa_power_daily_series(
     except Exception:
         pass
 
-    # Respaldo climatológico determinístico (para ejecución offline / tests sin red)
-    rng = np.random.default_rng(abs(int(round(lon * 1000)) ^ int(round(lat * 1000))))
-    rows = []
-    cur = start_dt
-    while cur <= end_dt:
-        doy = cur.timetuple().tm_yday
-        # Ciclo térmico anual hemisferio sur (máximo en enero, mínimo en julio)
-        seasonal = math.cos(2.0 * math.pi * (doy - 15) / 365.25)
-        base_tmean = 16.5 - 0.35 * (abs(lat) - 33.0) + 7.8 * seasonal
-        tmin = base_tmean - 6.5 + float(rng.normal(0.0, 2.6))
-        tmax = base_tmean + 7.2 + float(rng.normal(0.0, 2.4))
-        # Régimen monzónico pampeano/cuyano: mayor probabilidad de lluvia en oct-mar
-        wet_prob = 0.22 + 0.14 * seasonal
-        if float(rng.random()) < wet_prob:
-            p_val = float(rng.gamma(shape=1.35, scale=11.5 * (1.0 + 0.35 * seasonal)))
-        else:
-            p_val = 0.0
-        rows.append({
-            "date": cur.isoformat(),
-            "year": cur.year,
-            "month": cur.month,
-            "day_of_year": doy,
-            "precip_mm": round(max(0.0, p_val), 2),
-            "tmin_c": round(tmin, 2),
-            "tmax_c": round(tmax, 2),
-            "tmean_c": round(0.5 * (tmin + tmax), 2),
-        })
-        cur += timedelta(days=1)
-
+    # No se fabrican datos sintéticos en caso de fallo o ausencia de conexión (Anomalía A1).
     return (
-        rows,
-        "Serie Climatológica Regional Calibrada (modo respaldo sin conexión a NASA POWER)",
+        [],
+        "NASA POWER (No disponible - sin conexión)",
         [
-            "No hubo conexión directa con power.larc.nasa.gov: se utilizó la serie climatológica "
-            "regional de respaldo etiquetada explícitamente."
+            "No se pudo descargar la serie climática de NASA POWER. Calidad: descartada por falta de conectividad o datos válidos."
         ],
     )
 
@@ -145,6 +116,21 @@ def compute_monthly_water_balance(
     """Herramienta 2: Balance hídrico mensual del lote (lluvia, ET0 Hargreaves, agua útil, déficit y exceso)."""
     awc_max = AVAILABLE_WATER_CAPACITY_MM.get(soil_group, 150.0)
     cn_ii, _ = lookup_cn_ii(cover_code, soil_group)
+
+    if not daily_rows:
+        return {
+            "source": source_label,
+            "status": "unavailable",
+            "soil_group": soil_group,
+            "available_water_capacity_max_mm": awc_max,
+            "annual_precipitation_mm": 0.0,
+            "annual_et0_mm": 0.0,
+            "deficit_months_count": 0,
+            "excess_months_count": 0,
+            "final_available_water_mm": 0.0,
+            "final_available_water_pct": 0.0,
+            "months": [],
+        }
 
     # Agrupar los últimos 12 meses disponibles
     by_ym: dict[tuple[int, int], list[dict]] = {}
@@ -222,6 +208,7 @@ def compute_monthly_water_balance(
 
     return {
         "source": source_label,
+        "status": "available",
         "soil_group": soil_group,
         "available_water_capacity_max_mm": awc_max,
         "annual_precipitation_mm": round(total_rain, 1),
@@ -244,6 +231,16 @@ def evaluate_real_date_waterlogging_risk(
     depression_volume_m3: float,
 ) -> dict:
     """Herramienta 3: Evalúa los eventos reales de tormenta más intensos y su riesgo de anegamiento por fecha."""
+    if not daily_rows:
+        return {
+            "source": source_label,
+            "status": "unavailable",
+            "evaluated_days": 0,
+            "significant_storms_count": 0,
+            "high_waterlogging_events_count": 0,
+            "top_historical_events": [],
+        }
+
     cn_ii, _ = lookup_cn_ii(cover_code, soil_group)
 
     # Calcular para cada día la lluvia del evento (1 a 2 días consecutivos) y la lluvia antecedente de 5 días
@@ -292,6 +289,7 @@ def evaluate_real_date_waterlogging_risk(
 
     return {
         "source": source_label,
+        "status": "available",
         "evaluated_days": len(daily_rows),
         "significant_storms_count": len(storms),
         "high_waterlogging_events_count": high_risk_count,
@@ -304,6 +302,20 @@ def evaluate_frost_risk_and_sowing_dates(
     source_label: str,
 ) -> dict:
     """Herramienta 8: Riesgo de heladas (Tmin <= 0 °C meteorológica y <= 3 °C agronómica) y fechas seguras."""
+    if not daily_rows:
+        return {
+            "source": source_label,
+            "status": "unavailable",
+            "is_satellite_observed": False,
+            "mean_meteorological_frost_days_yr": 0.0,
+            "mean_agronomic_frost_days_yr": 0.0,
+            "median_last_spring_frost_date": "N/D",
+            "safe_spring_sowing_start_date": "N/D",
+            "median_first_autumn_frost_date": "N/D",
+            "frost_free_period_days": 0,
+            "safe_sowing_windows_by_crop": [],
+        }
+
     by_year: dict[int, list[dict]] = {}
     for r in daily_rows:
         by_year.setdefault(r["year"], []).append(r)
@@ -343,6 +355,8 @@ def evaluate_frost_risk_and_sowing_dates(
 
     return {
         "source": source_label,
+        "status": "available",
+        "is_satellite_observed": True,
         "mean_meteorological_frost_days_yr": round(float(np.mean(frost_days_per_year)), 1)
         if frost_days_per_year
         else 12.0,
@@ -381,7 +395,7 @@ def compute_ndvi_vigor_monitor(
     bbox_4326: tuple[float, float, float, float],
 ) -> dict:
     """Herramienta 7: Monitor de vigor (NDVI) consultando Sentinel-2 L2A STAC COG público en AWS
-    o correlación topográfica-hídrica de respaldo, y cruzando las zonas débiles con los ambientes del DEM.
+    con enmascaramiento de nubes mediante SCL (Scene Classification Layer).
     """
     import rasterio
     from rasterio.warp import Resampling, reproject
@@ -393,86 +407,169 @@ def compute_ndvi_vigor_monitor(
     scene_info: dict = {}
 
     try:
-        # Buscar escena Sentinel-2 L2A con nubosidad < 20 % sobre el lote en Element84 Earth Search STAC
         r = client().post(
             EARTH_SEARCH_STAC_URL,
             json={
                 "collections": ["sentinel-2-l2a"],
                 "bbox": [oeste, sur, este, norte],
                 "limit": 5,
-                "query": {"eo:cloud_cover": {"lt": 20}},
+                "query": {"eo:cloud_cover": {"lt": 85}},
             },
             timeout=12.0,
         )
         r.raise_for_status()
         feats = r.json().get("features") or []
-        if feats:
-            feat = feats[0]
+        for feat in feats:
+            props = feat.get("properties") or {}
+            cloud_pct = float(props.get("eo:cloud_cover", 0.0))
+            if cloud_pct >= 85.0:
+                continue
+
             assets = feat.get("assets") or {}
             red_href = (assets.get("red") or assets.get("B04") or {}).get("href")
             nir_href = (assets.get("nir") or assets.get("B08") or {}).get("href")
-            if red_href and nir_href:
-                alto, ancho = dem.z.shape
-                red_utm = np.full((alto, ancho), np.nan, dtype="float32")
-                nir_utm = np.full((alto, ancho), np.nan, dtype="float32")
-                with rasterio.open(red_href, opener=http_opener) as src_r:
-                    reproject(
-                        source=rasterio.band(src_r, 1),
-                        destination=red_utm,
-                        src_transform=src_r.transform,
-                        src_crs=src_r.crs,
-                        dst_transform=dem.transform,
-                        dst_crs=dem.crs,
-                        dst_nodata=np.nan,
-                        resampling=Resampling.bilinear,
-                    )
-                with rasterio.open(nir_href, opener=http_opener) as src_n:
-                    reproject(
-                        source=rasterio.band(src_n, 1),
-                        destination=nir_utm,
-                        src_transform=src_n.transform,
-                        src_crs=src_n.crs,
-                        dst_transform=dem.transform,
-                        dst_crs=dem.crs,
-                        dst_nodata=np.nan,
-                        resampling=Resampling.bilinear,
-                    )
-                denom = nir_utm + red_utm
-                valid_px = np.isfinite(denom) & (denom > 0)
-                ndvi_cand = np.where(valid_px, (nir_utm - red_utm) / denom, np.nan).astype("float32")
-                ndvi_cand = np.clip(ndvi_cand, -0.2, 0.95)
-                if np.isfinite(ndvi_cand[mascara_lote]).any():
-                    ndvi_grid = ndvi_cand
-                    props = feat.get("properties") or {}
-                    scene_info = {
-                        "source": "ESA Sentinel-2 L2A (COG 10 m vía AWS Element84 Earth Search STAC)",
-                        "scene_id": feat.get("id"),
-                        "acquisition_date": (props.get("datetime") or "")[:10],
-                        "cloud_cover_pct": round(float(props.get("eo:cloud_cover", 0.0)), 1),
-                        "is_satellite_observed": True,
-                    }
+            scl_href = (assets.get("scl") or assets.get("SCL") or {}).get("href")
+            if not (red_href and nir_href):
+                continue
+
+            alto, ancho = dem.z.shape
+            red_utm = np.full((alto, ancho), np.nan, dtype="float32")
+            nir_utm = np.full((alto, ancho), np.nan, dtype="float32")
+            with rasterio.open(red_href, opener=http_opener) as src_r:
+                reproject(
+                    source=rasterio.band(src_r, 1),
+                    destination=red_utm,
+                    src_transform=src_r.transform,
+                    src_crs=src_r.crs,
+                    dst_transform=dem.transform,
+                    dst_crs=dem.crs,
+                    dst_nodata=np.nan,
+                    resampling=Resampling.nearest,
+                )
+            with rasterio.open(nir_href, opener=http_opener) as src_n:
+                reproject(
+                    source=rasterio.band(src_n, 1),
+                    destination=nir_utm,
+                    src_transform=src_n.transform,
+                    src_crs=src_n.crs,
+                    dst_transform=dem.transform,
+                    dst_crs=dem.crs,
+                    dst_nodata=np.nan,
+                    resampling=Resampling.nearest,
+                )
+
+            scl_utm = None
+            if scl_href:
+                try:
+                    scl_dest = np.zeros((alto, ancho), dtype="uint8")
+                    with rasterio.open(scl_href, opener=http_opener) as src_s:
+                        reproject(
+                            source=rasterio.band(src_s, 1),
+                            destination=scl_dest,
+                            src_transform=src_s.transform,
+                            src_crs=src_s.crs,
+                            dst_transform=dem.transform,
+                            dst_crs=dem.crs,
+                            dst_nodata=0,
+                            resampling=Resampling.nearest,
+                        )
+                    scl_utm = scl_dest
+                except Exception:
+                    scl_utm = None
+
+            denom = nir_utm + red_utm
+            valid_px = np.isfinite(denom) & (denom > 0)
+            ndvi_cand = np.where(valid_px, (nir_utm - red_utm) / denom, np.nan).astype("float32")
+            ndvi_cand = np.clip(ndvi_cand, -0.2, 0.95)
+
+            # Enmascarar píxeles nubosos usando la banda SCL
+            if scl_utm is not None:
+                cloud_mask = np.isin(scl_utm, [3, 8, 9, 10, 11])
+                ndvi_cand = np.where(~cloud_mask, ndvi_cand, np.nan)
+
+            if np.isfinite(ndvi_cand[mascara_lote]).any():
+                ndvi_grid = ndvi_cand
+                scene_info = {
+                    "source": "ESA Sentinel-2 L2A (COG 10 m vía AWS Element84 Earth Search STAC)",
+                    "scene_id": feat.get("id"),
+                    "acquisition_date": (props.get("datetime") or "")[:10],
+                    "cloud_cover_pct": round(cloud_pct, 1),
+                    "is_satellite_observed": True,
+                    "status": "available",
+                }
+                break
     except Exception:
         ndvi_grid = None
 
     if ndvi_grid is None:
-        # Respaldo eco-hidrológico determinístico basado en TWI/relieve para pruebas offline sin red
-        valid = np.isfinite(dem.z) & np.isfinite(twi)
-        twi_f = twi[mascara_lote & valid]
-        t_med = float(np.median(twi_f)) if twi_f.size else 6.5
-        # El vigor es óptimo en media loma (TWI cercano a la mediana) y cae en lomas muy secas
-        # o en bajos anegados (Ambiente 4) y vías erosionadas (Ambiente 3)
-        dist_opt = np.abs(twi - t_med)
-        base_ndvi = 0.68 - 0.07 * dist_opt
-        base_ndvi = np.where(agronomic_zone_id == 4, base_ndvi - 0.16, base_ndvi)
-        base_ndvi = np.where(agronomic_zone_id == 3, base_ndvi - 0.11, base_ndvi)
-        ndvi_grid = np.where(valid, np.clip(base_ndvi, 0.12, 0.86), np.nan).astype("float32")
-        scene_info = {
-            "source": "Índice de Vigor Eco-Hidrológico Topográfico (modo respaldo sin conexión a STAC Sentinel-2)",
-            "scene_id": "synthetic-ecohydro-proxy",
-            "acquisition_date": date.today().isoformat(),
-            "cloud_cover_pct": 0.0,
-            "is_satellite_observed": False,
+        return {
+            "grid": None,
+            "summary": {
+                "source": "ESA Sentinel-2 L2A (No disponible - sin escenas válidas o conexión)",
+                "scene_id": None,
+                "acquisition_date": None,
+                "cloud_cover_pct": None,
+                "is_satellite_observed": False,
+                "status": "unavailable",
+                "mean_ndvi_in_field": None,
+                "min_ndvi_in_field": None,
+                "max_ndvi_in_field": None,
+                "low_vigor_area_ha": 0.0,
+                "low_vigor_pct": 0.0,
+                "moderate_vigor_pct": 0.0,
+                "high_vigor_pct": 0.0,
+                "weak_zones_explained_by_waterlogging_or_erosion_pct": 0.0,
+                "ndvi_by_agronomic_zone": [],
+            },
         }
+
+    in_field = mascara_lote & np.isfinite(ndvi_grid)
+    ndvi_f = ndvi_grid[in_field]
+    cell_area_ha = (float(dem.pixel) ** 2) / 10_000.0
+    total_cells = max(1, int(in_field.sum()))
+
+    low_vigor = in_field & (ndvi_grid < 0.38)
+    mod_vigor = in_field & (ndvi_grid >= 0.38) & (ndvi_grid < 0.60)
+    high_vigor = in_field & (ndvi_grid >= 0.60)
+
+    low_cells = int(low_vigor.sum())
+    low_in_wet_bajos = int((low_vigor & (agronomic_zone_id == 4)).sum())
+    low_in_erosion_ways = int((low_vigor & (agronomic_zone_id == 3)).sum())
+    overlap_hydro_pct = (
+        round(100.0 * (low_in_wet_bajos + low_in_erosion_ways) / low_cells, 1)
+        if low_cells > 0
+        else 0.0
+    )
+
+    by_zone = []
+    for z_id, label in (
+        (1, "Ambiente 1 — Loma"),
+        (2, "Ambiente 2 — Media loma"),
+        (3, "Ambiente 3 — Vía escurrimiento"),
+        (4, "Ambiente 4 — Bajo receptor"),
+    ):
+        mz = in_field & (agronomic_zone_id == z_id)
+        by_zone.append({
+            "zone_id": z_id,
+            "label": label,
+            "mean_ndvi": round(float(ndvi_grid[mz].mean()), 3) if mz.any() else None,
+        })
+
+    return {
+        "grid": ndvi_grid,
+        "summary": {
+            **scene_info,
+            "mean_ndvi_in_field": round(float(ndvi_f.mean()), 3) if ndvi_f.size else 0.0,
+            "min_ndvi_in_field": round(float(ndvi_f.min()), 3) if ndvi_f.size else 0.0,
+            "max_ndvi_in_field": round(float(ndvi_f.max()), 3) if ndvi_f.size else 0.0,
+            "low_vigor_area_ha": round(low_cells * cell_area_ha, 2),
+            "low_vigor_pct": round(100.0 * low_cells / total_cells, 1),
+            "moderate_vigor_pct": round(100.0 * int(mod_vigor.sum()) / total_cells, 1),
+            "high_vigor_pct": round(100.0 * int(high_vigor.sum()) / total_cells, 1),
+            "weak_zones_explained_by_waterlogging_or_erosion_pct": overlap_hydro_pct,
+            "ndvi_by_agronomic_zone": by_zone,
+        },
+    }
 
     in_field = mascara_lote & np.isfinite(ndvi_grid)
     ndvi_f = ndvi_grid[in_field]
