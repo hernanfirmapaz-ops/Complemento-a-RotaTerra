@@ -1,7 +1,8 @@
-"""Tests unitarios y de integración para el módulo de Precipitación Diaria Oficial (SMN + CONAE + NASA)."""
+"""Tests unitarios y de integración para el módulo de Precipitación Diaria Estimada (NASA POWER + Ref SMN)."""
 
 from __future__ import annotations
 
+import json
 import pytest
 from fastapi.testclient import TestClient
 
@@ -26,11 +27,13 @@ def test_find_nearest_smn_station():
     st_sl = find_nearest_smn_station(-66.35, -33.26)
     assert "SAN LUIS" in st_sl["name"] or "REYNOLDS" in st_sl["name"]
     assert st_sl["distance_km"] < 50.0
+    assert "Estación SMN más cercana (referencia, sin datos conectados):" in st_sl["reference_label"]
 
     # Coordenadas de Marcos Juárez, Córdoba
     st_mj = find_nearest_smn_station(-62.15, -32.66)
     assert "MARCOS JUAREZ" in st_mj["name"]
     assert st_mj["distance_km"] < 15.0
+    assert "Estación SMN más cercana (referencia, sin datos conectados):" in st_mj["reference_label"]
 
 
 def test_determine_amc_from_prior_rain():
@@ -48,11 +51,31 @@ def test_get_field_daily_rainfall_context():
     assert ctx["status"] in ("available", "unavailable")
     assert "nearest_smn_station" in ctx
     assert ctx["nearest_smn_station"]["name"] != ""
+    assert "Estación SMN más cercana (referencia, sin datos conectados):" in ctx["nearest_smn_station"]["reference_label"]
+
     if ctx["status"] == "available":
         assert ctx["selected_day"] is not None
         assert "precipitation_mm" in ctx["selected_day"]
         assert "antecedent_moisture_amc" in ctx["selected_day"]
-        assert "quality_flag" in ctx["selected_day"]
+        assert ctx["selected_day"]["quality_flag"] == "modelo_reanalisis_regional"
+        assert "NASA POWER" in ctx["selected_day"]["source"]
+        assert "SAOCOM" not in ctx["selected_day"].get("satellite_provider", "")
+        assert "observed_official_daily" != ctx["selected_day"]["quality_flag"]
+        assert "Lluvia regional estimada" in ctx["limitation_note"]
+
+
+def test_rain_source_and_quality_provenance():
+    """Verifica que la fuente y calidad de la serie coinciden exactamente con el proveedor real (NASA POWER)."""
+    ctx = get_field_daily_rainfall_context(-60.58, -33.91, limit_rainy_days=5)
+    assert ctx["status"] in ("available", "unavailable")
+    if ctx["status"] == "available":
+        assert "NASA POWER" in ctx["source_label"]
+        for day in ctx["recent_rainy_days"]:
+            assert day["quality_flag"] == "modelo_reanalisis_regional"
+            assert day["quality_flag"] != "observed_official_daily"
+            assert "NASA POWER" in day["source"]
+            assert "SAOCOM" not in day.get("satellite_provider", "")
+            assert "SAOCOM" not in day["source"]
 
 
 def test_api_daily_rainfall_endpoints():
@@ -70,6 +93,7 @@ def test_api_daily_rainfall_endpoints():
     assert "nearest_smn_station" in data
     assert "name" in data["nearest_smn_station"]
     assert "distance_km" in data["nearest_smn_station"]
+    assert "reference_label" in data["nearest_smn_station"]
 
     # 2. POST simulate daily rain
     if data.get("selected_day"):
@@ -87,5 +111,8 @@ def test_api_daily_rainfall_endpoints():
         assert "event" in res
         assert "runoff_run" in res
         assert res["runoff_run"]["is_active"] is True
-        assert res["event"]["source_type"] == "SMN"
+        assert res["event"]["source_type"] == "NASA_POWER"
         assert res["event"]["total_mm"] >= 0.0
+        assert res["event"]["source_metadata"]["quality_flag"] == "modelo_reanalisis_regional"
+        assert "SAOCOM" not in json.dumps(res)
+        assert "observed_official_daily" not in json.dumps(res)

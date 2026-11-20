@@ -188,10 +188,11 @@ export function RainfallRunoffPanel({
               }
             >
               <option value="gauge">Pluviómetro del establecimiento</option>
-              <option value="SMN">SMN Argentina (Estación / SQPE)</option>
+              <option value="NASA_POWER">NASA POWER (MERRA-2 / GPCP · ~55 km)</option>
               <option value="IMERG">NASA GPM IMERG (0,1° · 30 min)</option>
               <option value="CHIRPS">CHIRPS v3 (0,05° · diario)</option>
               <option value="ERA5-Land">Copernicus ERA5-Land (0,1°)</option>
+              <option value="SMN">Estación SMN (referencia de estación / manual)</option>
               <option value="manual">Escenario manual exploratorio</option>
             </select>
           </label>

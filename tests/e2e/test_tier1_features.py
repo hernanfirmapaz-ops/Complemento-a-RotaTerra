@@ -893,7 +893,7 @@ def test_e2e_t1_f9_04_hydrology_catalog_provenance(field_with_sloped_dem: tuple[
     assert len(cat["covers"]) == 8
     assert {sg["code"] for sg in cat["soil_groups"]} == {"A", "B", "C", "D"}
     assert {a["code"] for a in cat["antecedent_moisture_options"]} == {"dry", "medium", "wet"}
-    assert {rs["code"] for rs in cat["rainfall_sources"]} == {"gauge", "SMN", "IMERG", "CHIRPS", "ERA5-Land", "manual"}
+    assert {rs["code"] for rs in cat["rainfall_sources"]} == {"gauge", "SMN", "IMERG", "CHIRPS", "ERA5-Land", "NASA_POWER", "manual"}
     for rs in cat["rainfall_sources"]:
         assert rs["spatial_resolution"] and rs["temporal_resolution"] and rs["uncertainty_note"]
 

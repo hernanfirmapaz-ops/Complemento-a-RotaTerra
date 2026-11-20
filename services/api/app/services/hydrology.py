@@ -1184,8 +1184,8 @@ def export_technical_report_html(field_id: str) -> str:
 
 
 def get_field_daily_rainfall(field_id: str, target_date: str | None = None) -> dict:
-    """Obtiene el contexto climático diario oficial para el lote, vinculando la estación SMN
-    más cercana y los datos satelitales oficiales (CONAE / NASA).
+    """Obtiene el contexto climático diario estimado (NASA POWER ~55 km) para el lote,
+    informando la estación SMN más cercana únicamente como referencia geográfica.
     """
     from geoprocessing.rainfall.daily_national import get_field_daily_rainfall_context
 
@@ -1202,8 +1202,8 @@ def simulate_field_daily_rainfall(
     cover_percent: float | None = 60.0,
     compaction_high: bool = False,
 ) -> dict:
-    """Simula la escorrentía y respuesta hidrológica para la cantidad EXACTA de lluvia
-    que ocurrió en un día específico, con trazabilidad SMN y humedad antecedente real.
+    """Simula la escorrentía y respuesta hidrológica para la lluvia diaria estimada (NASA POWER ~55 km),
+    con humedad antecedente regional y estación SMN como referencia geográfica.
     """
     from geoprocessing.rainfall.daily_national import get_field_daily_rainfall_context
 
@@ -1222,26 +1222,22 @@ def simulate_field_daily_rainfall(
 
     now = store.now_iso()
     event_name = (
-        f"Día real {day['date']} · {p_mm:.1f} mm (SMN {smn['name']} · {smn['distance_km']} km)"
+        f"Día {day['date']} · {p_mm:.1f} mm (NASA POWER · Ref. SMN {smn['name']} a {smn['distance_km']} km)"
     )
 
     meta, warnings = build_event_metadata(
-        source_type="SMN",
+        source_type="NASA_POWER",
         total_mm=max(0.1, p_mm),
         start_at=f"{day['date']}T00:00:00Z",
         end_at=f"{day['date']}T23:59:59Z",
         has_time_series=False,
         interval_minutes=None,
-        custom_source_product=(
-            f"Estación oficial SMN {smn['name']} (OACI: {smn['oaci']}) + "
-            f"Constelación CONAE SAOCOM 1A/1B & NASA GPM IMERG"
-        ),
-        custom_spatial_resolution=(
-            f"Puntual estación SMN ({smn['distance_km']} km) y celda satelital 0,1° (~10 km)"
-        ),
-        quality_flag="observed_official_daily",
+        custom_source_product="NASA POWER (MERRA-2 / GPCP · ~55 km)",
+        custom_spatial_resolution="0,5° (~55 km)",
+        quality_flag="modelo_reanalisis_regional",
         custom_uncertainty_note=(
-            f"Acumulado real del día {day['date']} medido por red oficial SMN y validado por satélite. "
+            f"Lluvia regional estimada (~55 km), no es la medición de su campo. "
+            f"Estación SMN más cercana (referencia, sin datos conectados): {smn['name']} ({smn['distance_km']} km). "
             f"Humedad antecedente 5d: {day['prior_5d_rain_mm']:.1f} mm ({day['antecedent_moisture_amc']})."
         ),
     )
@@ -1251,7 +1247,7 @@ def simulate_field_daily_rainfall(
         "field_id": field_id,
         "name": event_name,
         "total_mm": round(p_mm, 2),
-        "source_type": "SMN",
+        "source_type": "NASA_POWER",
         "start_at": f"{day['date']}T00:00:00Z",
         "end_at": f"{day['date']}T23:59:59Z",
         "has_time_series": False,

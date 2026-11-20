@@ -291,7 +291,7 @@ class RainfallIntervalOut(BaseModel):
 class RainfallEventManualIn(BaseModel):
     name: str = Field(..., min_length=2, max_length=120)
     total_mm: float = Field(..., gt=0.0, le=1500.0)
-    source_type: Literal["gauge", "SMN", "IMERG", "CHIRPS", "ERA5-Land", "manual"] = "manual"
+    source_type: Literal["gauge", "SMN", "IMERG", "CHIRPS", "ERA5-Land", "NASA_POWER", "manual"] = "manual"
     start_at: str | None = None
     end_at: str | None = None
     source_product: str | None = None
@@ -326,6 +326,7 @@ class SmnStationOut(BaseModel):
     smn_nro: str
     oaci: str
     distance_km: float
+    reference_label: str | None = None
 
 
 class DailyRainfallDayOut(BaseModel):
@@ -342,6 +343,7 @@ class DailyRainfallDayOut(BaseModel):
     satellite_provider: str
     quality_flag: str
     is_rainy: bool
+    limitation_note: str | None = None
 
 
 class DailyRainfallContextOut(BaseModel):
@@ -351,6 +353,8 @@ class DailyRainfallContextOut(BaseModel):
     recent_rainy_days: list[DailyRainfallDayOut] = []
     total_days_available: int = 0
     source_label: str
+    limitation_note: str | None = None
+    reference_station_label: str | None = None
 
 
 class SimulateDailyRainIn(BaseModel):

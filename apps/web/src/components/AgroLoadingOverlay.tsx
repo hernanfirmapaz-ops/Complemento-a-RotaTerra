@@ -15,13 +15,13 @@ const AGRO_TIPS = [
   },
   {
     icon: '🛰️',
-    title: 'Constelación Satelital SAOCOM (CONAE)',
-    text: 'Los satélites argentinos SAOCOM 1A y 1B usan radar SAR en Banda L para estimar la humedad del suelo a nivel de lote, aún en días nublados.',
+    title: 'Radar SAR y Humedad de Suelo',
+    text: 'Los radares SAR en Banda L (como SAOCOM) estiman la humedad del suelo y rugosidad superficial; no son pluviómetros ni miden lluvia directa.',
   },
   {
     icon: '🌧️',
-    title: 'Red Oficial del SMN',
-    text: 'El Servicio Meteorológico Nacional monitorea más de 118 estaciones automáticas y convencionales para registrar las precipitaciones diarias de 24 horas.',
+    title: 'Red de Estaciones SMN',
+    text: 'Las estaciones del Servicio Meteorológico Nacional se utilizan como referencia geográfica de proximidad al establecimiento.',
   },
   {
     icon: '🌱',
@@ -274,7 +274,7 @@ export function AgroLoadingOverlay({
             </span>
             <span className="agro-step-arrow">→</span>
             <span className="agro-step-badge active">
-              🇦🇷 3. Red SMN
+              🌧️ 3. Serie Climática
             </span>
             <span className="agro-step-arrow">→</span>
             <span className="agro-step-badge active">

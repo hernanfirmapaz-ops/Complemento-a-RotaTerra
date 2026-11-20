@@ -377,14 +377,14 @@ export function App() {
     }
   }
 
-  /** Simulación de la cantidad EXACTA de lluvia ocurrida en un día real (SMN + Satélites). */
+  /** Simulación de la lluvia diaria estimada (NASA POWER ~55 km). */
   const handleSimulateDailyRain = async (dateStr?: string) => {
     if (!activeField) return
     const target =
       dateStr || selectedDailyDate || dailyRainContext?.selected_day?.date
     if (!target) return
     setError(null)
-    setBusy(`Consultando lluvia oficial SMN y satelital para el día ${target}...`)
+    setBusy(`Consultando lluvia estimada NASA POWER para el día ${target}...`)
     try {
       if (!terrain) {
         await processTerrain(activeField.id, {
@@ -807,7 +807,7 @@ export function App() {
         <div className="brand">
           <div className="brand-meta-row">
             <span className="badge-phase">ROTATERRA 3D · AGRO-HIDROLOGÍA</span>
-            <span className="badge-smn-status">🇦🇷 Red SMN & CONAE Online</span>
+            <span className="badge-smn-status">🛰️ NASA POWER (~55 km)</span>
           </div>
           <h1>
             Simulador 3D de Lluvia, Escurrimiento y Planificación Agronómica
@@ -945,25 +945,25 @@ export function App() {
                 <h3>Simulá Lluvia y Manejo</h3>
               </div>
               <p className="agro-help">
-                Simulá la cantidad <strong>exacta</strong> de agua que llovió en un día real en tu campo con datos oficiales del SMN y satélites, o probá escenarios de diseño.
+                Simulá la escorrentía a partir de lluvia diaria estimada (NASA POWER ~55 km) o probá escenarios de diseño agronómico.
               </p>
 
-              {/* Sección de Lluvia Diaria Oficial: SMN + CONAE + NASA */}
+              {/* Sección de Lluvia Diaria Estimada: NASA POWER ~55 km */}
               <div className="smn-daily-section">
                 <div className="smn-section-header">
                   <div className="smn-badge-title">
-                    <span className="smn-flag">🇦🇷</span>
-                    <strong>Lluvia Diaria Oficial (SMN + Satélites)</strong>
+                    <span className="smn-flag">🛰️</span>
+                    <strong>Lluvia Diaria Estimada (NASA POWER · ~55 km)</strong>
                   </div>
                   {dailyRainContext?.nearest_smn_station && (
-                    <span className="smn-station-tag">
-                      Estación {dailyRainContext.nearest_smn_station.name} ({dailyRainContext.nearest_smn_station.distance_km} km)
+                    <span className="smn-station-tag" title="Referencia geográfica sin datos conectados">
+                      Estación SMN más cercana (referencia, sin datos conectados): {dailyRainContext.nearest_smn_station.name} ({dailyRainContext.nearest_smn_station.distance_km} km)
                     </span>
                   )}
                 </div>
 
                 <p className="smn-desc">
-                  Conectado a la red de estaciones del <strong>Servicio Meteorológico Nacional (SMN)</strong> y a la constelación satelital <strong>CONAE SAOCOM / NASA GPM IMERG</strong>.
+                  Datos obtenidos de <strong>NASA POWER (MERRA-2 / GPCP · ~55 km)</strong>. La estación SMN se informa únicamente como referencia geográfica sin conexión de datos. <em>Lluvia regional estimada (~55 km), no es la medición de su campo.</em>
                 </p>
 
                 {dailyRainContext?.recent_rainy_days &&
@@ -1003,7 +1003,7 @@ export function App() {
                     onClick={() => handleSimulateDailyRain(selectedDailyDate)}
                     disabled={Boolean(busy) || !selectedDailyDate}
                   >
-                    🌧️ Simular día real
+                    🌧️ Simular lluvia estimada
                   </button>
                 </div>
 

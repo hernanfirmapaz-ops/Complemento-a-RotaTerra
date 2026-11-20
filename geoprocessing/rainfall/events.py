@@ -35,11 +35,18 @@ SOURCE_PRESETS: dict[str, dict[str, str]] = {
         "uncertainty_note": "Mejor representatividad local; verificar ubicación, nivelación y ausencia de obstrucciones.",
     },
     "SMN": {
-        "source": "Servicio Meteorológico Nacional (SMN Argentina)",
-        "source_product": "Estación meteorológica oficial / SQPE-OBS",
-        "spatial_resolution": "Puntual (estación) o 0,1° (~10 km en SQPE-OBS)",
-        "temporal_resolution": "Diaria / horaria según producto",
-        "uncertainty_note": "Verificar distancia de la estación al lote o naturaleza experimental de SQPE-OBS.",
+        "source": "Servicio Meteorológico Nacional (SMN Argentina · Referencia de estación)",
+        "source_product": "Registro de estación pluviométrica (sin conexión de datos en tiempo real)",
+        "spatial_resolution": "Puntual (estación)",
+        "temporal_resolution": "Diaria / horaria según planilla",
+        "uncertainty_note": "Referencia geográfica de estación; no hay conexión automática en tiempo real.",
+    },
+    "NASA_POWER": {
+        "source": "NASA POWER (MERRA-2 / GPCP · ~55 km)",
+        "source_product": "NASA POWER Agroclimatology Daily (PRECTOTCORR)",
+        "spatial_resolution": "0,5° (~55 km)",
+        "temporal_resolution": "Diaria",
+        "uncertainty_note": "Lluvia regional estimada (~55 km), no es la medición de su campo.",
     },
     "IMERG": {
         "source": "NASA GPM IMERG",
@@ -282,11 +289,22 @@ def build_event_metadata(
             "Solo se dispone de la lluvia acumulada del evento: no se inventa intensidad intradiaria "
             "ni se reconstruye la evolución temporal de la lámina de agua (SDD §4.4)."
         )
-    if source_type in ("IMERG", "CHIRPS", "ERA5-Land", "SMN"):
+    if source_type in ("IMERG", "CHIRPS", "ERA5-Land", "SMN", "NASA_POWER"):
         warnings.append(
             f"Fuente regional ({preset['source']} · {custom_spatial_resolution or preset['spatial_resolution']}): "
             "no representa variaciones sublote ni equivale a un pluviómetro dentro de la parcela (SDD §5.3)."
         )
+
+    if quality_flag:
+        flag = quality_flag
+    elif source_type == "gauge":
+        flag = "observado_local"
+    elif source_type == "NASA_POWER":
+        flag = "modelo_reanalisis_regional"
+    elif source_type == "IMERG":
+        flag = "satelital_estimado"
+    else:
+        flag = "estimado_o_escenario"
 
     metadata = {
         "source": preset["source"],
@@ -298,7 +316,7 @@ def build_event_metadata(
         "valid_time_end": end_at or start_at or now_str,
         "downloaded_at": now_str,
         "units": "mm",
-        "quality_flag": quality_flag or ("observado_local" if source_type == "gauge" else "estimado_o_escenario"),
+        "quality_flag": flag,
         "uncertainty_note": custom_uncertainty_note or preset["uncertainty_note"],
         "total_mm": round(float(total_mm), 2),
         "has_time_series": has_time_series,

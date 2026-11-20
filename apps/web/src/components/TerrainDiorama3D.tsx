@@ -1442,22 +1442,24 @@ export function TerrainDiorama3D({
         </button>
       </div>
 
-      {/* Placa oficial SMN y Satélite de trazabilidad de lluvia diaria */}
+      {/* Placa de trazabilidad de lluvia diaria estimada */}
       {dailyRainContext?.selected_day && (
         <div className="diorama-smn-watermark">
           <div className="smn-badge-row">
-            <span className="smn-flag-pill">🇦🇷 SMN Oficial</span>
+            <span className="smn-sat-pill">🛰️ NASA POWER (~55 km)</span>
             <span className="smn-station-label">
-              Estación <strong>{dailyRainContext.nearest_smn_station.name}</strong> ({dailyRainContext.nearest_smn_station.distance_km} km)
+              Estación SMN más cercana (referencia, sin datos conectados): <strong>{dailyRainContext.nearest_smn_station.name}</strong> ({dailyRainContext.nearest_smn_station.distance_km} km)
             </span>
-            <span className="smn-sat-pill">🛰️ CONAE SAOCOM / NASA GPM</span>
           </div>
           <div className="smn-metrics-row">
             <span>📅 Fecha: <strong>{dailyRainContext.selected_day.date}</strong></span>
             <span className="sep">•</span>
-            <span>💧 Lluvia del día: <strong>{dailyRainContext.selected_day.precipitation_mm.toFixed(1)} mm</strong></span>
+            <span>💧 Lluvia estimada: <strong>{dailyRainContext.selected_day.precipitation_mm.toFixed(1)} mm</strong></span>
             <span className="sep">•</span>
             <span>🌱 Humedad antecedente (5d): <strong>{dailyRainContext.selected_day.prior_5d_rain_mm.toFixed(1)} mm ({dailyRainContext.selected_day.antecedent_moisture_amc.toUpperCase()})</strong></span>
+          </div>
+          <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '3px' }}>
+            ⚠️ Lluvia regional estimada (~55 km), no es la medición de su campo.
           </div>
         </div>
       )}

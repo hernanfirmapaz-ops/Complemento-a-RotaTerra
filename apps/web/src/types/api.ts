@@ -309,6 +309,7 @@ export type RainfallSourceType =
   | 'IMERG'
   | 'CHIRPS'
   | 'ERA5-Land'
+  | 'NASA_POWER'
   | 'manual'
 
 export interface RainfallIntervalOut {
@@ -708,6 +709,7 @@ export interface SmnStationOut {
   smn_nro: string
   oaci: string
   distance_km: number
+  reference_label?: string | null
 }
 
 export interface DailyRainfallDayOut {
@@ -724,6 +726,7 @@ export interface DailyRainfallDayOut {
   satellite_provider: string
   quality_flag: string
   is_rainy: boolean
+  limitation_note?: string | null
 }
 
 export interface DailyRainfallContextOut {
@@ -733,6 +736,8 @@ export interface DailyRainfallContextOut {
   recent_rainy_days: DailyRainfallDayOut[]
   total_days_available: number
   source_label: string
+  limitation_note?: string | null
+  reference_station_label?: string | null
 }
 
 export interface SimulateDailyRainIn {

@@ -1,9 +1,10 @@
-"""Módulo de Precipitación Diaria Oficial (SMN + CONAE + NASA/GPM).
+"""Módulo de Precipitación Diaria Estimada (NASA POWER / MERRA-2 · ~55 km).
 
-Permite recuperar y simular la cantidad exacta de lluvia ocurrida en un día específico,
-vinculada directamente a la red oficial de estaciones del Servicio Meteorológico Nacional (SMN)
-y a las misiones satelitales nacionales e internacionales (CONAE SAOCOM 1A/1B, NASA GPM IMERG / MERRA-2).
-Cumple con las reglas de integridad de datos (R4 y SDD §5.3).
+Permite recuperar y simular series de lluvia diaria a partir del producto agroclimático
+NASA POWER (MERRA-2 / GPCP, resolución ~55 km). La estación de la red del Servicio Meteorológico
+Nacional (SMN) más cercana se informa únicamente como referencia geográfica y de distancia,
+sin datos pluviométricos conectados en tiempo real.
+Cumple con las reglas de integridad de datos (R2, R4 y SDD §5.3).
 """
 
 from __future__ import annotations
@@ -101,7 +102,7 @@ def haversine_distance_km(lon1: float, lat1: float, lon2: float, lat2: float) ->
 
 
 def load_smn_stations() -> list[dict]:
-    """Carga el catálogo oficial de estaciones SMN desde el archivo local o recurre a las principales."""
+    """Carga el catálogo de estaciones SMN desde el archivo local o recurre a las principales."""
     if SMN_STATIONS_FILE.exists():
         try:
             with open(SMN_STATIONS_FILE, encoding="utf-8") as f:
@@ -114,7 +115,7 @@ def load_smn_stations() -> list[dict]:
 
 
 def find_nearest_smn_station(lon: float, lat: float) -> dict:
-    """Encuentra la estación meteorológica oficial del SMN más cercana a las coordenadas dadas."""
+    """Encuentra la estación meteorológica de la red SMN más cercana a las coordenadas dadas (solo referencia geográfica)."""
     stations = load_smn_stations()
     best_station = stations[0]
     best_dist = float("inf")
@@ -126,7 +127,11 @@ def find_nearest_smn_station(lon: float, lat: float) -> dict:
             best_station = s
 
     out = dict(best_station)
-    out["distance_km"] = round(best_dist, 1)
+    dist_km = round(best_dist, 1)
+    out["distance_km"] = dist_km
+    out["reference_label"] = (
+        f"Estación SMN más cercana (referencia, sin datos conectados): {best_station['name']} ({dist_km} km)"
+    )
     return out
 
 
@@ -149,11 +154,14 @@ def get_field_daily_rainfall_context(
     target_date: str | None = None,
     limit_rainy_days: int = 20,
 ) -> dict:
-    """Recupera la serie diaria oficial observada para el lote, la estación SMN más cercana
-    y los días de lluvia reales disponibles.
+    """Recupera la serie diaria estimada (NASA POWER ~55 km) para el lote, informando
+    la estación SMN más cercana únicamente como referencia geográfica sin datos conectados.
     """
     nearest_station = find_nearest_smn_station(lon, lat)
     daily_rows, climate_source, _ = fetch_nasa_power_daily_series(lon, lat, years=2)
+
+    power_source_name = "NASA POWER (MERRA-2 / GPCP · ~55 km)"
+    limitation_text = "Lluvia regional estimada (~55 km), no es la medición de su campo."
 
     if not daily_rows:
         return {
@@ -162,7 +170,9 @@ def get_field_daily_rainfall_context(
             "selected_day": None,
             "recent_rainy_days": [],
             "total_days_available": 0,
-            "source_label": climate_source,
+            "source_label": power_source_name,
+            "limitation_note": limitation_text,
+            "reference_station_label": nearest_station.get("reference_label", ""),
         }
 
     # Indexar por fecha YYYY-MM-DD y calcular lluvia antecedente de 5 días
@@ -186,10 +196,11 @@ def get_field_daily_rainfall_context(
             "tmean_c": row["tmean_c"],
             "prior_5d_rain_mm": round(p_5d, 2),
             "antecedent_moisture_amc": amc,
-            "source": f"Servicio Meteorológico Nacional (SMN · Estación {nearest_station['name']}, a {nearest_station['distance_km']} km)",
-            "satellite_provider": "CONAE SAOCOM 1A/1B & NASA GPM IMERG Daily (MERRA-2)",
-            "quality_flag": "observed_official_daily",
+            "source": power_source_name,
+            "satellite_provider": power_source_name,
+            "quality_flag": "modelo_reanalisis_regional",
             "is_rainy": float(row["precip_mm"]) >= 1.0,
+            "limitation_note": limitation_text,
         }
         by_date[d_str] = day_dict
         enriched_rows.append(day_dict)
@@ -215,5 +226,7 @@ def get_field_daily_rainfall_context(
         "selected_day": selected,
         "recent_rainy_days": recent_rainy,
         "total_days_available": len(enriched_rows),
-        "source_label": f"SMN ({nearest_station['name']}) + {climate_source}",
+        "source_label": power_source_name,
+        "limitation_note": limitation_text,
+        "reference_station_label": nearest_station.get("reference_label", ""),
     }

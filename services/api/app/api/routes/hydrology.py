@@ -245,11 +245,11 @@ def ejecutar_toolkit_agronomico(
 
 
 @router.get("/daily-rainfall", response_model=DailyRainfallContextOut)
-def obtener_lluvia_diaria_oficial(
+def obtener_lluvia_diaria_estimada(
     field_id: str,
     date: str | None = Query(None, description="Fecha específica YYYY-MM-DD a consultar"),
 ):
-    """Consulta la lluvia diaria oficial del SMN y constelación satelital (CONAE/NASA) para el lote."""
+    """Consulta la lluvia diaria estimada (NASA POWER ~55 km) y estación SMN como referencia geográfica para el lote."""
     try:
         store.load_field(field_id)
         return hydrology.get_field_daily_rainfall(field_id, target_date=date)
@@ -258,11 +258,11 @@ def obtener_lluvia_diaria_oficial(
 
 
 @router.post("/daily-rainfall/simulate")
-def simular_lluvia_diaria_oficial(
+def simular_lluvia_diaria_estimada(
     field_id: str,
     payload: SimulateDailyRainIn,
 ):
-    """Simula la respuesta hidrológica del lote para la lluvia EXACTA de un día real (SMN + Satélites)."""
+    """Simula la respuesta hidrológica del lote para la lluvia diaria estimada (NASA POWER ~55 km) con referencia SMN."""
     try:
         store.load_field(field_id)
         store.load_terrain(field_id)
