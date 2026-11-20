@@ -55,6 +55,7 @@ import {
   type AgronomistOverlayMode,
   TerrainDiorama3D,
 } from './components/TerrainDiorama3D'
+import { AgroLoadingOverlay } from './components/AgroLoadingOverlay'
 import { PolygonMapDrawer } from './components/PolygonMapDrawer'
 import {
   type InteractionMode,
@@ -794,9 +795,20 @@ export function App() {
 
   return (
     <div className="app-shell">
+      {/* Pantalla de Carga Inmersiva con Estilo Agrícola y Sabiduría Técnica */}
+      <AgroLoadingOverlay
+        message={busy}
+        onDismiss={() => setBusy(null)}
+        fieldName={activeField?.name}
+        fieldAreaHa={activeField?.area_ha}
+      />
+
       <header className="topbar">
         <div className="brand">
-          <span className="badge-phase">ROTATERRA 3D · AGRO-HIDROLOGÍA</span>
+          <div className="brand-meta-row">
+            <span className="badge-phase">ROTATERRA 3D · AGRO-HIDROLOGÍA</span>
+            <span className="badge-smn-status">🇦🇷 Red SMN & CONAE Online</span>
+          </div>
           <h1>
             Simulador 3D de Lluvia, Escurrimiento y Planificación Agronómica
           </h1>

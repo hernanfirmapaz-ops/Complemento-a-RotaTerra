@@ -57,6 +57,13 @@ body,
   margin: 0;
 }
 
+.brand-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .badge-phase {
   font-size: 0.7rem;
   font-weight: 700;
@@ -66,6 +73,17 @@ body,
   background: rgba(16, 185, 129, 0.16);
   color: #34d399;
   border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.badge-smn-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(2, 132, 199, 0.16);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
 }
 
 .topbar-controls {
@@ -1830,5 +1848,324 @@ body,
   font-size: 0.92rem;
   font-weight: 800;
 }
+
+/* =========================================================================
+   Pantalla de Carga Agrícola (AgroLoadingOverlay)
+   ========================================================================= */
+.agro-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(10, 15, 29, 0.82);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: agroFadeIn 0.25s ease-out;
+}
+
+@keyframes agroFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.agro-loading-card {
+  width: 100%;
+  max-width: 520px;
+  background: linear-gradient(160deg, #0f172a 0%, #064e3b 40%, #022c22 100%);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65), 0 0 50px rgba(16, 185, 129, 0.2);
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.agro-loading-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.agro-brand-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: #a7f3d0;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.agro-leaf {
+  font-size: 1.15rem;
+}
+
+.agro-dismiss-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #94a3b8;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.agro-dismiss-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border-color: #ef4444;
+}
+
+.agro-illustration-container {
+  padding: 8px 18px 0;
+  display: flex;
+  justify-content: center;
+  background: radial-gradient(
+    circle at 50% 120%,
+    rgba(16, 185, 129, 0.18) 0%,
+    transparent 75%
+  );
+}
+
+.agro-svg-art {
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  overflow: visible;
+}
+
+/* Animaciones SVG */
+.agro-sprout-group {
+  transform-origin: 160px 145px;
+  animation: sproutSway 3.2s ease-in-out infinite alternate;
+}
+
+@keyframes sproutSway {
+  0% {
+    transform: rotate(-3deg);
+  }
+  100% {
+    transform: rotate(3.5deg);
+  }
+}
+
+.radar-scan-line {
+  animation: radarPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes radarPulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    opacity: 0.85;
+    stroke-dashoffset: 8;
+  }
+}
+
+.rain-drop-anim {
+  animation: rainDropFall 1.4s linear infinite;
+}
+
+.drop-1 {
+  animation-delay: 0s;
+}
+.drop-2 {
+  animation-delay: 0.45s;
+}
+.drop-3 {
+  animation-delay: 0.9s;
+}
+
+@keyframes rainDropFall {
+  0% {
+    transform: translateY(-15px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(65px);
+    opacity: 0;
+  }
+}
+
+.soil-ripple-anim {
+  transform-origin: 160px 162px;
+  animation: soilPulse 2.4s ease-out infinite;
+}
+
+.soil-ripple-anim-2 {
+  transform-origin: 160px 162px;
+  animation: soilPulse 2.4s ease-out infinite 1.2s;
+}
+
+@keyframes soilPulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+.agro-loading-body {
+  padding: 12px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agro-loading-title {
+  margin: 0;
+  font-size: 1.02rem;
+  color: #f8fafc;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.agro-field-sub {
+  margin: 0;
+  text-align: center;
+  font-size: 0.77rem;
+  color: #94a3b8;
+}
+
+.agro-field-sub strong {
+  color: #a7f3d0;
+}
+
+.agro-progress-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  margin: 4px 0;
+}
+
+.agro-progress-bar {
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(90deg, #10b981 0%, #38bdf8 50%, #f59e0b 100%);
+  border-radius: 999px;
+  position: absolute;
+  animation: progressFluid 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes progressFluid {
+  0% {
+    left: 0%;
+    width: 35%;
+  }
+  50% {
+    width: 60%;
+  }
+  100% {
+    left: 65%;
+    width: 35%;
+  }
+}
+
+.agro-steps-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 0.68rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.agro-step-badge {
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.agro-step-arrow {
+  color: #047857;
+  font-weight: bold;
+}
+
+.agro-tip-box {
+  background: rgba(2, 44, 34, 0.75);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-top: 4px;
+  transition: opacity 0.25s ease;
+}
+
+.agro-tip-box.fade-in {
+  opacity: 1;
+}
+
+.agro-tip-box.fade-out {
+  opacity: 0;
+}
+
+.agro-tip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fbbf24;
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+
+.agro-tip-icon {
+  font-size: 1.05rem;
+}
+
+.agro-tip-text {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+.agro-loading-footer {
+  padding: 8px 18px 12px;
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.agro-footer-btn {
+  font-size: 0.74rem;
+  padding: 6px 14px;
+  color: #94a3b8;
+}
+
 
 
