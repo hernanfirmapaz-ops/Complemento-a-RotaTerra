@@ -1014,3 +1014,517 @@ body,
 .phase-note {
   color: #34d399;
 }
+
+/* ============================================================================
+   MODO AGRÓNOMO INTUITIVO + DIBUJADOR DE POLÍGONOS EN MAPA
+   ============================================================================ */
+
+.step-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.step-header-row h3 {
+  margin: 0 !important;
+}
+
+.step-num-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.agro-card-highlight {
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.08);
+}
+
+.btn-agro-draw-polygon {
+  width: 100%;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0f172a;
+  border: 1px solid #fbbf24;
+  border-radius: 9px;
+  padding: 11px 12px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+  transition: transform 0.12s, filter 0.12s;
+}
+
+.btn-agro-draw-polygon:hover:not(:disabled) {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+
+.btn-topbar-draw {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0f172a;
+  border: 1px solid #fbbf24;
+  border-radius: 7px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-topbar-draw:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.draw-lot-pill {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+  border-color: #f59e0b !important;
+  font-weight: 700 !important;
+}
+
+.draw-lot-pill:hover {
+  background: #fde68a !important;
+}
+
+.showcase-layer-explainer {
+  margin-top: 8px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.water-split-bar-box {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.water-split-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.text-emerald {
+  color: #34d399;
+}
+
+.text-sky {
+  color: #38bdf8;
+}
+
+.water-split-track {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #1e293b;
+}
+
+.water-split-fill-infil {
+  background: linear-gradient(90deg, #059669, #34d399);
+  height: 100%;
+}
+
+.water-split-fill-runoff {
+  background: linear-gradient(90deg, #0284c7, #38bdf8);
+  height: 100%;
+}
+
+/* Modal interactivo para dibujar polígono del terreno en el mapa */
+.drawer-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(2, 6, 23, 0.82);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.drawer-modal-card {
+  width: min(1240px, 96vw);
+  height: min(820px, 92vh);
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.drawer-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #131c2e;
+  border-bottom: 1px solid #233047;
+}
+
+.drawer-step-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #fbbf24;
+  letter-spacing: 0.06em;
+  margin-bottom: 3px;
+}
+
+.drawer-modal-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #f8fafc;
+}
+
+.drawer-modal-header p {
+  margin: 3px 0 0 0;
+  font-size: 0.81rem;
+  color: #94a3b8;
+}
+
+.drawer-close-btn {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.drawer-close-btn:hover {
+  background: #334155;
+}
+
+.drawer-search-bar {
+  padding: 10px 20px;
+  background: #0b1120;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-search-form {
+  display: flex;
+  gap: 8px;
+}
+
+.drawer-search-input {
+  flex: 1;
+  background: #131c2e;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.83rem;
+}
+
+.drawer-search-btn {
+  background: #0284c7;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 0.83rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.drawer-quick-zones {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.drawer-quick-label {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.drawer-zone-chip {
+  background: #1e293b;
+  color: #cbd5e1;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.73rem;
+  cursor: pointer;
+}
+
+.drawer-zone-chip:hover {
+  background: #334155;
+  color: #fff;
+}
+
+.drawer-search-status {
+  font-size: 0.75rem;
+  color: #38bdf8;
+}
+
+.drawer-body-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 330px;
+  min-height: 0;
+}
+
+.drawer-map-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #090d16;
+}
+
+.drawer-map-canvas {
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.drawer-map-floating-tools {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.drawer-tool-pill {
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  border: 1px solid #475569;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.77rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.drawer-tool-pill.active {
+  background: #10b981;
+  color: #052e16;
+  border-color: #34d399;
+  font-weight: 800;
+}
+
+.drawer-map-bottom-hint {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fef08a;
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.polygon-vertex-marker {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #0f172a;
+  border: 2px solid #0f172a;
+  font-size: 0.74rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.drawer-side-panel {
+  background: #131c2e;
+  border-left: 1px solid #233047;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.drawer-field-label {
+  display: block;
+  font-size: 0.77rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  margin-bottom: 5px;
+}
+
+.drawer-name-input {
+  width: 100%;
+  background: #0b1120;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.84rem;
+}
+
+.drawer-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.drawer-stat-card {
+  background: #0b1120;
+  border: 1px solid #233047;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drawer-stat-card span {
+  font-size: 0.71rem;
+  color: #94a3b8;
+}
+
+.drawer-stat-card strong {
+  font-size: 1.08rem;
+  color: #f8fafc;
+}
+
+.drawer-stat-card small {
+  font-size: 0.69rem;
+  color: #64748b;
+}
+
+.drawer-edit-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.drawer-secondary-btn {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.drawer-secondary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.drawer-coords-list {
+  background: #0b1120;
+  border: 1px solid #233047;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.drawer-coords-title {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.drawer-coords-scroll {
+  max-height: 135px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drawer-coord-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.73rem;
+  color: #cbd5e1;
+}
+
+.drawer-coord-badge {
+  background: #facc15;
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 0.68rem;
+  padding: 1px 5px;
+  border-radius: 999px;
+}
+
+.drawer-error-banner {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #fecaca;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.77rem;
+}
+
+.drawer-confirm-box {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drawer-confirm-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #022c22;
+  border: 1px solid #34d399;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.25);
+}
+
+.drawer-confirm-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.drawer-confirm-note {
+  font-size: 0.71rem;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+

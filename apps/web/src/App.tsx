@@ -52,6 +52,7 @@ import {
   type AgronomistOverlayMode,
   TerrainDiorama3D,
 } from './components/TerrainDiorama3D'
+import { PolygonMapDrawer } from './components/PolygonMapDrawer'
 import {
   type InteractionMode,
   type LayerVisibility,
@@ -93,6 +94,7 @@ export function App() {
   const [workspaceMode, setWorkspaceMode] = useState<'agronomist' | 'gis'>(
     'agronomist',
   )
+  const [isMapDrawerOpen, setIsMapDrawerOpen] = useState<boolean>(false)
   const [dioramaOverlay, setDioramaOverlay] =
     useState<AgronomistOverlayMode>('satellite_water')
   const [isPlayingDioramaRain, setIsPlayingDioramaRain] =
@@ -363,18 +365,32 @@ export function App() {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    await handleFullImportAndSimulate(file, file.name.replace(/\.[^.]+$/, ''))
+  }
+
+  /** Importa un polígono (dibujado en el mapa o subido por archivo) y ejecuta automáticamente todo el flujo 3D + lluvia + agronomía. */
+  const handleFullImportAndSimulate = async (
+    file: File,
+    customName?: string,
+  ) => {
     setError(null)
     setBusy(
-      `Importando lote ${file.name} y descargando relieve 3D Copernicus...`,
+      `Paso 1/4: Guardando polígono de "${customName || file.name}" y validando hectáreas...`,
     )
     try {
-      const imported = await importFieldGeoJSON(file)
+      const imported = await importFieldGeoJSON(file, customName)
       const fld = imported[0]
       if (fld) {
+        setBusy(
+          `Paso 2/4: Descargando relieve satelital 3D Copernicus (30 m) para ${fld.name} (${fld.area_ha.toFixed(1)} ha)...`,
+        )
         await processTerrain(fld.id, {
           sourceId: 'copernicus_glo30',
           bufferM: 300,
         })
+        setBusy(
+          'Paso 3/4: Calculando pendientes, vaguadas, red de escurrimiento y simulación de lluvia en 3D...',
+        )
         await runStaticHydrology(fld.id, {
           conditioning_mode: 'fill_small',
           max_fill_depth_m: 0.35,
@@ -382,12 +398,42 @@ export function App() {
           mfd_exponent: 1.1,
           routing_basis: 'MFD',
         })
+        const ev = await createManualRainfallEvent(fld.id, {
+          name: `Lluvia ${quickRainMm} mm`,
+          total_mm: quickRainMm,
+          source_type: 'manual',
+        })
+        const created = await executeRunoffRun(fld.id, {
+          name: `${quickRainMm} mm · Suelo ${quickSoilGroup} · Siembra Directa`,
+          rainfall_event_id: ev.id,
+          soil_group: quickSoilGroup,
+          cover_code: quickCover,
+          antecedent_moisture: quickAmc,
+          compaction_high: false,
+          lambda_ratio: 0.2,
+        })
+        await runHydrodynamic2DSolver(fld.id, created.id, {
+          ponding_threshold_m: 0.05,
+          recession_minutes: 30,
+        })
+        setBusy(
+          'Paso 4/4: Generando diagnóstico agronómico INTA / NASA POWER / Sentinel-2...',
+        )
+        await runAgronomicToolkit(fld.id, {
+          soil_group: quickSoilGroup,
+          cover_code: quickCover,
+          storm_precipitation_mm: quickRainMm,
+          crop_code: 'maiz_temprano',
+          environment_zone: 'media_loma',
+        })
       }
       const all = await listFields()
       setFields(all)
       if (fld) setActiveFieldId(fld.id)
+      setIsMapDrawerOpen(false)
     } catch (err) {
       setError((err as Error).message)
+      throw err
     } finally {
       setBusy(null)
     }
@@ -700,6 +746,15 @@ export function App() {
             </button>
           </div>
 
+          <button
+            type="button"
+            className="btn-topbar-draw"
+            onClick={() => setIsMapDrawerOpen(true)}
+            disabled={Boolean(busy)}
+          >
+            ✏️ Dibujar mi Lote en el Mapa
+          </button>
+
           <label className="exag-control">
             <span>Relieve 3D:</span>
             <select
@@ -740,29 +795,40 @@ export function App() {
         <div className="agro-layout">
           {/* Columna izquierda: Selección de Lote + Simulador simple de Lluvia y Manejo */}
           <aside className="agro-sidebar">
-            <section className="agro-card">
-              <h3>1. Seleccionar Campo o Subir Lote</h3>
+            <section className="agro-card agro-card-highlight">
+              <div className="step-header-row">
+                <span className="step-num-badge">PASO 1</span>
+                <h3>Ubicá o Dibujá tu Campo</h3>
+              </div>
               <p className="agro-help">
-                Elegí un campo real de muestra o subí el archivo de tu lote
-                (GeoJSON, KML de Google Earth, KMZ o Shapefile ZIP).
+                Marcá las esquinas de tu terreno directamente en el mapa
+                satelital con polígonos, o probá un campo real precargado:
               </p>
               <div className="btn-stack">
+                <button
+                  type="button"
+                  className="btn-agro-draw-polygon"
+                  onClick={() => setIsMapDrawerOpen(true)}
+                  disabled={Boolean(busy)}
+                >
+                  ✏️ Dibujar mi Terreno con Polígonos en el Mapa
+                </button>
                 <button
                   className="btn-agro-primary"
                   onClick={() => handleQuickLoadAndSimulateField('serrano')}
                   disabled={Boolean(busy)}
                 >
-                  ⛰️ Cargar Lote Piedemonte Serrano (223 ha · Alto relieve)
+                  ⛰️ Ejemplo 1: Lote Piedemonte Serrano (223 ha · Alto relieve)
                 </button>
                 <button
                   className="btn-agro-secondary"
                   onClick={() => handleQuickLoadAndSimulateField('llanura')}
                   disabled={Boolean(busy)}
                 >
-                  🌾 Cargar Lote Agrícola #205 (199 ha · Llanura ondulada)
+                  🌾 Ejemplo 2: Lote Agrícola #205 (199 ha · Llanura ondulada)
                 </button>
                 <label className="btn-agro-outline">
-                  📂 Subir mi propio lote (.kml, .kmz, .geojson, .zip)
+                  📂 Subir archivo de mi lote (.kml, .kmz, .geojson, .zip)
                   <input
                     type="file"
                     accept=".geojson,.json,.kml,.kmz,.zip"
@@ -774,7 +840,7 @@ export function App() {
 
               {fields.length > 1 && (
                 <label className="field-label" style={{ marginTop: 10 }}>
-                  Cambiar entre lotes cargados
+                  Mis lotes analizados ({fields.length})
                   <select
                     value={activeFieldId ?? ''}
                     onChange={(e) => setActiveFieldId(e.target.value)}
@@ -790,10 +856,13 @@ export function App() {
             </section>
 
             <section className="agro-card">
-              <h3>2. ¿Qué pasa cuando llueve en el lote?</h3>
+              <div className="step-header-row">
+                <span className="step-num-badge">PASO 2</span>
+                <h3>Simulá Lluvia y Manejo</h3>
+              </div>
               <p className="agro-help">
-                Probá distintos milímetros de lluvia y condiciones de cobertura
-                para ver cómo cambia el escurrimiento en la maqueta 3D.
+                Tocá un botón de lluvia o cambiá el rastrojo para ver en vivo
+                cómo responde tu lote en la maqueta 3D.
               </p>
 
               <span className="subhead">Elegir intensidad de lluvia:</span>
@@ -909,7 +978,48 @@ export function App() {
 
             {activeRun && (
               <section className="agro-card">
-                <h3>3. Balance de esa lluvia en tu campo</h3>
+                <div className="step-header-row">
+                  <span className="step-num-badge">RESUMEN</span>
+                  <h3>¿Adónde va el agua de lluvia?</h3>
+                </div>
+                {(() => {
+                  const totalRain = Math.max(
+                    1,
+                    activeRun.cn_result.precipitation_mm,
+                  )
+                  const infilPct = Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      (activeRun.cn_result.total_retention_losses_mm /
+                        totalRain) *
+                        100,
+                    ),
+                  )
+                  const runoffPct = Math.max(0, 100 - infilPct)
+                  return (
+                    <div className="water-split-bar-box">
+                      <div className="water-split-labels">
+                        <span className="text-emerald">
+                          🌱 Entra al suelo: {infilPct.toFixed(0)}%
+                        </span>
+                        <span className="text-sky">
+                          🌊 Escurre: {runoffPct.toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="water-split-track">
+                        <div
+                          className="water-split-fill-infil"
+                          style={{ width: `${infilPct}%` }}
+                        />
+                        <div
+                          className="water-split-fill-runoff"
+                          style={{ width: `${runoffPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })()}
                 <div className="kpi-cards">
                   <div className="kpi-box kpi-green">
                     <span className="kpi-label">Agua que entra al suelo</span>
@@ -1013,10 +1123,10 @@ export function App() {
                 <div className="showcase-layer-bar">
                   {(
                     [
-                      ['satellite_water', '🛰️ Satélite + Escurrimiento'],
-                      ['waterlogging', '💧 Zonas que se Encharcan'],
-                      ['environments', '🌱 Ambientes (Loma / Bajo)'],
-                      ['erosion', '⚠️ Riesgo de Erosión'],
+                      ['satellite_water', '🛰️ Agua Corriendo'],
+                      ['waterlogging', '💧 Donde se Encharca'],
+                      ['environments', '🌱 Lomas y Bajos'],
+                      ['erosion', '⚠️ Pérdida de Suelo'],
                       ['ndvi', '🌿 Vigor Cultivo (NDVI)'],
                     ] as const
                   ).map(([mode, label]) => (
@@ -1044,6 +1154,25 @@ export function App() {
                       ? '⏸ Pausar lluvia 3D'
                       : '▶ Animar lluvia 3D'}
                   </button>
+                  <button
+                    type="button"
+                    className="overlay-pill draw-lot-pill"
+                    onClick={() => setIsMapDrawerOpen(true)}
+                  >
+                    ✏️ Dibujar mi lote en mapa
+                  </button>
+                </div>
+                <div className="showcase-layer-explainer">
+                  {dioramaOverlay === 'satellite_water' &&
+                    '💡 Estás viendo: La imagen del terreno 3D y las líneas celestes por donde corre y se junta el agua de lluvia.'}
+                  {dioramaOverlay === 'waterlogging' &&
+                    '💡 Estás viendo: En azul intenso los bajos donde el agua queda acumulada y tarda más días en dar piso.'}
+                  {dioramaOverlay === 'environments' &&
+                    '💡 Estás viendo: El campo dividido en Loma alta (dorado), Media loma (verde), Vía de agua (naranja) y Bajo (azul).'}
+                  {dioramaOverlay === 'erosion' &&
+                    '💡 Estás viendo: En naranja y rojo las pendientes donde la lluvia arrastra más tierra fértil (riesgo de cárcavas).'}
+                  {dioramaOverlay === 'ndvi' &&
+                    '💡 Estás viendo: El índice de vigor satelital Sentinel-2 (verde = cultivo denso y activo; ocre = menor cobertura).'}
                 </div>
               </div>
 
@@ -1134,24 +1263,27 @@ export function App() {
           {/* Columna derecha: Las 8 Herramientas Agronómicas explicadas de forma simple y accionable */}
           <aside className="agro-sidebar">
             <section className="agro-card">
-              <h3>4. Decisiones Agronómicas para este Lote</h3>
+              <div className="step-header-row">
+                <span className="step-num-badge">PASO 3</span>
+                <h3>Decisiones para tu Lote</h3>
+              </div>
               <p className="agro-help">
-                Seleccioná qué aspecto querés analizar con los datos reales del
-                relieve, clima NASA e INTA:
+                Elegí qué recomendación querés consultar según el relieve 3D,
+                clima NASA y tablas de INTA:
               </p>
 
               <div className="agro-tool-grid">
                 {(
                   [
-                    ['resumen', '📋 Diagnóstico General'],
-                    ['erosion', '⚠️ 1. Erosión y Cárcavas'],
-                    ['terrazas', '🚜 2. Curvas y Terrazas'],
-                    ['balance', '💧 3. Agua Mes a Mes'],
-                    ['anegamiento', '📅 4. Lluvias Reales'],
-                    ['siembra', '🌱 5. Siembra y Fertiliz.'],
-                    ['rotaciones', '🔄 6. Rotación 3 Años'],
-                    ['ndvi', '🛰️ 7. Vigor NDVI'],
-                    ['heladas', '❄️ 8. Riesgo Heladas'],
+                    ['resumen', '📋 Resumen del Lote'],
+                    ['siembra', '🌱 Siembra y Fertiliz.'],
+                    ['erosion', '⚠️ Erosión y Cárcavas'],
+                    ['terrazas', '🚜 Curvas y Terrazas'],
+                    ['balance', '💧 Agua Mes a Mes'],
+                    ['anegamiento', '📅 Lluvias Reales'],
+                    ['rotaciones', '🔄 Rotación 3 Años'],
+                    ['ndvi', '🛰️ Vigor Satelital'],
+                    ['heladas', '❄️ Fechas sin Heladas'],
                   ] as const
                 ).map(([k, label]) => (
                   <button
@@ -2050,6 +2182,15 @@ export function App() {
           POWER + INTA + Sentinel-2)
         </span>
       </footer>
+
+      <PolygonMapDrawer
+        isOpen={isMapDrawerOpen}
+        initialCenter={activeField?.centroid ?? [-66.085, -33.128]}
+        onClose={() => setIsMapDrawerOpen(false)}
+        onConfirmPolygon={async (name, file) => {
+          await handleFullImportAndSimulate(file, name)
+        }}
+      />
     </div>
   )
 }
