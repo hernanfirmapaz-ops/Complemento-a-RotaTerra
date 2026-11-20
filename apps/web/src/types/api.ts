@@ -698,3 +698,48 @@ export interface HealthOut {
   phase: string
   processing_version: string
 }
+
+export interface SmnStationOut {
+  name: string
+  province: string
+  latitude: number
+  longitude: number
+  elevation_m: number
+  smn_nro: string
+  oaci: string
+  distance_km: number
+}
+
+export interface DailyRainfallDayOut {
+  date: string
+  year: number
+  month: number
+  precipitation_mm: number
+  tmin_c: number
+  tmax_c: number
+  tmean_c: number
+  prior_5d_rain_mm: number
+  antecedent_moisture_amc: 'dry' | 'medium' | 'wet'
+  source: string
+  satellite_provider: string
+  quality_flag: string
+  is_rainy: boolean
+}
+
+export interface DailyRainfallContextOut {
+  status: 'available' | 'unavailable'
+  nearest_smn_station: SmnStationOut
+  selected_day: DailyRainfallDayOut | null
+  recent_rainy_days: DailyRainfallDayOut[]
+  total_days_available: number
+  source_label: string
+}
+
+export interface SimulateDailyRainIn {
+  date: string
+  soil_group?: SoilGroup
+  cover_code?: string
+  cover_percent?: number
+  compaction_high?: boolean
+}
+

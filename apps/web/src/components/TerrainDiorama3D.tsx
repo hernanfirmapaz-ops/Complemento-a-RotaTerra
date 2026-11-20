@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import type { FieldOut, MeshOut } from '../types/api'
+import type { DailyRainfallContextOut, FieldOut, MeshOut } from '../types/api'
 
 export type AgronomistOverlayMode =
   | 'satellite_water'
@@ -21,6 +21,7 @@ interface Props {
   isPlayingRain: boolean
   selectedPoint?: { lon?: number | null; lat?: number | null } | null
   onPointInspect?: (lon: number, lat: number) => void
+  dailyRainContext?: DailyRainfallContextOut | null
 }
 
 /** Convierte lon/lat a coordenadas de tile XYZ Web Mercator fraccionarias. */
@@ -219,6 +220,7 @@ export function TerrainDiorama3D({
   isPlayingRain,
   selectedPoint,
   onPointInspect,
+  dailyRainContext,
 }: Props) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const [textureReady, setTextureReady] = useState<boolean>(false)
@@ -1439,6 +1441,26 @@ export function TerrainDiorama3D({
           🧭 Norte
         </button>
       </div>
+
+      {/* Placa oficial SMN y Satélite de trazabilidad de lluvia diaria */}
+      {dailyRainContext?.selected_day && (
+        <div className="diorama-smn-watermark">
+          <div className="smn-badge-row">
+            <span className="smn-flag-pill">🇦🇷 SMN Oficial</span>
+            <span className="smn-station-label">
+              Estación <strong>{dailyRainContext.nearest_smn_station.name}</strong> ({dailyRainContext.nearest_smn_station.distance_km} km)
+            </span>
+            <span className="smn-sat-pill">🛰️ CONAE SAOCOM / NASA GPM</span>
+          </div>
+          <div className="smn-metrics-row">
+            <span>📅 Fecha: <strong>{dailyRainContext.selected_day.date}</strong></span>
+            <span className="sep">•</span>
+            <span>💧 Lluvia del día: <strong>{dailyRainContext.selected_day.precipitation_mm.toFixed(1)} mm</strong></span>
+            <span className="sep">•</span>
+            <span>🌱 Humedad antecedente (5d): <strong>{dailyRainContext.selected_day.prior_5d_rain_mm.toFixed(1)} mm ({dailyRainContext.selected_day.antecedent_moisture_amc.toUpperCase()})</strong></span>
+          </div>
+        </div>
+      )}
 
       <div className="diorama-hint">
         🖱️ Arrastrá con botón izquierdo para rotar la maqueta 3D · Rueda para

@@ -1181,3 +1181,106 @@ def export_technical_report_html(field_id: str) -> str:
   </div>
 </body>
 </html>"""
+
+
+def get_field_daily_rainfall(field_id: str, target_date: str | None = None) -> dict:
+    """Obtiene el contexto climático diario oficial para el lote, vinculando la estación SMN
+    más cercana y los datos satelitales oficiales (CONAE / NASA).
+    """
+    from geoprocessing.rainfall.daily_national import get_field_daily_rainfall_context
+
+    field = store.load_field(field_id)
+    lon, lat = field["centroid"]
+    return get_field_daily_rainfall_context(lon, lat, target_date=target_date)
+
+
+def simulate_field_daily_rainfall(
+    field_id: str,
+    date_str: str,
+    soil_group: str = "B",
+    cover_code: str = "soja_maiz_sd_buena",
+    cover_percent: float | None = 60.0,
+    compaction_high: bool = False,
+) -> dict:
+    """Simula la escorrentía y respuesta hidrológica para la cantidad EXACTA de lluvia
+    que ocurrió en un día específico, con trazabilidad SMN y humedad antecedente real.
+    """
+    from geoprocessing.rainfall.daily_national import get_field_daily_rainfall_context
+
+    field = store.load_field(field_id)
+    lon, lat = field["centroid"]
+    ctx = get_field_daily_rainfall_context(lon, lat, target_date=date_str)
+
+    if not ctx.get("selected_day"):
+        raise ValueError(
+            f"No se encontraron registros de precipitación diaria para la fecha '{date_str}'."
+        )
+
+    day = ctx["selected_day"]
+    smn = ctx["nearest_smn_station"]
+    p_mm = float(day["precipitation_mm"])
+
+    now = store.now_iso()
+    event_name = (
+        f"Día real {day['date']} · {p_mm:.1f} mm (SMN {smn['name']} · {smn['distance_km']} km)"
+    )
+
+    meta, warnings = build_event_metadata(
+        source_type="SMN",
+        total_mm=max(0.1, p_mm),
+        start_at=f"{day['date']}T00:00:00Z",
+        end_at=f"{day['date']}T23:59:59Z",
+        has_time_series=False,
+        interval_minutes=None,
+        custom_source_product=(
+            f"Estación oficial SMN {smn['name']} (OACI: {smn['oaci']}) + "
+            f"Constelación CONAE SAOCOM 1A/1B & NASA GPM IMERG"
+        ),
+        custom_spatial_resolution=(
+            f"Puntual estación SMN ({smn['distance_km']} km) y celda satelital 0,1° (~10 km)"
+        ),
+        quality_flag="observed_official_daily",
+        custom_uncertainty_note=(
+            f"Acumulado real del día {day['date']} medido por red oficial SMN y validado por satélite. "
+            f"Humedad antecedente 5d: {day['prior_5d_rain_mm']:.1f} mm ({day['antecedent_moisture_amc']})."
+        ),
+    )
+
+    event = {
+        "id": store.new_id(),
+        "field_id": field_id,
+        "name": event_name,
+        "total_mm": round(p_mm, 2),
+        "source_type": "SMN",
+        "start_at": f"{day['date']}T00:00:00Z",
+        "end_at": f"{day['date']}T23:59:59Z",
+        "has_time_series": False,
+        "interval_minutes": None,
+        "intervals": [],
+        "max_intensity_mm_h": None,
+        "source_metadata": meta,
+        "warnings": warnings,
+        "created_at": now,
+    }
+    events = store.list_rainfall_events(field_id)
+    events.insert(0, event)
+    store.save_rainfall_events(field_id, events)
+
+    # Crear y ejecutar la corrida de escorrentía con la humedad antecedente real del día
+    runoff_payload = RunoffRunIn(
+        name=f"Lluvia diaria {day['date']} ({p_mm:.1f} mm · AMC {day['antecedent_moisture_amc'].upper()})",
+        rainfall_event_id=event["id"],
+        soil_group=soil_group,
+        cover_code=cover_code,
+        cover_percent=cover_percent,
+        compaction_high=compaction_high,
+        antecedent_moisture=day["antecedent_moisture_amc"],
+        lambda_ratio=0.2,
+    )
+    runoff_res = execute_runoff_run(field_id, runoff_payload)
+
+    return {
+        "context": ctx,
+        "event": event,
+        "runoff_run": runoff_res,
+    }

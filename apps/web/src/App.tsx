@@ -9,6 +9,7 @@ import {
   exportGeoJsonUrl,
   exportReportUrl,
   getAgronomicToolkit,
+  getDailyRainfallContext,
   getRunoffTimeline,
   getStaticHydrology,
   getTerrain,
@@ -26,11 +27,13 @@ import {
   runAgronomicToolkit,
   runHydrodynamic2DSolver,
   runStaticHydrology,
+  simulateDailyRainfall,
 } from './services/api'
 import type {
   AgronomicToolkitIn,
   AgronomicToolkitOut,
   AntecedentMoisture,
+  DailyRainfallContextOut,
   FieldObservationOut,
   FieldOut,
   HydrologyOut,
@@ -103,6 +106,9 @@ export function App() {
   const [quickSoilGroup, setQuickSoilGroup] = useState<SoilGroup>('B')
   const [quickAmc, setQuickAmc] = useState<AntecedentMoisture>('medium')
   const [quickCover, setQuickCover] = useState<string>('soja_maiz_sd_buena')
+  const [dailyRainContext, setDailyRainContext] =
+    useState<DailyRainfallContextOut | null>(null)
+  const [selectedDailyDate, setSelectedDailyDate] = useState<string>('')
   const [agroToolTab, setAgroToolTab] = useState<
     | 'resumen'
     | 'erosion'
@@ -175,6 +181,8 @@ export function App() {
     setPlaying(false)
     setObservations([])
     setToolkit(null)
+    setDailyRainContext(null)
+    setSelectedDailyDate('')
     setSelectedPoint(null)
     setProfileDraft([])
     setProfileResult(null)
@@ -192,9 +200,10 @@ export function App() {
       listRunoffRuns(activeField.id).catch(() => []),
       listFieldObservations(activeField.id).catch(() => []),
       getAgronomicToolkit(activeField.id).catch(() => null),
+      getDailyRainfallContext(activeField.id).catch(() => null),
     ]
     Promise.all(tasks)
-      .then(async ([t, m, h, evs, rns, obs, tk]) => {
+      .then(async ([t, m, h, evs, rns, obs, tk, dctx]) => {
         setTerrain(t as TerrainOut)
         setMesh(m as MeshOut)
         setHydrology((h as HydrologyOut | null) ?? null)
@@ -203,6 +212,11 @@ export function App() {
         setRunoffRuns(runsList)
         setObservations(obs as FieldObservationOut[])
         setToolkit((tk as AgronomicToolkitOut | null) ?? null)
+        const daily = (dctx as DailyRainfallContextOut | null) ?? null
+        setDailyRainContext(daily)
+        if (daily?.selected_day) {
+          setSelectedDailyDate(daily.selected_day.date)
+        }
         const act = runsList.find((r) => r.is_active) ?? runsList[0] ?? null
         if (act) {
           setQuickRainMm(Math.round(act.cn_result.precipitation_mm))
@@ -211,6 +225,9 @@ export function App() {
           )
           setTimeline(tl)
           setTimelineStep(tl?.peak_step_index ?? 0)
+        } else if (daily?.selected_day) {
+          setQuickRainMm(Math.round(daily.selected_day.precipitation_mm))
+          setQuickAmc(daily.selected_day.antecedent_moisture_amc)
         }
       })
       .catch((err: Error) => setError(err.message))
@@ -351,6 +368,61 @@ export function App() {
       setRunoffRuns(rns)
       setToolkit(tk)
       setFields(all)
+      setIsPlayingDioramaRain(true)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** Simulación de la cantidad EXACTA de lluvia ocurrida en un día real (SMN + Satélites). */
+  const handleSimulateDailyRain = async (dateStr?: string) => {
+    if (!activeField) return
+    const target =
+      dateStr || selectedDailyDate || dailyRainContext?.selected_day?.date
+    if (!target) return
+    setError(null)
+    setBusy(`Consultando lluvia oficial SMN y satelital para el día ${target}...`)
+    try {
+      if (!terrain) {
+        await processTerrain(activeField.id, {
+          sourceId: 'copernicus_glo30',
+          bufferM: 300,
+        })
+      }
+      const res = await simulateDailyRainfall(activeField.id, {
+        date: target,
+        soil_group: quickSoilGroup,
+        cover_code: quickCover,
+      })
+      setDailyRainContext(res.context)
+      setSelectedDailyDate(target)
+      setQuickRainMm(Math.round(res.event.total_mm))
+      setQuickAmc(res.context.selected_day?.antecedent_moisture_amc ?? 'medium')
+
+      await runHydrodynamic2DSolver(activeField.id, res.runoff_run.id, {
+        ponding_threshold_m: 0.05,
+        recession_minutes: 30,
+      })
+      const tk = await runAgronomicToolkit(activeField.id, {
+        soil_group: quickSoilGroup,
+        cover_code: quickCover,
+        storm_precipitation_mm: Math.max(1.0, res.event.total_mm),
+        crop_code: 'maiz_temprano',
+        environment_zone: 'media_loma',
+      })
+      setToolkit(tk)
+
+      const evs = await listRainfallEvents(activeField.id).catch(() => [])
+      setRainfallEvents(evs)
+      const rns = await listRunoffRuns(activeField.id).catch(() => [])
+      setRunoffRuns(rns)
+      const tl = await getRunoffTimeline(activeField.id, res.runoff_run.id).catch(
+        () => null,
+      )
+      setTimeline(tl)
+      setTimelineStep(tl?.peak_step_index ?? 0)
       setIsPlayingDioramaRain(true)
     } catch (err) {
       setError((err as Error).message)
@@ -861,11 +933,93 @@ export function App() {
                 <h3>Simulá Lluvia y Manejo</h3>
               </div>
               <p className="agro-help">
-                Tocá un botón de lluvia o cambiá el rastrojo para ver en vivo
-                cómo responde tu lote en la maqueta 3D.
+                Simulá la cantidad <strong>exacta</strong> de agua que llovió en un día real en tu campo con datos oficiales del SMN y satélites, o probá escenarios de diseño.
               </p>
 
-              <span className="subhead">Elegir intensidad de lluvia:</span>
+              {/* Sección de Lluvia Diaria Oficial: SMN + CONAE + NASA */}
+              <div className="smn-daily-section">
+                <div className="smn-section-header">
+                  <div className="smn-badge-title">
+                    <span className="smn-flag">🇦🇷</span>
+                    <strong>Lluvia Diaria Oficial (SMN + Satélites)</strong>
+                  </div>
+                  {dailyRainContext?.nearest_smn_station && (
+                    <span className="smn-station-tag">
+                      Estación {dailyRainContext.nearest_smn_station.name} ({dailyRainContext.nearest_smn_station.distance_km} km)
+                    </span>
+                  )}
+                </div>
+
+                <p className="smn-desc">
+                  Conectado a la red de estaciones del <strong>Servicio Meteorológico Nacional (SMN)</strong> y a la constelación satelital <strong>CONAE SAOCOM / NASA GPM IMERG</strong>.
+                </p>
+
+                {dailyRainContext?.recent_rainy_days &&
+                  dailyRainContext.recent_rainy_days.length > 0 && (
+                    <label className="field-label" style={{ marginBottom: 6 }}>
+                      Días con lluvia registrados en este campo:
+                      <select
+                        value={selectedDailyDate}
+                        onChange={(e) => {
+                          setSelectedDailyDate(e.target.value)
+                          handleSimulateDailyRain(e.target.value)
+                        }}
+                        disabled={Boolean(busy)}
+                      >
+                        {dailyRainContext.recent_rainy_days.map((rd) => (
+                          <option key={rd.date} value={rd.date}>
+                            📅 {rd.date} · {rd.precipitation_mm.toFixed(1)} mm ({rd.antecedent_moisture_amc === 'wet' ? 'Suelo saturado' : rd.antecedent_moisture_amc === 'medium' ? 'Humedad media' : 'Suelo seco'})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                <div className="daily-date-picker-row">
+                  <label className="field-label" style={{ flex: 1 }}>
+                    O elegí cualquier fecha específica:
+                    <input
+                      type="date"
+                      value={selectedDailyDate}
+                      onChange={(e) => setSelectedDailyDate(e.target.value)}
+                      disabled={Boolean(busy)}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-primary smn-simulate-btn"
+                    onClick={() => handleSimulateDailyRain(selectedDailyDate)}
+                    disabled={Boolean(busy) || !selectedDailyDate}
+                  >
+                    🌧️ Simular día real
+                  </button>
+                </div>
+
+                {dailyRainContext?.selected_day && (
+                  <div className="daily-stats-card">
+                    <div className="daily-stat-item">
+                      <span className="daily-stat-label">Lluvia del día</span>
+                      <strong className="daily-stat-val rain-val">
+                        {dailyRainContext.selected_day.precipitation_mm.toFixed(1)} mm
+                      </strong>
+                    </div>
+                    <div className="daily-stat-item">
+                      <span className="daily-stat-label">Humedad previa 5d</span>
+                      <strong className="daily-stat-val">
+                        {dailyRainContext.selected_day.prior_5d_rain_mm.toFixed(1)} mm ({dailyRainContext.selected_day.antecedent_moisture_amc.toUpperCase()})
+                      </strong>
+                    </div>
+                    <div className="daily-stat-item">
+                      <span className="daily-stat-label">Temperatura</span>
+                      <strong className="daily-stat-val">
+                        {dailyRainContext.selected_day.tmin_c}° a {dailyRainContext.selected_day.tmax_c}°C
+                      </strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <span className="subhead" style={{ marginTop: 12 }}>Elegir intensidad de lluvia de diseño:</span>
               <div className="pill-row">
                 {[
                   { mm: 30, label: '🌧️ 30 mm (Suave)' },
@@ -1188,6 +1342,7 @@ export function App() {
                   isPlayingRain={isPlayingDioramaRain}
                   selectedPoint={selectedPoint}
                   onPointInspect={handleMapClick}
+                  dailyRainContext={dailyRainContext}
                 />
 
                 {selectedPoint && (

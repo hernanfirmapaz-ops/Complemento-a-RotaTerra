@@ -10,6 +10,7 @@ from services.api.app.schemas import (
     AgronomicToolkitIn,
     AgronomicToolkitOut,
     CatalogOut,
+    DailyRainfallContextOut,
     FieldObservationIn,
     FieldObservationOut,
     Hydrodynamic2DIn,
@@ -21,6 +22,7 @@ from services.api.app.schemas import (
     RunoffRunOut,
     RunoffTimelineOut,
     ScenarioComparisonOut,
+    SimulateDailyRainIn,
 )
 from services.api.app.services import hydrology, store
 
@@ -240,3 +242,40 @@ def ejecutar_toolkit_agronomico(
         raise HTTPException(status_code=404, detail=f"Recurso no encontrado: {error}") from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/daily-rainfall", response_model=DailyRainfallContextOut)
+def obtener_lluvia_diaria_oficial(
+    field_id: str,
+    date: str | None = Query(None, description="Fecha específica YYYY-MM-DD a consultar"),
+):
+    """Consulta la lluvia diaria oficial del SMN y constelación satelital (CONAE/NASA) para el lote."""
+    try:
+        store.load_field(field_id)
+        return hydrology.get_field_daily_rainfall(field_id, target_date=date)
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail="Lote no encontrado.") from error
+
+
+@router.post("/daily-rainfall/simulate")
+def simular_lluvia_diaria_oficial(
+    field_id: str,
+    payload: SimulateDailyRainIn,
+):
+    """Simula la respuesta hidrológica del lote para la lluvia EXACTA de un día real (SMN + Satélites)."""
+    try:
+        store.load_field(field_id)
+        store.load_terrain(field_id)
+        return hydrology.simulate_field_daily_rainfall(
+            field_id=field_id,
+            date_str=payload.date,
+            soil_group=payload.soil_group,
+            cover_code=payload.cover_code,
+            cover_percent=payload.cover_percent,
+            compaction_high=payload.compaction_high,
+        )
+    except store.NotFound as error:
+        raise HTTPException(status_code=404, detail=f"Recurso no encontrado: {error}") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+

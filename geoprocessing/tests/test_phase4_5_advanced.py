@@ -169,6 +169,26 @@ def test_eight_complementary_tools_erosion_terraces_seeding_rotation_and_climate
 
     # 2, 3 y 8. Balance hídrico mensual, Riesgo de anegamiento real y Heladas
     daily, src, _ = fetch_nasa_power_daily_series(-65.7, -33.3, years=2)
+    if not daily:
+        # Fixture de respaldo para garantizar ejecución determinística ante microcortes o lentitud de NASA POWER
+        import math
+        from datetime import date, timedelta
+        base_d = date(2024, 1, 1)
+        daily = [
+            {
+                "date": (base_d + timedelta(days=d)).isoformat(),
+                "year": (base_d + timedelta(days=d)).year,
+                "month": (base_d + timedelta(days=d)).month,
+                "day_of_year": d + 1,
+                "precip_mm": 35.0 if (d % 14 == 0) else (18.0 if d % 7 == 0 else 0.0),
+                "tmin_c": 4.0 + 8.0 * math.sin(d / 58.0),
+                "tmax_c": 19.0 + 10.0 * math.sin(d / 58.0),
+                "tmean_c": 12.0 + 9.0 * math.sin(d / 58.0),
+            }
+            for d in range(450)
+        ]
+        src = "NASA POWER (Respaldo determinístico de test)"
+
     wb = compute_monthly_water_balance(daily, src, "B")
     assert len(wb["months"]) == 12
     wl = evaluate_real_date_waterlogging_risk(daily, src, "B", "soja_maiz_sd_buena", 100.0, 15.0, 1500.0)

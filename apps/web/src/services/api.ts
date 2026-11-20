@@ -5,6 +5,7 @@ import type {
   AgronomicToolkitOut,
   CatalogOut,
   ContoursOut,
+  DailyRainfallContextOut,
   FieldObservationIn,
   FieldObservationOut,
   FieldOut,
@@ -20,6 +21,7 @@ import type {
   RunoffRunOut,
   RunoffTimelineOut,
   ScenarioComparisonOut,
+  SimulateDailyRainIn,
   TerrainOut,
 } from '../types/api'
 
@@ -372,3 +374,36 @@ export async function runAgronomicToolkit(
   })
   return check<AgronomicToolkitOut>(res)
 }
+
+export async function getDailyRainfallContext(
+  fieldId: string,
+  date?: string | null,
+): Promise<DailyRainfallContextOut> {
+  const q = date ? `?date=${encodeURIComponent(date)}` : ''
+  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/daily-rainfall${q}`)
+  return check<DailyRainfallContextOut>(res)
+}
+
+export async function simulateDailyRainfall(
+  fieldId: string,
+  payload: SimulateDailyRainIn,
+): Promise<{
+  context: DailyRainfallContextOut
+  event: RainfallEventOut
+  runoff_run: RunoffRunOut
+}> {
+  const res = await fetch(
+    `${BASE}/fields/${fieldId}/hydrology/daily-rainfall/simulate`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  )
+  return check<{
+    context: DailyRainfallContextOut
+    event: RainfallEventOut
+    runoff_run: RunoffRunOut
+  }>(res)
+}
+

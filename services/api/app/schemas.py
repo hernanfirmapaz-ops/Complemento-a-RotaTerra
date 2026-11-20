@@ -317,6 +317,50 @@ class RainfallEventOut(BaseModel):
     created_at: str
 
 
+class SmnStationOut(BaseModel):
+    name: str
+    province: str
+    latitude: float
+    longitude: float
+    elevation_m: float
+    smn_nro: str
+    oaci: str
+    distance_km: float
+
+
+class DailyRainfallDayOut(BaseModel):
+    date: str
+    year: int
+    month: int
+    precipitation_mm: float
+    tmin_c: float
+    tmax_c: float
+    tmean_c: float
+    prior_5d_rain_mm: float
+    antecedent_moisture_amc: Literal["dry", "medium", "wet"]
+    source: str
+    satellite_provider: str
+    quality_flag: str
+    is_rainy: bool
+
+
+class DailyRainfallContextOut(BaseModel):
+    status: Literal["available", "unavailable"]
+    nearest_smn_station: SmnStationOut
+    selected_day: DailyRainfallDayOut | None = None
+    recent_rainy_days: list[DailyRainfallDayOut] = []
+    total_days_available: int = 0
+    source_label: str
+
+
+class SimulateDailyRainIn(BaseModel):
+    date: str = Field(..., description="Fecha del día a simular (YYYY-MM-DD)")
+    soil_group: Literal["A", "B", "C", "D"] = "B"
+    cover_code: str = "soja_maiz_sd_buena"
+    cover_percent: float | None = Field(60.0, ge=0.0, le=100.0)
+    compaction_high: bool = False
+
+
 class RunoffRunIn(BaseModel):
     name: str | None = Field(None, max_length=140)
     rainfall_event_id: str
