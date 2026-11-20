@@ -719,7 +719,9 @@ body,
   border-radius: 999px;
   font-size: 0.72rem;
   pointer-events: none;
-  white-space: nowrap;
+  max-width: 90%;
+  text-align: center;
+  white-space: normal;
 }
 
 .floating-point-card {
