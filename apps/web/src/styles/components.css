@@ -1,0 +1,665 @@
+/* ==========================================================================
+   RotaTerra UI Components Styles (SDD-002)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Icon
+   -------------------------------------------------------------------------- */
+.ui-icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Button (6.5)
+   -------------------------------------------------------------------------- */
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  border-radius: var(--radius-pill);
+  border: var(--border-width) solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--motion-duration) var(--motion-ease),
+              border-color var(--motion-duration) var(--motion-ease),
+              color var(--motion-duration) var(--motion-ease),
+              opacity var(--motion-duration) var(--motion-ease);
+}
+
+.ui-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ui-btn-md {
+  height: 44px;
+  padding: 0 22px;
+}
+
+.ui-btn-sm {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+
+.ui-btn-lg {
+  height: 52px;
+  padding: 0 28px;
+  font-size: 16px;
+}
+
+.ui-btn-full {
+  width: 100%;
+}
+
+/* Botón primario: Fondo --accent, texto blanco 15 px/500, alto 44 px, padding 0 22 px, radio 999 px. Hover --accent-hover */
+.ui-btn-primary {
+  background-color: var(--accent);
+  color: #FFFFFF;
+  border-color: transparent;
+}
+
+.ui-btn-primary:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+
+/* Botón secundario: Fondo transparente, borde 1 px --line, texto --ink. Hover: fondo --surface */
+.ui-btn-secondary {
+  background-color: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.ui-btn-secondary:hover:not(:disabled) {
+  background-color: var(--surface);
+}
+
+/* Botón de texto: Solo texto --accent con flecha →; hover con subrayado */
+.ui-btn-text {
+  background-color: transparent;
+  color: var(--accent);
+  border-color: transparent;
+  padding: 0 var(--s1);
+  height: auto;
+}
+
+.ui-btn-text:hover:not(:disabled) {
+  text-decoration: underline;
+  background-color: transparent;
+}
+
+.ui-btn-arrow {
+  margin-left: 2px;
+  transition: transform var(--motion-duration) var(--motion-ease);
+}
+
+.ui-btn-text:hover:not(:disabled) .ui-btn-arrow {
+  transform: translateX(3px);
+}
+
+.ui-btn-danger {
+  background-color: var(--danger);
+  color: #FFFFFF;
+}
+
+.ui-btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* --------------------------------------------------------------------------
+   Segmented (6.5: Fondo --surface, activa con fondo blanco y borde --line)
+   -------------------------------------------------------------------------- */
+.ui-segmented {
+  display: inline-flex;
+  background-color: var(--surface);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  gap: 2px;
+  max-width: 100%;
+  border: var(--border-width) solid var(--line);
+}
+
+.ui-segmented-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  color: var(--ink-2);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--motion-duration) var(--motion-ease),
+              color var(--motion-duration) var(--motion-ease),
+              border-color var(--motion-duration) var(--motion-ease);
+}
+
+.ui-segmented-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-segmented-btn.active {
+  background-color: #FFFFFF;
+  color: var(--ink);
+  border-color: var(--line);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ui-segmented-sublabel {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 1px;
+}
+
+/* --------------------------------------------------------------------------
+   OptionList (6.5: Filas de 56 px con título y subtítulo gris, divisor 1 px)
+   -------------------------------------------------------------------------- */
+.ui-option-list {
+  display: flex;
+  flex-direction: column;
+  background-color: #FFFFFF;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.ui-option-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 56px;
+  padding: var(--s1) var(--s2);
+  background-color: transparent;
+  border: none;
+  border-bottom: var(--border-width) solid var(--line);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background-color var(--motion-duration) var(--motion-ease);
+  width: 100%;
+}
+
+.ui-option-item:last-child {
+  border-bottom: none;
+}
+
+.ui-option-item:hover:not(:disabled) {
+  background-color: var(--bg);
+}
+
+.ui-option-item.selected {
+  background-color: var(--accent-soft);
+}
+
+.ui-option-icon {
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+}
+
+.ui-option-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-option-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.ui-option-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.ui-option-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background-color: var(--surface);
+  color: var(--ink-2);
+}
+
+.ui-option-subtitle {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+
+.ui-option-meta {
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-option-chevron {
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+}
+
+/* --------------------------------------------------------------------------
+   Metric (6.5: Número --t-metric con tabular-nums + unidad gris + etiqueta)
+   -------------------------------------------------------------------------- */
+.ui-metric {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s2);
+  background-color: #FFFFFF;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.ui-metric-main {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.ui-metric-number {
+  font-family: var(--font-sans);
+  font-size: var(--t-metric);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.ui-metric-unit {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.ui-metric-range {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-metric-label {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  margin-top: var(--s1);
+  line-height: 1.35;
+}
+
+.ui-metric-caption {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Details (6.5: details nativo con chevron que rota 90°)
+   -------------------------------------------------------------------------- */
+.ui-details {
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-card);
+  background-color: #FFFFFF;
+  overflow: hidden;
+}
+
+.ui-details-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s2);
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-sans);
+  user-select: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.ui-details-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ui-details-chevron {
+  display: flex;
+  align-items: center;
+  color: var(--ink-2);
+  transition: transform var(--motion-duration) var(--motion-ease);
+}
+
+.ui-details[open] .ui-details-chevron {
+  transform: rotate(90deg);
+}
+
+.ui-details-sub {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-left: auto;
+}
+
+.ui-details-content {
+  padding: 0 var(--s2) var(--s2) var(--s2);
+  font-size: 14px;
+  color: var(--ink-1);
+  border-top: var(--border-width) solid var(--surface);
+}
+
+/* --------------------------------------------------------------------------
+   BottomSheet (6.5: 3 alturas, tirador 36 x 4 px)
+   -------------------------------------------------------------------------- */
+.ui-bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #FFFFFF;
+  border-top: var(--border-width) solid var(--line);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  z-index: 1000;
+  transition: height var(--motion-duration) var(--motion-ease);
+  box-shadow: 0 -1px 0 var(--line);
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-bottom-sheet.snap-collapsed {
+  height: 72px;
+}
+
+.ui-bottom-sheet.snap-half {
+  height: 50vh;
+}
+
+.ui-bottom-sheet.snap-full {
+  height: 90vh;
+}
+
+.ui-sheet-handle-btn {
+  width: 100%;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ui-sheet-handle-bar {
+  width: 36px;
+  height: 4px;
+  background-color: var(--line);
+  border-radius: var(--radius-pill);
+}
+
+.ui-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--s2) var(--s1);
+}
+
+.ui-sheet-header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ui-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--s2);
+}
+
+/* --------------------------------------------------------------------------
+   Legend (6.5: Barra 120 x 6 px, mín/máx y unidad, fondo blanco 90% opacidad)
+   -------------------------------------------------------------------------- */
+.ui-legend {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background-color: rgba(255, 255, 255, 0.92);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-card);
+  backdrop-filter: blur(8px);
+}
+
+.ui-legend-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.ui-legend-bar {
+  width: 120px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+}
+
+.ui-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   SourceNote y Notice (6.5: 14 px --ink-2, aviso con línea de 1 px)
+   -------------------------------------------------------------------------- */
+.ui-source-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.ui-source-icon {
+  display: flex;
+  align-items: center;
+  color: var(--ink-2);
+}
+
+.ui-source-disclaimer {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.ui-notice {
+  border-left: var(--border-width) solid var(--ink-2);
+  padding-left: var(--s2);
+  margin: var(--s2) 0;
+}
+
+.ui-notice-text {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   ProgressBar (6.5: Barra fina de 2 px en --accent con texto del paso)
+   -------------------------------------------------------------------------- */
+.ui-progress-linear {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--line);
+  z-index: 99999;
+}
+
+.ui-progress-fill {
+  height: 100%;
+  background-color: var(--accent);
+  transition: width var(--motion-duration) var(--motion-ease);
+}
+
+.ui-progress-step-text {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(255, 255, 255, 0.94);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 4px 14px;
+  font-size: 12px;
+  color: var(--ink);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(6px);
+  z-index: 99999;
+}
+
+/* ==========================================================================
+   Component Showcase Gallery (Tarea 1.1)
+   ========================================================================== */
+.showcase-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--s4) var(--s3);
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background-color: var(--bg);
+  min-height: 100vh;
+}
+
+.showcase-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--s4);
+  padding-bottom: var(--s3);
+  border-bottom: var(--border-width) solid var(--line);
+  gap: var(--s2);
+}
+
+.showcase-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  background-color: var(--accent-soft);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  margin-bottom: 8px;
+}
+
+.showcase-header h1 {
+  font-size: var(--t-h1);
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+}
+
+.showcase-sub {
+  font-size: var(--t-body);
+  color: var(--ink-2);
+  margin: 0;
+  max-width: 65ch;
+  line-height: 1.5;
+}
+
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--s3);
+}
+
+.showcase-card {
+  background-color: #FFFFFF;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--s3);
+  display: flex;
+  flex-direction: column;
+}
+
+.showcase-card-full {
+  grid-column: 1 / -1;
+}
+
+.showcase-card h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+  color: var(--ink);
+}
+
+.showcase-desc {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 0 0 var(--s2) 0;
+  line-height: 1.45;
+}
+
+.showcase-demo-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.showcase-demo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.showcase-icons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: var(--s2);
+}
+
+.showcase-icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 8px;
+  background-color: var(--bg);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-card);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.showcase-icon-item svg {
+  color: var(--ink);
+}
+

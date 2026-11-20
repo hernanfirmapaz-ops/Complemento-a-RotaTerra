@@ -55,6 +55,8 @@ import {
   TerrainDiorama3D,
 } from './components/TerrainDiorama3D'
 import { AgroLoadingOverlay } from './components/AgroLoadingOverlay'
+import { ProgressBar } from './components/ui/ProgressBar'
+import { ComponentShowcase } from './components/ui/ComponentShowcase'
 import { PolygonMapDrawer } from './components/PolygonMapDrawer'
 import {
   type InteractionMode,
@@ -156,6 +158,11 @@ export function App() {
 
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showComponentShowcase, setShowComponentShowcase] = useState<boolean>(
+    () =>
+      typeof window !== 'undefined' &&
+      (window.location.hash === '#showcase' || window.location.hash === '#ui'),
+  )
 
   const activeField = fields.find((f) => f.id === activeFieldId) ?? null
   const activeRun =
@@ -727,8 +734,22 @@ export function App() {
 
   const rainFactor = Math.min(1.8, Math.max(0.2, quickRainMm / 70.0))
 
+  if (showComponentShowcase) {
+    return (
+      <ComponentShowcase
+        onClose={() => {
+          setShowComponentShowcase(false)
+          if (window.location.hash) window.location.hash = ''
+        }}
+      />
+    )
+  }
+
   return (
     <div className="app-shell">
+      {/* Barra de Carga Fija Superior mientras se trabaja */}
+      <ProgressBar active={Boolean(busy)} message={busy} fixedTop />
+
       {/* Pantalla de Carga Inmersiva con Estilo Agrícola y Sabiduría Técnica */}
       <AgroLoadingOverlay
         message={busy}
@@ -771,6 +792,15 @@ export function App() {
             disabled={Boolean(busy)}
           >
             ✏️ Dibujar mi Lote en el Mapa
+          </button>
+
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setShowComponentShowcase(true)}
+            title="Ver galería interactiva de componentes del sistema de diseño (SDD-002)"
+          >
+            🎨 Galería UI
           </button>
 
           <label className="exag-control">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ProgressBar } from './ui/ProgressBar'
 
 interface Props {
   message: string | null
@@ -259,9 +260,7 @@ export function AgroLoadingOverlay({
           )}
 
           {/* Barra de progreso fluida agronómica */}
-          <div className="agro-progress-track">
-            <div className="agro-progress-bar" />
-          </div>
+          <ProgressBar active={Boolean(message)} />
 
           {/* Pasos del motor de cálculo */}
           <div className="agro-steps-row">
