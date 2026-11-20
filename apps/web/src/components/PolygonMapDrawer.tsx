@@ -17,6 +17,15 @@ interface PresetLocation {
   zoom: number
 }
 
+interface PresetLot {
+  id: string
+  title: string
+  province: string
+  areaHa: number
+  description: string
+  coordinates: [number, number][]
+}
+
 const AGRO_ZONES: PresetLocation[] = [
   {
     label: 'El Trapiche / Piedemonte',
@@ -76,6 +85,72 @@ const AGRO_ZONES: PresetLocation[] = [
   },
 ]
 
+/** Lotes agrícolas reales precargados en Argentina para pruebas en 1 clic. */
+const PRESET_REAL_LOTS: PresetLot[] = [
+  {
+    id: 'san_luis_205',
+    title: 'Parcela Rural #205',
+    province: 'San Luis',
+    areaHa: 199.1,
+    description: 'Llanura ondulada agrícola con pendientes suaves y vías de escurrimiento',
+    coordinates: [
+      [-65.692134, -33.291132],
+      [-65.699221, -33.291166],
+      [-65.703666, -33.291201],
+      [-65.703631, -33.299113],
+      [-65.702041, -33.299106],
+      [-65.701973, -33.309184],
+      [-65.692046, -33.309277],
+    ],
+  },
+  {
+    id: 'san_luis_492',
+    title: 'Piedemonte Serrano #492',
+    province: 'San Luis (El Trapiche)',
+    areaHa: 223.4,
+    description: 'Alto relieve con quebradas marcadas y fuerte concentración hídrica',
+    coordinates: [
+      [-66.03954, -33.149419],
+      [-66.04748, -33.148671],
+      [-66.045899, -33.155386],
+      [-66.047467, -33.159149],
+      [-66.053387, -33.173345],
+      [-66.052012, -33.172855],
+      [-66.049687, -33.173671],
+      [-66.048538, -33.174829],
+      [-66.048308, -33.174136],
+      [-66.045553, -33.165829],
+      [-66.04012, -33.15578],
+    ],
+  },
+  {
+    id: 'pergamino_148',
+    title: 'Cuadro Agrícola Pergamino',
+    province: 'Buenos Aires',
+    areaHa: 148.2,
+    description: 'Zona núcleo maicera con microrelieves y sectores bajos de retención',
+    coordinates: [
+      [-60.582, -33.882],
+      [-60.568, -33.883],
+      [-60.569, -33.896],
+      [-60.583, -33.895],
+    ],
+  },
+  {
+    id: 'marcos_juarez_175',
+    title: 'Potrero Marcos Juárez',
+    province: 'Córdoba',
+    areaHa: 175.6,
+    description: 'Suelo típico Argiudol con pendiente laminar suave',
+    coordinates: [
+      [-62.115, -32.692],
+      [-62.098, -32.693],
+      [-62.099, -32.707],
+      [-62.116, -32.706],
+    ],
+  },
+]
+
 /** Calcula el área aproximada en hectáreas de un polígono [lon, lat][] usando proyección equirectangular local. */
 function computePolygonAreaHa(pts: [number, number][]): number {
   if (pts.length < 3) return 0
@@ -117,6 +192,25 @@ function computePerimeterM(pts: [number, number][]): number {
   return total
 }
 
+/** Calcula las dimensiones estimadas del rectángulo envolvente (ancho y alto en metros). */
+function computeBoundingBoxDimensions(pts: [number, number][]): { widthM: number; heightM: number } {
+  if (pts.length < 2) return { widthM: 0, heightM: 0 }
+  let minLon = pts[0][0]
+  let maxLon = pts[0][0]
+  let minLat = pts[0][1]
+  let maxLat = pts[0][1]
+  for (const p of pts) {
+    if (p[0] < minLon) minLon = p[0]
+    if (p[0] > maxLon) maxLon = p[0]
+    if (p[1] < minLat) minLat = p[1]
+    if (p[1] > maxLat) maxLat = p[1]
+  }
+  const latMeanRad = ((minLat + maxLat) / 2) * (Math.PI / 180)
+  const widthM = (maxLon - minLon) * 111319.488 * Math.cos(latMeanRad)
+  const heightM = (maxLat - minLat) * 111132.954
+  return { widthM, heightM }
+}
+
 export function PolygonMapDrawer({
   isOpen,
   initialCenter,
@@ -150,6 +244,29 @@ export function PolygonMapDrawer({
 
   const areaHa = computePolygonAreaHa(vertices)
   const perimeterM = computePerimeterM(vertices)
+  const dimensions = computeBoundingBoxDimensions(vertices)
+
+  const fitToVertices = (pts: [number, number][]) => {
+    const map = mapRef.current
+    if (!map || pts.length === 0) return
+    let minLon = pts[0][0]
+    let maxLon = pts[0][0]
+    let minLat = pts[0][1]
+    let maxLat = pts[0][1]
+    for (const p of pts) {
+      if (p[0] < minLon) minLon = p[0]
+      if (p[0] > maxLon) maxLon = p[0]
+      if (p[1] < minLat) minLat = p[1]
+      if (p[1] > maxLat) maxLat = p[1]
+    }
+    map.fitBounds(
+      [
+        [minLon, minLat],
+        [maxLon, maxLat],
+      ],
+      { padding: 60, duration: 800 },
+    )
+  }
 
   // Inicializar el mapa interactivo cuando se abre el selector
   useEffect(() => {
@@ -339,7 +456,7 @@ export function PolygonMapDrawer({
       const el = document.createElement('div')
       el.className = 'polygon-vertex-marker'
       el.innerText = String(idx + 1)
-      el.title = `Esquina #${idx + 1} (arrastrá para mover)`
+      el.title = `Esquina #${idx + 1} (arrastrá para mover o eliminá en el panel lateral)`
 
       const marker = new maplibregl.Marker({
         element: el,
@@ -430,6 +547,15 @@ export function PolygonMapDrawer({
     }
   }
 
+  /** Carga un lote de ejemplo real en 1 clic sobre el mapa satelital. */
+  const handleLoadPresetLot = (preset: PresetLot) => {
+    setVertices(preset.coordinates)
+    setLotName(preset.title)
+    setRectFirstCorner(null)
+    fitToVertices(preset.coordinates)
+    setSearchStatus(`Cargado lote de ejemplo: ${preset.title} (${preset.areaHa} ha, ${preset.province})`)
+  }
+
   /** Crea un polígono de ejemplo de ~160 ha centrado en la vista actual del mapa con 1 clic. */
   const handleStampPolygonAtCenter = () => {
     const map = mapRef.current
@@ -437,13 +563,96 @@ export function PolygonMapDrawer({
     const c = map.getCenter()
     const dLon = 0.0072
     const dLat = 0.0058
-    setVertices([
+    const stamped: [number, number][] = [
       [Number((c.lng - dLon).toFixed(6)), Number((c.lat + dLat).toFixed(6))],
       [Number((c.lng + dLon).toFixed(6)), Number((c.lat + dLat * 0.85).toFixed(6))],
       [Number((c.lng + dLon * 0.92).toFixed(6)), Number((c.lat - dLat).toFixed(6))],
       [Number((c.lng - dLon * 0.88).toFixed(6)), Number((c.lat - dLat * 0.9).toFixed(6))],
-    ])
+    ]
+    setVertices(stamped)
     setRectFirstCorner(null)
+    fitToVertices(stamped)
+    setSearchStatus('Lote centrado en la vista actual. Arrastrá los números para adaptarlo a tu alambre.')
+  }
+
+  /** Elimina un vértice específico del polígono. */
+  const handleDeleteVertex = (idxToDelete: number) => {
+    setVertices((prev) => prev.filter((_, idx) => idx !== idxToDelete))
+  }
+
+  /** Importa un archivo de lote directamente dentro del modal. */
+  const handleFileImportInDrawer = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setSubmitError(null)
+    const ext = file.name.split('.').pop()?.toLowerCase()
+
+    if (ext === 'geojson' || ext === 'json') {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        try {
+          const text = event.target?.result as string
+          const parsed = JSON.parse(text)
+          let coords: [number, number][] = []
+          let candidateName = file.name.replace(/\.[^.]+$/, '')
+
+          if (parsed.type === 'FeatureCollection' && parsed.features?.[0]?.geometry) {
+            const feat = parsed.features[0]
+            candidateName = feat.properties?.name || feat.properties?.nombre || candidateName
+            if (feat.geometry.type === 'Polygon' && feat.geometry.coordinates?.[0]) {
+              coords = feat.geometry.coordinates[0].map((c: number[]) => [
+                Number(c[0].toFixed(6)),
+                Number(c[1].toFixed(6)),
+              ])
+            }
+          } else if (parsed.type === 'Feature' && parsed.geometry) {
+            candidateName = parsed.properties?.name || candidateName
+            if (parsed.geometry.type === 'Polygon' && parsed.geometry.coordinates?.[0]) {
+              coords = parsed.geometry.coordinates[0].map((c: number[]) => [
+                Number(c[0].toFixed(6)),
+                Number(c[1].toFixed(6)),
+              ])
+            }
+          } else if (parsed.type === 'Polygon' && parsed.coordinates?.[0]) {
+            coords = parsed.coordinates[0].map((c: number[]) => [
+              Number(c[0].toFixed(6)),
+              Number(c[1].toFixed(6)),
+            ])
+          }
+
+          if (coords.length >= 3) {
+            // Descartar punto duplicado de cierre si existe
+            const pFirst = coords[0]
+            const pLast = coords[coords.length - 1]
+            if (Math.hypot(pFirst[0] - pLast[0], pFirst[1] - pLast[1]) < 0.00002) {
+              coords.pop()
+            }
+            setVertices(coords)
+            setLotName(candidateName)
+            fitToVertices(coords)
+            setSearchStatus(`✅ Lote "${candidateName}" cargado en el mapa (${coords.length} esquinas).`)
+          } else {
+            setSubmitError('El archivo GeoJSON no contiene un polígono con al menos 3 coordenadas válidas.')
+          }
+        } catch (err) {
+          setSubmitError(`Error al procesar GeoJSON: ${(err as Error).message}`)
+        }
+      }
+      reader.readAsText(file)
+    } else {
+      // KML, KMZ o ZIP de Shapefile: confirmar directamente para procesamiento en backend
+      const candidateName = lotName.trim() || file.name.replace(/\.[^.]+$/, '')
+      setSubmitting(true)
+      onConfirmPolygon(candidateName, file)
+        .catch((err) => {
+          setSubmitError((err as Error).message)
+        })
+        .finally(() => {
+          setSubmitting(false)
+        })
+    }
   }
 
   const handleConfirm = async () => {
@@ -457,7 +666,7 @@ export function PolygonMapDrawer({
     }
     if (areaHa > 6500) {
       setSubmitError(
-        `El lote dibujado tiene ${areaHa.toFixed(0)} ha. Para obtener una maqueta 3D detallada a 30 m se recomienda dibujar lotes o sectores de hasta 6.500 ha.`,
+        `El lote dibujado tiene ${areaHa.toFixed(0)} ha. Para obtener una maqueta 3D detallada a 30 m se recomienda delimitar sectores de hasta 6.500 ha.`,
       )
       return
     }
@@ -509,12 +718,11 @@ export function PolygonMapDrawer({
         <div className="drawer-modal-header">
           <div>
             <span className="drawer-step-badge">
-              PASO 1 · UBICÁ Y DELIMITÁ TU CAMPO CON POLÍGONOS
+              PASO 1 · SELECCIONÁ DÓNDE ESTÁ TU TERRENO CON POLÍGONOS
             </span>
-            <h2>✏️ Seleccioná dónde está tu terreno en el mapa</h2>
+            <h2>✏️ Delimitador Interactivo de Lotes y Parcelas Agrícolas</h2>
             <p>
-              Hacé clic en el mapa para marcar cada esquina de tu lote (o
-              arrastrá los puntos numerados para ajustar el alambre).
+              Hacé clic en el mapa para marcar cada esquina de tu lote, arrastrá los números para acomodar el alambre, o probá un lote real precargado.
             </p>
           </div>
           <button
@@ -534,7 +742,7 @@ export function PolygonMapDrawer({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Buscar localidad, provincia o coordenadas GPS (ej: Río Cuarto, Pergamino o -33.12, -66.08)..."
+              placeholder="🔍 Buscar ciudad, paraje o coordenadas GPS (ej: Río Cuarto, Pergamino o -33.12, -66.08)..."
               className="drawer-search-input"
             />
             <button type="submit" className="drawer-search-btn">
@@ -542,8 +750,24 @@ export function PolygonMapDrawer({
             </button>
           </form>
 
+          {/* Lotes de ejemplo reales precargados en 1 clic */}
+          <div className="drawer-preset-lots-row">
+            <span className="drawer-quick-label">🌱 Lotes reales para probar:</span>
+            {PRESET_REAL_LOTS.map((lot) => (
+              <button
+                key={lot.id}
+                type="button"
+                className="drawer-preset-lot-btn"
+                onClick={() => handleLoadPresetLot(lot)}
+                title={`${lot.title} (${lot.areaHa} ha, ${lot.province}) · ${lot.description}`}
+              >
+                📍 {lot.title} ({lot.areaHa} ha)
+              </button>
+            ))}
+          </div>
+
           <div className="drawer-quick-zones">
-            <span className="drawer-quick-label">Zonas rápidas:</span>
+            <span className="drawer-quick-label">Centrar región:</span>
             {AGRO_ZONES.map((z) => (
               <button
                 key={z.label}
@@ -554,7 +778,7 @@ export function PolygonMapDrawer({
                   setSearchStatus(`Centrado en ${z.label} (${z.region})`)
                 }}
               >
-                📍 {z.label}
+                {z.label}
               </button>
             ))}
           </div>
@@ -599,10 +823,20 @@ export function PolygonMapDrawer({
                 type="button"
                 className="drawer-tool-pill"
                 onClick={handleStampPolygonAtCenter}
-                title="Crea un polígono de 4 esquinas en el centro del mapa para que lo ajustes arrastrando los vértices"
+                title="Crea un lote de 4 esquinas en el centro del mapa para que lo ajustes arrastrando los vértices"
               >
                 🎯 Marcar lote aquí y ajustar
               </button>
+              {vertices.length >= 2 && (
+                <button
+                  type="button"
+                  className="drawer-tool-pill"
+                  onClick={() => fitToVertices(vertices)}
+                  title="Centra el mapa en el polígono que estás dibujando"
+                >
+                  🔍 Centrar en mi polígono
+                </button>
+              )}
               <button
                 type="button"
                 className="drawer-tool-pill"
@@ -647,12 +881,29 @@ export function PolygonMapDrawer({
               />
             </div>
 
+            {/* Carga directa de archivo en el drawer */}
+            <div className="drawer-upload-box">
+              <label className="drawer-file-btn">
+                📂 Cargar archivo (.kml, .kmz, .geojson, .zip)
+                <input
+                  type="file"
+                  accept=".geojson,.json,.kml,.kmz,.zip"
+                  onChange={handleFileImportInDrawer}
+                  hidden
+                  disabled={submitting}
+                />
+              </label>
+              <small className="drawer-upload-help">
+                ¿Tenés tu lote en Google Earth o QGIS? Subilo y se dibuja solo.
+              </small>
+            </div>
+
             <div className="drawer-stats-grid">
               <div className="drawer-stat-card">
                 <span>Superficie calculada</span>
                 <strong
                   className={
-                    areaHa >= 1 && areaHa <= 5000 ? 'text-emerald' : ''
+                    areaHa >= 1 && areaHa <= 6500 ? 'text-emerald' : ''
                   }
                 >
                   {areaHa > 0 ? `${areaHa.toFixed(1)} ha` : '0 ha'}
@@ -664,15 +915,33 @@ export function PolygonMapDrawer({
                 </small>
               </div>
               <div className="drawer-stat-card">
-                <span>Esquinas / Alambre</span>
-                <strong>{vertices.length} puntos</strong>
+                <span>Perímetro y Lados</span>
+                <strong>{vertices.length} esquinas</strong>
                 <small>
                   {perimeterM > 0
-                    ? `Perímetro: ${(perimeterM / 1000).toFixed(2)} km`
+                    ? `${(perimeterM / 1000).toFixed(2)} km de alambre`
                     : 'Sin perímetro'}
                 </small>
               </div>
             </div>
+
+            {dimensions.widthM > 0 && (
+              <div className="drawer-dimensions-badge">
+                📏 Dimensiones aprox:{' '}
+                <strong>
+                  {dimensions.widthM >= 1000
+                    ? `${(dimensions.widthM / 1000).toFixed(2)} km`
+                    : `${dimensions.widthM.toFixed(0)} m`}
+                </strong>{' '}
+                (ancho) ×{' '}
+                <strong>
+                  {dimensions.heightM >= 1000
+                    ? `${(dimensions.heightM / 1000).toFixed(2)} km`
+                    : `${dimensions.heightM.toFixed(0)} m`}
+                </strong>{' '}
+                (largo)
+              </div>
+            )}
 
             <div className="drawer-edit-actions">
               <button
@@ -681,7 +950,7 @@ export function PolygonMapDrawer({
                 onClick={() => setVertices((prev) => prev.slice(0, -1))}
                 disabled={vertices.length === 0 || submitting}
               >
-                ↩️ Deshacer último punto
+                ↩️ Deshacer último
               </button>
               <button
                 type="button"
@@ -699,15 +968,23 @@ export function PolygonMapDrawer({
             {vertices.length > 0 && (
               <div className="drawer-coords-list">
                 <div className="drawer-coords-title">
-                  Coordenadas de las esquinas (WGS84):
+                  Esquinas marcadas ({vertices.length}):
                 </div>
                 <div className="drawer-coords-scroll">
                   {vertices.map((pt, i) => (
                     <div key={i} className="drawer-coord-row">
                       <span className="drawer-coord-badge">#{i + 1}</span>
-                      <span>
-                        Lat {pt[1].toFixed(5)}° · Lon {pt[0].toFixed(5)}°
+                      <span className="drawer-coord-text">
+                        Lat {pt[1].toFixed(5)}°, Lon {pt[0].toFixed(5)}°
                       </span>
+                      <button
+                        type="button"
+                        className="drawer-coord-del-btn"
+                        onClick={() => handleDeleteVertex(i)}
+                        title={`Eliminar esquina #${i + 1}`}
+                      >
+                        ✕
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -727,12 +1004,12 @@ export function PolygonMapDrawer({
               >
                 {submitting
                   ? '⏳ Descargando relieve 3D y simulando lluvia...'
-                  : '🚀 Confirmar Polígono y Ver Maqueta 3D'}
+                  : '🚀 Confirmar Lote y Ver Maqueta 3D'}
               </button>
               <small className="drawer-confirm-note">
                 Al confirmar, el sistema descarga automáticamente las alturas
                 reales del satélite Copernicus (30 m), arma la maqueta 3D y
-                simula cómo escurre la lluvia en tu lote.
+                simula cómo escurre el agua en tu campo.
               </small>
             </div>
           </div>

@@ -1186,6 +1186,7 @@ export function App() {
                   showBoundary={true}
                   showContours={false}
                   isPlayingRain={isPlayingDioramaRain}
+                  selectedPoint={selectedPoint}
                   onPointInspect={handleMapClick}
                 />
 
@@ -1211,6 +1212,7 @@ export function App() {
                         Pendiente:{' '}
                         <strong>
                           {selectedPoint.slope_pct?.toFixed(2) ?? '—'} %
+                          {selectedPoint.slope_deg != null && ` (${selectedPoint.slope_deg.toFixed(1)}°)`}
                         </strong>
                       </span>
                       <span>

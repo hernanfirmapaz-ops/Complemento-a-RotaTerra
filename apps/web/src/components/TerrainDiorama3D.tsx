@@ -19,6 +19,7 @@ interface Props {
   showBoundary: boolean
   showContours: boolean
   isPlayingRain: boolean
+  selectedPoint?: { lon?: number | null; lat?: number | null } | null
   onPointInspect?: (lon: number, lat: number) => void
 }
 
@@ -216,13 +217,32 @@ export function TerrainDiorama3D({
   showBoundary,
   showContours,
   isPlayingRain,
+  selectedPoint,
   onPointInspect,
 }: Props) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const [textureReady, setTextureReady] = useState<boolean>(false)
+  const [is2DView, setIs2DView] = useState<boolean>(false)
   const satCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inspectRef = useRef(onPointInspect)
   inspectRef.current = onPointInspect
+
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const controlsRef = useRef<OrbitControls | null>(null)
+  const cameraStateRef = useRef<{
+    position: THREE.Vector3
+    target: THREE.Vector3
+    up: THREE.Vector3
+  } | null>(null)
+
+  const lastFieldIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (field?.id !== lastFieldIdRef.current) {
+      lastFieldIdRef.current = field?.id ?? null
+      cameraStateRef.current = null
+      setIs2DView(false)
+    }
+  }, [field?.id])
 
   // Descargar textura satelital real cada vez que cambia la malla del lote
   useEffect(() => {
@@ -267,8 +287,13 @@ export function TerrainDiorama3D({
       0.1,
       2000,
     )
-    camera.position.set(-34, -122, 74)
-    camera.up.set(0, 0, 1)
+    if (cameraStateRef.current) {
+      camera.position.copy(cameraStateRef.current.position)
+      camera.up.copy(cameraStateRef.current.up)
+    } else {
+      camera.position.set(-34, -122, 74)
+      camera.up.set(0, 0, 1)
+    }
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -287,8 +312,15 @@ export function TerrainDiorama3D({
     controls.maxPolarAngle = Math.PI * 0.47
     controls.minDistance = 45
     controls.maxDistance = 320
-    controls.target.set(0, 0, 4)
+    if (cameraStateRef.current) {
+      controls.target.copy(cameraStateRef.current.target)
+    } else {
+      controls.target.set(0, 0, 4)
+    }
     controls.update()
+
+    cameraRef.current = camera
+    controlsRef.current = controls
 
     // Iluminación natural tipo sol de media mañana para resaltar lomas y vaguadas
     const hemi = new THREE.HemisphereLight(0xffffff, 0x8d7b68, 0.85)
@@ -747,6 +779,54 @@ export function TerrainDiorama3D({
       }
     }
 
+    // 6. Marcador 3D del punto consultado con pin animado
+    const pinGroup = new THREE.Group()
+    let pinBaseZ = 0
+    if (
+      selectedPoint &&
+      selectedPoint.lon != null &&
+      selectedPoint.lat != null
+    ) {
+      const uN = (selectedPoint.lon - west) / lonSpan
+      const vN = (north - selectedPoint.lat) / latSpan
+      if (uN >= 0 && uN <= 1 && vN >= 0 && vN <= 1) {
+        const pinX = (uN - 0.5) * boxW
+        const pinY = (0.5 - vN) * boxH
+        pinBaseZ = sampleZUnits(uN, vN)
+        pinGroup.position.set(pinX, pinY, pinBaseZ)
+
+        // Poste vertical cian brillante
+        const stemGeom = new THREE.CylinderGeometry(0.35, 0.35, 5.0, 12)
+        stemGeom.rotateX(Math.PI / 2)
+        stemGeom.translate(0, 0, 2.5)
+        const stemMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+        pinGroup.add(new THREE.Mesh(stemGeom, stemMat))
+
+        // Esfera en la punta
+        const sphereGeom = new THREE.SphereGeometry(1.25, 16, 16)
+        sphereGeom.translate(0, 0, 5.0)
+        const sphereMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+        pinGroup.add(new THREE.Mesh(sphereGeom, sphereMat))
+
+        // Anillo brillante en la base sobre el terreno
+        const ringGeom = new THREE.RingGeometry(0.9, 1.5, 24)
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0x00e5ff,
+          side: THREE.DoubleSide,
+        })
+        const ringMesh = new THREE.Mesh(ringGeom, ringMat)
+        ringMesh.position.set(0, 0, 0.08)
+        pinGroup.add(ringMesh)
+
+        pinGroup.visible = true
+      } else {
+        pinGroup.visible = false
+      }
+    } else {
+      pinGroup.visible = false
+    }
+    dioramaGroup.add(pinGroup)
+
     // Raycaster para inspeccionar cualquier punto de la maqueta con un clic
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
@@ -861,6 +941,20 @@ export function TerrainDiorama3D({
         headPoints.visible = false
       }
 
+      // Guardar orientación y posición actual de la cámara para que nunca se resetee al interactuar
+      if (camera && controls) {
+        cameraStateRef.current = {
+          position: camera.position.clone(),
+          target: controls.target.clone(),
+          up: camera.up.clone(),
+        }
+      }
+
+      // Animación suave de elevación y pulso del pin 3D consultado
+      if (pinGroup.visible) {
+        pinGroup.position.z = pinBaseZ + Math.sin(Date.now() * 0.005) * 0.35
+      }
+
       renderer.render(scene, camera)
       animId = window.requestAnimationFrame(animate)
     }
@@ -891,6 +985,16 @@ export function TerrainDiorama3D({
       streakMat.dispose()
       headGeom.dispose()
       headMat.dispose()
+      pinGroup.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose()
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m) => m.dispose())
+          } else {
+            obj.material.dispose()
+          }
+        }
+      })
       renderer.dispose()
     }
   }, [
@@ -902,11 +1006,141 @@ export function TerrainDiorama3D({
     showBoundary,
     showContours,
     isPlayingRain,
+    selectedPoint,
   ])
+
+  const handleResetCamera = () => {
+    setIs2DView(false)
+    if (cameraRef.current && controlsRef.current) {
+      cameraRef.current.position.set(-34, -122, 74)
+      cameraRef.current.up.set(0, 0, 1)
+      controlsRef.current.target.set(0, 0, 4)
+      controlsRef.current.update()
+      cameraStateRef.current = {
+        position: cameraRef.current.position.clone(),
+        target: controlsRef.current.target.clone(),
+        up: cameraRef.current.up.clone(),
+      }
+    }
+  }
+
+  const handleToggle2D3D = () => {
+    if (cameraRef.current && controlsRef.current) {
+      if (!is2DView) {
+        setIs2DView(true)
+        cameraRef.current.position.set(0, 0, 160)
+        cameraRef.current.up.set(0, 1, 0)
+        controlsRef.current.target.set(0, 0, 0)
+      } else {
+        setIs2DView(false)
+        cameraRef.current.position.set(-34, -122, 74)
+        cameraRef.current.up.set(0, 0, 1)
+        controlsRef.current.target.set(0, 0, 4)
+      }
+      controlsRef.current.update()
+      cameraStateRef.current = {
+        position: cameraRef.current.position.clone(),
+        target: controlsRef.current.target.clone(),
+        up: cameraRef.current.up.clone(),
+      }
+    }
+  }
+
+  const handleZoomIn = () => {
+    if (cameraRef.current && controlsRef.current) {
+      const dir = new THREE.Vector3().subVectors(
+        controlsRef.current.target,
+        cameraRef.current.position,
+      )
+      if (dir.length() > controlsRef.current.minDistance + 8) {
+        cameraRef.current.position.addScaledVector(dir.normalize(), 15)
+        controlsRef.current.update()
+      }
+    }
+  }
+
+  const handleZoomOut = () => {
+    if (cameraRef.current && controlsRef.current) {
+      const dir = new THREE.Vector3().subVectors(
+        cameraRef.current.position,
+        controlsRef.current.target,
+      )
+      if (dir.length() < controlsRef.current.maxDistance - 15) {
+        cameraRef.current.position.addScaledVector(dir.normalize(), 15)
+        controlsRef.current.update()
+      }
+    }
+  }
+
+  const handleAlignNorth = () => {
+    setIs2DView(false)
+    if (cameraRef.current && controlsRef.current) {
+      const dist = cameraRef.current.position.distanceTo(
+        controlsRef.current.target,
+      )
+      cameraRef.current.position.set(0, -dist * 0.85, dist * 0.52)
+      cameraRef.current.up.set(0, 0, 1)
+      controlsRef.current.update()
+      cameraStateRef.current = {
+        position: cameraRef.current.position.clone(),
+        target: controlsRef.current.target.clone(),
+        up: cameraRef.current.up.clone(),
+      }
+    }
+  }
 
   return (
     <div className="diorama-wrapper">
       <div ref={mountRef} className="diorama-canvas" />
+
+      {/* Botones de control de cámara intuitivos sobre la maqueta 3D */}
+      <div className="diorama-floating-controls">
+        <button
+          type="button"
+          className="diorama-ctrl-btn"
+          onClick={handleResetCamera}
+          title="Restablecer vista isométrica 3D"
+        >
+          🔄 Centrar 3D
+        </button>
+        <button
+          type="button"
+          className={`diorama-ctrl-btn ${is2DView ? 'active' : ''}`}
+          onClick={handleToggle2D3D}
+          title={
+            is2DView
+              ? 'Cambiar a vista isométrica 3D'
+              : 'Cambiar a vista superior de planta (2D)'
+          }
+        >
+          {is2DView ? '🧊 Vista 3D' : '📐 Vista 2D'}
+        </button>
+        <button
+          type="button"
+          className="diorama-ctrl-btn"
+          onClick={handleZoomIn}
+          title="Acercar zoom"
+        >
+          🔍 ➕
+        </button>
+        <button
+          type="button"
+          className="diorama-ctrl-btn"
+          onClick={handleZoomOut}
+          title="Alejar zoom"
+        >
+          🔍 ➖
+        </button>
+        <button
+          type="button"
+          className="diorama-ctrl-btn compass"
+          onClick={handleAlignNorth}
+          title="Alinear vista mirando al Norte"
+        >
+          🧭 Norte
+        </button>
+      </div>
+
       <div className="diorama-hint">
         🖱️ Arrastrá con botón izquierdo para rotar la maqueta 3D · Rueda para
         zoom · Clic sobre el lote para consultar cota y pendiente
