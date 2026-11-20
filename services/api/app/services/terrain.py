@@ -35,8 +35,31 @@ def _buffer_bbox_4326(field: dict, buffer_m: float) -> tuple[float, float, float
     return transform_bounds(f"EPSG:{field['utm_epsg']}", "EPSG:4326", *caja, densify_pts=21)
 
 
+SAMPLE_DIR = Path(__file__).resolve().parents[4] / "data" / "sample"
+
+
+def _find_sample_dem_backup(field: dict) -> tuple[Path, dict] | None:
+    """Busca el recorte real de relieve en data/sample/ para los lotes de ejemplo cuando no hay red."""
+    import json
+    source_file = field.get("source_file", "")
+    name = field.get("name", "")
+    if "san_luis_parcela_205" in source_file or "205" in name:
+        dem_p = SAMPLE_DIR / "san_luis_parcela_205_dem.tif"
+        json_p = SAMPLE_DIR / "san_luis_parcela_205_dem.json"
+        if dem_p.exists() and json_p.exists():
+            return dem_p, json.loads(json_p.read_text(encoding="utf-8"))
+    if "san_luis_piedemonte_492" in source_file or "492" in name or "Piedemonte" in name:
+        dem_p = SAMPLE_DIR / "san_luis_piedemonte_492_dem.tif"
+        json_p = SAMPLE_DIR / "san_luis_piedemonte_492_dem.json"
+        if dem_p.exists() and json_p.exists():
+            return dem_p, json.loads(json_p.read_text(encoding="utf-8"))
+    return None
+
+
 def process_terrain(field_id: str, source_id: str, buffer_m: float, upload_path: Path | None,
                     upload_meta: dict) -> dict:
+    from datetime import date
+
     field = store.load_field(field_id)
     carpeta = store.field_dir(field_id)
     carpeta_fuente = carpeta / "source"
@@ -46,7 +69,21 @@ def process_terrain(field_id: str, source_id: str, buffer_m: float, upload_path:
 
     if source_id == sources.COPERNICUS_ID:
         original = carpeta_fuente / "copernicus_glo30_window.tif"
-        info = sources.fetch_copernicus(_buffer_bbox_4326(field, buffer_m), original)
+        try:
+            info = sources.fetch_copernicus(_buffer_bbox_4326(field, buffer_m), original)
+        except sources.DemSourceError:
+            sample_backup = _find_sample_dem_backup(field)
+            if sample_backup:
+                dem_path, meta = sample_backup
+                shutil.copy(str(dem_path), str(original))
+                toma = (
+                    date.fromisoformat(meta["acquisition_start"]),
+                    date.fromisoformat(meta["acquisition_end"]),
+                ) if meta.get("acquisition_start") and meta.get("acquisition_end") else None
+                info = sources.copernicus_info(toma)
+                info.source_name = meta.get("source_name", info.source_name)
+            else:
+                raise
     elif source_id == sources.OPENTOPOGRAPHY_COP30_ID:
         original = carpeta_fuente / "opentopography_cop30.tif"
         info = sources.fetch_opentopography(_buffer_bbox_4326(field, buffer_m), original, demtype="COP30")

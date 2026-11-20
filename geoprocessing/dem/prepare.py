@@ -86,7 +86,10 @@ def prepare_dem(source_path: Path, geometry_4326: dict, epsg: int, buffer_m: flo
             dst_nodata=np.nan,
             resampling=Resampling.bilinear,
         )
-        etiquetas = src.tags()
+        etiquetas = dict(src.tags())
+        etiquetas["DERIVED_FROM"] = source_path.name
+        etiquetas["BUFFER_M"] = str(buffer_m)
+        etiquetas["RESAMPLING"] = "bilinear"
 
     if not np.isfinite(datos).any():
         raise DemPreparationError("El DEM no cubre el lote ni su zona de aporte.")
@@ -95,8 +98,7 @@ def prepare_dem(source_path: Path, geometry_4326: dict, epsg: int, buffer_m: flo
     with rasterio.open(destino, "w", driver="GTiff", height=alto, width=ancho, count=1, dtype="float32",
                        crs=crs_dst, transform=transform, nodata=np.nan, compress="deflate") as dst:
         dst.write(datos, 1)
-        dst.update_tags(**etiquetas, DERIVED_FROM=source_path.name, BUFFER_M=str(buffer_m),
-                        RESAMPLING="bilinear")
+        dst.update_tags(**etiquetas)
 
     return PreparedDem(path=destino, crs=crs_dst, pixel_size_m=res, width=ancho, height=alto,
                        bounds=(oeste, sur, este, norte), buffer_m=buffer_m,

@@ -96,7 +96,10 @@ async def procesar_terreno(
         }
         return terrain.process_terrain(field_id, source_id, buffer_m, temp_path, meta)
     except (DemSourceError, DemPreparationError) as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
+        err_msg = str(error)
+        if "Sin conexión" in err_msg:
+            raise HTTPException(status_code=503, detail="Sin conexión: no se pudo descargar el relieve") from error
+        raise HTTPException(status_code=422, detail=err_msg) from error
     finally:
         if temp_path is not None and temp_path.exists():
             try:
