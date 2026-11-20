@@ -11,6 +11,11 @@ apps/web/dist/
 # Datos de corridas locales (no subir a Git)
 data/runs/
 
+# Variables de entorno locales
+.env
+.env.*
+!.env.example
+
 # Sistema operativo / IDE
 .DS_Store
 Thumbs.db
