@@ -778,13 +778,13 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
     )
 
     # Guardar grillas soil_loss_t_ha y ndvi dentro de hydrology_grids.npz para visualización 3D
+    # Nota API-01: hydrology.json permanece inalterado por el toolkit; no reescribir hydrology.json.
     grids["soil_loss_t_ha"] = soil_loss_grid
     if ndvi_res["grid"] is not None:
         grids["ndvi"] = ndvi_res["grid"]
     elif "ndvi" in grids:
         del grids["ndvi"]
     np.savez_compressed(carpeta / "hydrology_grids.npz", **grids)
-    store.save_hydrology(field_id, hydro)
     load_hydrology_grids.cache_clear()
 
     all_warnings = list(climate_warnings)

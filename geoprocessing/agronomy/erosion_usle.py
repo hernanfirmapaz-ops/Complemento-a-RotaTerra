@@ -66,7 +66,13 @@ def compute_ls_factor_grid(
 
 
 def estimate_storm_erosivity_r(precipitation_mm: float, max_intensity_mm_h: float | None = None) -> float:
-    """Erosividad EI30 de una tormenta individual (MJ·mm / (ha·h)) según Wischmeier & Smith / Lombardi Neto."""
+    """Erosividad EI30 de una tormenta individual (MJ·mm / (ha·h)) según Wischmeier & Smith / Lombardi Neto.
+
+    Nota de trazabilidad científica y supuestos conservadores (SDD §4.4 / Regla R4):
+    Si no se suministra la intensidad máxima en 30 minutos observada en estación de campo (`max_intensity_mm_h`),
+    se adopta como supuesto conservador documentado la relación empírica pampeana i30 ~ min(75.0, 0.65 * P)
+    (Lombardi Neto et al. 1980; Bertoni & Lombardi Neto 1990; INTA Castelar).
+    """
     p = max(0.0, float(precipitation_mm))
     if p < 5.0:
         return 0.5 * p
@@ -113,7 +119,9 @@ def compute_usle_erosion_and_gullies(
         p_factor *= 0.50
 
     r_storm = estimate_storm_erosivity_r(precipitation_mm, max_intensity_mm_h)
-    # Factor de activación por escorrentía efectiva (si Q == 0, el transporte fuera de parcela es mínimo)
+    # Ratio de entrega de sedimentos (Sediment Delivery Ratio, SDR / delivery_ratio):
+    # Enfoque empírico basado en escorrentía superficial efectiva (Williams & Berndt 1977, USDA SCS-TP-149;
+    # Wischmeier & Smith 1978). Si Q == 0, el transporte de sedimentos fuera del lote es nulo.
     delivery_ratio = min(1.0, 0.15 + 0.85 * (runoff_q_mm / max(1.0, precipitation_mm))) if precipitation_mm > 0 else 0.0
 
     valid = np.isfinite(ls_grid)

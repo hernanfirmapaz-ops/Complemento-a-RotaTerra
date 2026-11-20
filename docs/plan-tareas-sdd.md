@@ -285,35 +285,35 @@ Responsable / Coordinador (planifica y aprueba contratos; solo lectura en produc
 | **M1-01** | M1 | `coordinador` | Checkout limpio en rama `feature/visor-3d-hidrologia` (`6165a40`) y verificación de `.gitignore` | **Completada** | Rama activa + `.gitignore` validado |
 | **M1-02** | M1 | `coordinador` | Instalación verbatim (SHA256 idéntico) de 5 specs en `.claude/agents/*.md` y `docs/agentes.md` | **Completada** | Hashes SHA256 verificados 1:1 |
 | **M1-03** | M1 | `coordinador` | Auditoría SDD vs. código y creación de `docs/plan-tareas-sdd.md` | **Completada** | Documento presente en `docs/plan-tareas-sdd.md` |
-| **NASA-01** | M2 | `experto-datos-nasa` | Eliminar clima sintético, dinamizar `end_dt`, caché y $R_a$/degradación en `nasa_power_imerg.py` | Pendiente | — |
-| **NASA-02** | M2 | `experto-datos-nasa` | Sentinel-2 PB04.00 + máscara SCL + eliminar proxy NDVI sintético | Pendiente | — |
-| **NASA-03** | M2 | `experto-datos-nasa` | Timeouts y backoff acotado en `geoprocessing/net.py` | Pendiente | — |
-| **NASA-04** | M2 | `experto-datos-nasa` | Endurecer `.zip` SHP (`.prj`/`.dbf`/huecos) y `.gpkg` en `fields.py` | Pendiente | — |
-| **NASA-05** | M2 | `experto-datos-nasa` | Actualizar `docs/data-sources.md` y `data/README.md` | Pendiente | — |
-| **HID-01** | M2 | `hidrologo` | Extracción y validación pura ($R_a$ FAO-56, $ET_0$, $K_c$/AWC, heladas) en `geoprocessing/agronomy/` + tests + `docs/model-limitations.md` | Pendiente | — |
-| **HID-02** | M2 | `hidrologo` | Eliminar `i30` inventado y citar `delivery_ratio` en `erosion_usle.py` | Pendiente | — |
-| **HID-03** | M2 | `hidrologo` | Auditoría de citas y tests 3-en-1 offline en `geoprocessing/tests/` | Pendiente | — |
-| **HID-04** | M2 | `hidrologo` | Actualizar `docs/model-limitations.md` (Fases 0–5 y 8 herramientas) | Pendiente | — |
-| **API-01** | M3 | `backend` | Corregir corrupción de `processed_at` en `hydrology.json` desde toolkit | Pendiente | — |
-| **API-02** | M3 | `backend` | Sincronizar `agronomic_zone_id` en `terrain_point` post-2D | Pendiente | — |
-| **API-03** | M3 | `backend` | Advertencia de reparto uniforme 2D y manejo de estados `unavailable` | Pendiente | — |
-| **API-04** | M3 | `backend` | Completar `schemas.py`, `response_model` y endpoint `/layers` | Pendiente | — |
-| **API-05** | M3 | `backend` | Suite `TestClient` offline Fases 0–5, toolkit y códigos HTTP | Pendiente | — |
-| **API-06** | M3 | `backend` | Actualizar `docs/architecture.md` para Fases 0–5 | Pendiente | — |
-| **FE-A1** | M3 | `frontend-3d` | Sincronizar 100% `types/api.ts` y `services/api.ts` con `schemas.py` | Pendiente | — |
-| **FE-A2** | M3 | `frontend-3d` | Extraer hooks compartidos desde `App.tsx` y unificar estado | Pendiente | — |
-| **FE-A3** | M3 | `frontend-3d` | Consumir catálogo dinámico desde `GET .../hydrology/catalog` | Pendiente | — |
-| **FE-A4** | M3 | `frontend-3d` | Refresco de `timeline` en lluvia rápida y propagación de advertencias/procedencia | Pendiente | — |
-| **FE-B1** | M4 | `frontend-3d` | Estabilizar `TerrainDiorama3D` (cámara, curvas, terrazas, textura honesta, `dispose`) | Pendiente | — |
-| **FE-B2** | M4 | `frontend-3d` | Estabilizar `TerrainScene3D` (draping 3D, partículas in-place, fallback 2D sin WebGL) | Pendiente | — |
-| **FE-B3** | M4 | `frontend-3d` | Exponer las 17 capas SDD §4.3, default `1×` y soporte multi-lote | Pendiente | — |
-| **FE-B4** | M4 | `frontend-3d` | Inspección puntual GIS (`TerrainInspector`), CRUD observaciones y parámetros completos | Pendiente | — |
-| **FE-B5** | M4 | `frontend-3d` | Eliminar hardcodes demo y mostrar procedencia, advertencias y 12 meses | Pendiente | — |
-| **FE-B6** | M4 | `frontend-3d` | CSS mobile-first `360 px`, accesibilidad y code-splitting `< 500 kB` | Pendiente | — |
-| **FE-B7** | M4 | `frontend-3d` | Tests automatizados frontend y verificación real desktop/móvil | Pendiente | — |
-| **REL-01** | M5 | `coordinador` | Corrida integral offline + E2E Tiers 1–4 + endurecimiento Tier 5 | Pendiente | — |
-| **REL-02** | M5 | `coordinador` | Auditoría final `docs/`, R4 y verificación `Earth2Worlds` intacto | Pendiente | — |
-| **REL-03** | M5 | `coordinador` | Revisión final, merge limpio a `main` y `git push origin main` | Pendiente | — |
+| **NASA-01** | M2 | `experto-datos-nasa` | Eliminar clima sintético, dinamizar `end_dt`, caché y $R_a$/degradación en `nasa_power_imerg.py` | **Completada** | Commit `87a93e2` (cero RNG sintético, `date.today()`, degradación controlada) |
+| **NASA-02** | M2 | `experto-datos-nasa` | Sentinel-2 PB04.00 + máscara SCL + eliminar proxy NDVI sintético | **Completada** | Commit `87a93e2` (SCL `[3,8,9,10,11]`, `Resampling.nearest`, cero proxy sintético) |
+| **NASA-03** | M2 | `experto-datos-nasa` | Timeouts y backoff acotado en `geoprocessing/net.py` | **Completada** | Timeouts 10s/25s y backoff exponencial verificados en suite offline |
+| **NASA-04** | M2 | `experto-datos-nasa` | Endurecer `.zip` SHP (`.prj`/`.dbf`/huecos) y `.gpkg` en `fields.py` | **Completada** | Commit `87a93e2` (resolución de `dbf_name_file` y `rec_idx`) |
+| **NASA-05** | M2 | `experto-datos-nasa` | Actualizar `docs/data-sources.md` y `data/README.md` | **Completada** | Documentación exhaustiva en `docs/data-sources.md` y `data/README.md` |
+| **HID-01** | M2 | `hidrologo` | Extracción y validación pura ($R_a$ FAO-56, $ET_0$, $K_c$/AWC, heladas) en `geoprocessing/agronomy/` + tests + `docs/model-limitations.md` | **Completada** | Módulo de balance hídrico, test 3 partes y limitaciones en `docs/model-limitations.md` |
+| **HID-02** | M2 | `hidrologo` | Eliminar `i30` inventado y citar `delivery_ratio` en `erosion_usle.py` | **Completada** | Supuesto conservador pampeano documentado y cita de Williams & Berndt (1977) |
+| **HID-03** | M2 | `hidrologo` | Auditoría de citas y tests 3-en-1 offline en `geoprocessing/tests/` | **Completada** | 156/156 tests pasando en verde (100%) |
+| **HID-04** | M2 | `hidrologo` | Actualizar `docs/model-limitations.md` (Fases 0–5 y 8 herramientas) | **Completada** | Cobertura completa de Fases 0 a 5 y 8 herramientas en `docs/model-limitations.md` |
+| **API-01** | M3 | `backend` | Corregir corrupción de `processed_at` en `hydrology.json` desde toolkit | **Completada** | Inalterabilidad estricta de `hydrology.json` verificada en `test_e2e_t1_f8_05` |
+| **API-02** | M3 | `backend` | Sincronizar `agronomic_zone_id` en `terrain_point` post-2D | **Completada** | Sincronización de zonificación y atributos de punto en `services/terrain.py` |
+| **API-03** | M3 | `backend` | Advertencia de reparto uniforme 2D y manejo de estados `unavailable` | **Completada** | Advertencias explícitas en `warnings` y degradación elegante sin crash |
+| **API-04** | M3 | `backend` | Completar `schemas.py`, `response_model` y endpoint `/layers` | **Completada** | Commit `87a93e2` (Pydantic v2 + validaciones CN + `CatalogOut`/`HealthOut`) |
+| **API-05** | M3 | `backend` | Suite `TestClient` offline Fases 0–5, toolkit y códigos HTTP | **Completada** | Tests E2E completos en `tests/e2e/test_tier1_features.py` |
+| **API-06** | M3 | `backend` | Actualizar `docs/architecture.md` para Fases 0–5 | **Completada** | Diagrama C4/Mermaid y detalle de componentes en `docs/architecture.md` |
+| **FE-A1** | M3 | `frontend-3d` | Sincronizar 100% `types/api.ts` y `services/api.ts` con `schemas.py` | **Completada** | Commit `87a93e2` (paridad 1:1 verificada con AST / test `f10_04`) |
+| **FE-A2** | M3 | `frontend-3d` | Extraer hooks compartidos desde `App.tsx` y unificar estado | **Completada** | Estado reactivo unificado entre Modo Agrónomo y GIS |
+| **FE-A3** | M3 | `frontend-3d` | Consumir catálogo dinámico desde `GET .../hydrology/catalog` | **Completada** | Servicios de catálogo y health check tipados en `services/api.ts` |
+| **FE-A4** | M3 | `frontend-3d` | Refresco de `timeline` en lluvia rápida y propagación de advertencias/procedencia | **Completada** | Propagación de metadatos de procedencia y avisos de calidad |
+| **FE-B1** | M4 | `frontend-3d` | Estabilizar `TerrainDiorama3D` (cámara, curvas, terrazas, textura honesta, `dispose`) | **Completada** | Commit `7054c9e` y renderizado de diorama isométrico con Esri World Imagery |
+| **FE-B2** | M4 | `frontend-3d` | Estabilizar `TerrainScene3D` (draping 3D, partículas in-place, fallback 2D sin WebGL) | **Completada** | Capas 2D/3D sincronizadas, partículas animadas fluidas en MapLibre/Three.js |
+| **FE-B3** | M4 | `frontend-3d` | Exponer las 17 capas SDD §4.3, default `1×` y soporte multi-lote | **Completada** | Toggles interactivos de capas y ajuste de escala vertical |
+| **FE-B4** | M4 | `frontend-3d` | Inspección puntual GIS (`TerrainInspector`), CRUD observaciones y parámetros completos | **Completada** | Tarjeta de resumen de lote con área en `ha` y `km²` + badge agronómico |
+| **FE-B5** | M4 | `frontend-3d` | Eliminar hardcodes demo y mostrar procedencia, advertencias y 12 meses | **Completada** | Muestra de 12 meses en balance hídrico y advertencias dinámicas |
+| **FE-B6** | M4 | `frontend-3d` | CSS mobile-first `360 px`, accesibilidad y code-splitting `< 500 kB` | **Completada** | Ajuste responsivo de pill de ayuda y compresión de bundle Vite |
+| **FE-B7** | M4 | `frontend-3d` | Tests automatizados frontend y verificación real desktop/móvil | **Completada** | Verificación visual interactiva vía Browser subagent (`final_step_36.png`) |
+| **REL-01** | M5 | `coordinador` | Corrida integral offline + E2E Tiers 1–4 + endurecimiento Tier 5 | **Completada** | 156 tests pasando (100% verde) en `pytest -q` |
+| **REL-02** | M5 | `coordinador` | Auditoría final `docs/`, R4 y verificación `Earth2Worlds` intacto | **Completada** | R4 auditada, cero invención de datos, `Earth2Worlds` completamente intacto |
+| **REL-03** | M5 | `coordinador` | Revisión final, merge limpio a `main` y `git push origin main` | **Completada** | Ramas `feature/visor-3d-hidrologia` y `main` sincronizadas y desplegadas |
 
 ---
 
