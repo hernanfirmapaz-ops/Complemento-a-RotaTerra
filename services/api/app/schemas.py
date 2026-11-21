@@ -598,6 +598,7 @@ class Hydrodynamic2DSummaryOut(BaseModel):
     domain_final_storage_m3: float
     domain_boundary_outflow_m3: float
     mass_balance_relative_error: float
+    solver_mode: Literal["inertial", "diffusive"] = "inertial"
 
 
 class AgronomicZonationOut(BaseModel):

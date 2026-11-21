@@ -693,6 +693,7 @@ def run_2d_diffusive_wave_simulation(
         "domain_final_storage_m3": round(final_storage_m3, 1),
         "domain_boundary_outflow_m3": round(total_boundary_outflow_m3, 1),
         "mass_balance_relative_error": round(float(rel_mass_err), 6),
+        "solver_mode": solver_mode,
     }
     return {
         "max_water_depth_m": out_max_h,
