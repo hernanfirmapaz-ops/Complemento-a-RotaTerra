@@ -208,7 +208,7 @@ class ContoursOut(BaseModel):
 
 
 class HydrologyRunIn(BaseModel):
-    conditioning_mode: Literal["preserve", "fill_small", "fill_all"] = "fill_small"
+    conditioning_mode: Literal["preserve", "fill_small", "fill_all", "breach"] = "fill_small"
     max_fill_depth_m: float = Field(0.35, ge=0.0, le=5.0)
     max_fill_area_m2: float = Field(4500.0, ge=0.0, le=500_000.0)
     mfd_exponent: float = Field(1.1, ge=0.5, le=5.0)

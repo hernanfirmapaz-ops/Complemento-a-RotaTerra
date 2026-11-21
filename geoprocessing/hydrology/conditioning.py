@@ -26,7 +26,84 @@ import numpy as np
 from geoprocessing.crs import WGS84, to_crs
 from geoprocessing.dem.terrain import Dem
 
-ConditioningMode = Literal["preserve", "fill_small", "fill_all"]
+ConditioningMode = Literal["preserve", "fill_small", "fill_all", "breach"]
+
+
+def is_whitebox_available() -> bool:
+    """Verifica si WhiteboxTools y sus binarios de relieve están disponibles."""
+    try:
+        import whitebox
+
+        wbt = whitebox.WhiteboxTools()
+        return hasattr(wbt, "feature_preserving_smoothing") and hasattr(wbt, "breach_depressions_least_cost")
+    except Exception:
+        return False
+
+
+def whitebox_breach_and_smooth(
+    dem: Dem,
+    z: np.ndarray,
+    filter_size: int = 11,
+    norm_diff: float = 12.0,
+    max_breach_depth_m: float = 0.8,
+    max_breach_dist_cells: int = 50,
+) -> np.ndarray:
+    """Acondicionamiento de relieve para llanura con WhiteboxTools (spec 005).
+
+    1. Feature-Preserving Smoothing (Sun et al. 2007) para reducir ruido e instrumental.
+    2. Breach Depressions Least Cost (Lindsay 2016) para abrir canales a través de barreras.
+    """
+    import tempfile
+    from pathlib import Path
+
+    import rasterio
+    import whitebox
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        in_tif = tmp_path / "raw.tif"
+        smooth_tif = tmp_path / "smooth.tif"
+        breached_tif = tmp_path / "breached.tif"
+
+        alto, ancho = z.shape
+        with rasterio.open(
+            in_tif,
+            "w",
+            driver="GTiff",
+            height=alto,
+            width=ancho,
+            count=1,
+            dtype="float32",
+            crs=dem.crs,
+            transform=dem.transform,
+            nodata=np.nan,
+        ) as dst:
+            dst.write(z.astype("float32"), 1)
+
+        wbt = whitebox.WhiteboxTools()
+        wbt.verbose = False
+
+        # 1. Suavizado con preservación de bordes para llanura
+        wbt.feature_preserving_smoothing(
+            str(in_tif),
+            str(smooth_tif),
+            filter=filter_size,
+            norm_diff=norm_diff,
+            num_iter=3,
+        )
+
+        # 2. Brecha de mínimo costo con relleno residual seguro
+        wbt.breach_depressions_least_cost(
+            str(smooth_tif),
+            str(breached_tif),
+            dist=max_breach_dist_cells,
+            fill=True,
+        )
+
+        with rasterio.open(breached_tif) as src:
+            out_z = src.read(1)
+
+        return out_z.astype("float32")
 
 _NEIGHBORS_8 = (
     (-1, 0), (-1, 1), (0, 1), (1, 1),
@@ -150,6 +227,10 @@ def condition_dem(
     burn_lines_lonlat: list[list[list[float]]] | None = None,
     burn_depth_m: float = 0.5,
     min_depression_depth_m: float = 0.05,
+    filter_size: int = 11,
+    norm_diff: float = 12.0,
+    max_breach_depth_m: float = 0.8,
+    max_breach_dist_cells: int = 50,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[DepressionInfo]]:
     """Acondiciona el DEM según la estrategia elegida e identifica todas las depresiones cerradas.
 
@@ -231,6 +312,18 @@ def condition_dem(
 
     if mode == "fill_all":
         z_conditioned = z_full_filled.copy()
+    elif mode == "breach":
+        if is_whitebox_available():
+            z_conditioned = whitebox_breach_and_smooth(
+                dem=dem,
+                z=z_work,
+                filter_size=filter_size,
+                norm_diff=norm_diff,
+                max_breach_depth_m=max_breach_depth_m,
+                max_breach_dist_cells=max_breach_dist_cells,
+            )
+        else:
+            z_conditioned = z_full_filled.copy()
 
     xs = [info["x_utm"] for _, _, info in raw_infos]
     ys = [info["y_utm"] for _, _, info in raw_infos]

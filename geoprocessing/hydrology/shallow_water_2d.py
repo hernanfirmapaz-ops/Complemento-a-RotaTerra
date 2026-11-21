@@ -100,6 +100,7 @@ def run_2d_diffusive_wave_simulation(
     ponding_threshold_m: float = 0.05,
     observations: list[dict] | None = None,
     recession_minutes: int = 30,
+    z_bed: np.ndarray | None = None,
 ) -> dict:
     """Ejecuta el solver 2D de onda difusiva con ley de Manning sobre la grilla UTM del lote.
 
@@ -118,7 +119,8 @@ def run_2d_diffusive_wave_simulation(
     if n_valid == 0:
         raise ValueError("El DEM no tiene celdas válidas para la simulación hidrodinámica 2D.")
 
-    z_bed = z_cond.astype("float64").copy()
+    # Se usa la topografía original mínimamente tocada para permitir encharcamiento en bajos reales (Spec 005)
+    z_bed = (dem.z if z_bed is None else z_bed).astype("float64").copy()
     n_grid = np.full((alto, ancho), float(np.clip(manning_n, 0.015, 0.50)), dtype="float64")
     z_bed, n_grid, structures_applied = apply_hydraulic_structures_to_bed(
         dem, z_bed, n_grid, observations
