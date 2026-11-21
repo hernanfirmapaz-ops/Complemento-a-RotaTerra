@@ -19,6 +19,7 @@ from __future__ import annotations
 import heapq
 from collections import deque
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 from typing import Literal
 
 import numpy as np
@@ -29,8 +30,12 @@ from geoprocessing.dem.terrain import Dem
 ConditioningMode = Literal["preserve", "fill_small", "fill_all", "breach"]
 
 
+@lru_cache(maxsize=1)
 def is_whitebox_available() -> bool:
-    """Verifica si WhiteboxTools y sus binarios de relieve están disponibles."""
+    """Verifica si WhiteboxTools y sus binarios de relieve están disponibles.
+
+    El resultado se guarda: sin binario local, el paquete intenta descargarlo y eso no debe
+    repetirse en cada llamada."""
     try:
         import whitebox
 
@@ -240,6 +245,10 @@ def condition_dem(
         depression_id_grid: int32 (0 fuera de depresión, 1..N en cada depresión conectada)
         depressions: catálogo de depresiones ordenadas de mayor a menor volumen
     """
+    if mode == "breach" and not is_whitebox_available():
+        # Sin WhiteboxTools no hay brecha posible: se usa el relleno de depresiones chicas,
+        # que conserva los bajos reales (el servicio informa el cambio al usuario).
+        mode = "fill_small"
     z_work = apply_burn_in(dem, dem.z, burn_lines_lonlat, burn_depth_m)
     z_full_filled = priority_flood_fill(z_work, eps=1e-4)
     diff = np.where(np.isfinite(z_work), np.maximum(0.0, z_full_filled - z_work), 0.0).astype("float32")
@@ -322,8 +331,6 @@ def condition_dem(
                 max_breach_depth_m=max_breach_depth_m,
                 max_breach_dist_cells=max_breach_dist_cells,
             )
-        else:
-            z_conditioned = z_full_filled.copy()
 
     xs = [info["x_utm"] for _, _, info in raw_infos]
     ys = [info["y_utm"] for _, _, info in raw_infos]

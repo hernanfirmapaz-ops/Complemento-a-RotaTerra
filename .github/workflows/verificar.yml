@@ -16,7 +16,13 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python -c "import whitebox; whitebox.WhiteboxTools()"
+      - name: Caché del programa WhiteboxTools
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.pythonLocation }}/lib/python3.12/site-packages/whitebox/WBT
+          key: whitebox-bin-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+      - name: Instalar WhiteboxTools (descarga solo si no está en caché)
+        run: python -c "import whitebox; whitebox.WhiteboxTools()"
       - run: ruff check .
       - run: python -m pytest -q
 

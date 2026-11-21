@@ -10,6 +10,7 @@ Criterios:
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from rasterio.transform import from_origin
 
 from geoprocessing.dem.terrain import Dem, slope_aspect
@@ -20,6 +21,12 @@ from geoprocessing.hydrology.conditioning import (
     whitebox_breach_and_smooth,
 )
 from geoprocessing.hydrology.shallow_water_2d import run_2d_diffusive_wave_simulation
+
+# El paquete `whitebox` descarga su programa la primera vez: sin internet ni binario instalado,
+# estos tests se saltean (regla: ningún test depende de internet). En GitHub se instala antes.
+requiere_whitebox = pytest.mark.skipif(
+    not is_whitebox_available(), reason="WhiteboxTools no instalado (sin binario local)"
+)
 
 
 def _create_synthetic_dem(z_arr: np.ndarray, pixel: float = 10.0) -> Dem:
@@ -32,10 +39,12 @@ def _create_synthetic_dem(z_arr: np.ndarray, pixel: float = 10.0) -> Dem:
     )
 
 
+@requiere_whitebox
 def test_whitebox_is_available():
     assert is_whitebox_available() is True, "WhiteboxTools debe estar instalado y disponible."
 
 
+@requiere_whitebox
 def test_feature_preserving_smoothing_restores_true_slope():
     """Criterio 1: Un plano con ruido satelital recupera su pendiente real tras FPS (diferencia < 20%)."""
     nx, ny = 60, 60
@@ -73,6 +82,7 @@ def test_feature_preserving_smoothing_restores_true_slope():
     assert diff_pct < 20.0, f"Diferencia {diff_pct:.2f}% supera el umbral del 20%."
 
 
+@requiere_whitebox
 def test_breach_resolves_depression_without_flat_lake():
     """Criterio 2: Depresión artificial de 0.3 m en plano inclinado se resuelve abriendo brecha."""
     nx, ny = 40, 40
@@ -150,3 +160,19 @@ def test_two_grids_architecture_2d_solver_keeps_original_terrain():
 
     assert depth_in_sink > depth_outside
     assert depth_in_sink > 0.005
+
+
+def test_breach_without_whitebox_falls_back_to_fill_small(monkeypatch):
+    """Sin WhiteboxTools, el modo 'breach' se comporta como 'fill_small' (no rellena todo en silencio)."""
+    from geoprocessing.hydrology import conditioning
+
+    monkeypatch.setattr(conditioning, "is_whitebox_available", lambda: False)
+    nx, ny = 30, 30
+    xx, _ = np.meshgrid(np.arange(nx) * 10.0, np.arange(ny) * 10.0)
+    z = (100.0 - 0.01 * xx).astype("float32")
+    z[12:18, 12:18] -= 0.60  # bajo real, más profundo que el umbral de relleno pequeño
+    dem = _create_synthetic_dem(z)
+    mascara = np.ones((ny, nx), dtype=bool)
+    z_breach, *_ = conditioning.condition_dem(dem, mascara, mode="breach")
+    z_small, *_ = conditioning.condition_dem(dem, mascara, mode="fill_small")
+    np.testing.assert_array_equal(z_breach, z_small)

@@ -19,7 +19,7 @@ from geoprocessing.agronomy.seeding_and_rotation import (
 from geoprocessing.agronomy.zonation import ZONE_CATALOG, classify_hydro_agronomic_zones
 from geoprocessing.dem.quality import field_mask
 from geoprocessing.dem.terrain import Dem, contours_geojson, slope_aspect
-from geoprocessing.hydrology.conditioning import condition_dem
+from geoprocessing.hydrology.conditioning import condition_dem, is_whitebox_available
 from geoprocessing.hydrology.confidence import compute_confidence_indicator
 from geoprocessing.hydrology.flow import (
     CODE_TO_LABEL,
@@ -91,10 +91,19 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         else None
     )
 
+    modo_efectivo = params.conditioning_mode
+    aviso_modo: str | None = None
+    if modo_efectivo == "breach" and not is_whitebox_available():
+        modo_efectivo = "fill_small"
+        aviso_modo = (
+            "WhiteboxTools no está instalado: en lugar de abrir brechas se rellenaron solo las "
+            "depresiones chicas ('fill_small'), conservando los bajos reales."
+        )
+
     z_cond, sink_depth_m, dep_id_grid, depressions = condition_dem(
         dem=dem,
         mascara_lote=mascara,
-        mode=params.conditioning_mode,
+        mode=modo_efectivo,
         max_fill_depth_m=params.max_fill_depth_m,
         max_fill_area_m2=params.max_fill_area_m2,
         burn_lines_lonlat=burn_lines,
@@ -119,7 +128,7 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         dst.write(z_cond, 1)
         dst.update_tags(
             DERIVED_FROM="dem_utm.tif",
-            CONDITIONING_MODE=params.conditioning_mode,
+            CONDITIONING_MODE=modo_efectivo,
             MAX_FILL_DEPTH_M=str(params.max_fill_depth_m),
             MAX_FILL_AREA_M2=str(params.max_fill_area_m2),
         )
@@ -204,6 +213,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     }
 
     avisos = [w["message"] for w in terreno["quality"]["warnings"] if w["level"] in ("critico", "advertencia")]
+    if aviso_modo:
+        avisos.append(aviso_modo)
     if params.conditioning_mode == "fill_all" and deps_in_field:
         avisos.append(
             f"Se rellenaron todas las depresiones ({len(deps_in_field)} dentro del lote) para forzar drenaje "
