@@ -42,7 +42,6 @@ import {
   type AgronomistOverlayMode,
   TerrainDiorama3D,
 } from './components/TerrainDiorama3D'
-import { ProgressBar } from './components/ui/ProgressBar'
 import { ComponentShowcase } from './components/ui/ComponentShowcase'
 import { Segmented } from './components/ui/Segmented'
 import { Button } from './components/ui/Button'
@@ -455,9 +454,6 @@ export function App() {
 
   return (
     <div className="app-shell-3step">
-      {/* Barra de carga fija superior con pulso brillante (SDD-002 sección 6.5) */}
-      <ProgressBar active={Boolean(busy)} message={busy} fixedTop />
-
       {/* TopBar minimalista de 56 px con presupuesto de botones controlado (≤ 6 en pantalla inicial) */}
       <header className="flow-topbar">
         <div className="flow-brand-group">
