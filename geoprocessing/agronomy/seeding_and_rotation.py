@@ -304,7 +304,6 @@ def compare_triennial_rotations(
     eval_b = _eval_seq(sequence_b_name, sequence_b_crops)
 
     saved_runoff_mm = round(eval_a["cumulative_runoff_3yr_mm"] - eval_b["cumulative_runoff_3yr_mm"], 2)
-    saved_soil_t_ha = round(eval_a["cumulative_soil_loss_3yr_t_ha"] - eval_b["cumulative_soil_loss_3yr_t_ha"], 3)
     saved_soil_tons = round(
         eval_a["cumulative_field_soil_loss_3yr_tons"] - eval_b["cumulative_field_soil_loss_3yr_tons"],
         2,

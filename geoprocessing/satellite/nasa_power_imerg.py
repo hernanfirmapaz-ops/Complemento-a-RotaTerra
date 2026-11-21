@@ -168,7 +168,6 @@ def compute_monthly_water_balance(
 
         supply = storage_mm + effective_infiltration
         if supply >= etc_m:
-            actual_et = etc_m
             deficit = 0.0
             remaining = supply - etc_m
             if remaining > awc_max:
@@ -178,7 +177,6 @@ def compute_monthly_water_balance(
                 excess = 0.0
                 storage_mm = remaining
         else:
-            actual_et = supply
             deficit = etc_m - supply
             excess = 0.0
             storage_mm = 0.0

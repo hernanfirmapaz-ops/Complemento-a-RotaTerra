@@ -28,7 +28,6 @@ from tests.e2e.fixtures import (
 )
 from tests.e2e.test_tier1_features import _import_square, _upload_dem
 
-
 # ===========================================================================
 # F1: Boundary Import Corner Cases
 # ===========================================================================

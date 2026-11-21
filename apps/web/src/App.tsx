@@ -158,12 +158,11 @@ export function App() {
   const activeRun =
     runoffRuns.find((r) => r.is_active) ?? runoffRuns[0] ?? null
 
-  // Carga inicial de lotes disponibles
+  // Carga inicial de lotes disponibles (sin preseleccionar para no forzar descarga de 3D en primera pantalla)
   useEffect(() => {
     listFields()
       .then((list) => {
         setFields(list)
-        if (list.length > 0) setActiveFieldId(list[0].id)
       })
       .catch((err: Error) => setError(err.message))
   }, [])
@@ -788,10 +787,16 @@ export function App() {
 
         {/* Visor 3D o Mapa 2D */}
         <main className="flow-stage">
-          {workspaceView === '3d' && !activeField ? (
+          {workspaceView === '3d' && (!activeField || !mesh) ? (
             <div className="stage-empty">
-              <p className="stage-empty-title">Tu lote va a aparecer acá</p>
-              <p className="stage-empty-text">Dibujalo en el mapa o subí su archivo para ver el relieve en 3D.</p>
+              <p className="stage-empty-title">
+                {activeField ? 'Cargando relieve del lote...' : 'Tu lote va a aparecer acá'}
+              </p>
+              <p className="stage-empty-text">
+                {activeField
+                  ? 'Obteniendo datos topográficos y generando malla 3D.'
+                  : 'Dibujalo en el mapa o subí su archivo para ver el relieve en 3D.'}
+              </p>
             </div>
           ) : workspaceView === '3d' ? (
             <div style={{ width: '100%', height: '100%', position: 'relative' }}>

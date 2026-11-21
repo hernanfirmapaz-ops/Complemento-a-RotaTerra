@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -79,9 +80,9 @@ def test_rain_source_and_quality_provenance():
 
 
 def test_api_daily_rainfall_endpoints():
-    fields = store.list_fields()
+    fields = [f for f in store.list_fields() if (store.DATA_DIR / f["id"] / "hydrology.json").exists()]
     if not fields:
-        pytest.skip("No hay lotes guardados para probar la API.")
+        pytest.skip("No hay lotes con hidrología procesada para probar la API.")
 
     f_id = fields[0]["id"]
     client = TestClient(app)

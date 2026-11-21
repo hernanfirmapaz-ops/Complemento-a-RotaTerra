@@ -89,6 +89,14 @@ $env:PYTHONPATH = "."
 # Verificación de tipos y build de producción del frontend
 cd apps\web
 npm run build
+cd ..
+
+# Linter de código Python con Ruff
+python -m ruff check .
+
+# Opcional: pre-commit para revisión automática antes de cada commit
+pip install pre-commit
+pre-commit install
 ```
 
 ---

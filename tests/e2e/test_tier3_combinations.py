@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 
@@ -11,7 +10,6 @@ from fastapi.testclient import TestClient
 
 from tests.e2e.conftest import MockNetworkController
 from tests.e2e.fixtures import (
-    SAMPLE_DIR,
     make_kmz_bytes,
     make_shapefile_zip_bytes,
     synthetic_square_with_hole_rings,

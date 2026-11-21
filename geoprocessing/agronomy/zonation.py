@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 ZONE_CATALOG: dict[int, dict[str, str]] = {
     1: {
         "code": "loma_bien_drenada",
@@ -106,7 +105,6 @@ def classify_hydro_agronomic_zones(
 
     cell_area_ha = (float(pixel_size_m) ** 2) / 10_000.0
     total_field_cells = int(in_field.sum())
-    total_field_ha = total_field_cells * cell_area_ha
 
     zones_summary: list[dict] = []
     pct_by_zone: dict[int, float] = {}

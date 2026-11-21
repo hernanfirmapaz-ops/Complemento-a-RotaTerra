@@ -221,8 +221,10 @@ def fetch_opentopography(
 ) -> DemSourceInfo:
     """Descarga el DEM desde la API Global de OpenTopography recortado al bbox."""
     import os
+
     import httpx
     import rasterio
+
     from geoprocessing.net import client
 
     key = api_key or os.environ.get("OPENTOPOGRAPHY_API_KEY")

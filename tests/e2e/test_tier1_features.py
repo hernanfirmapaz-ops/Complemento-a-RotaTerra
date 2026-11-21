@@ -28,7 +28,6 @@ from tests.e2e.fixtures import (
     make_late_peak_csv_bytes,
     make_shapefile_zip_bytes,
     synthetic_square_field_geojson,
-    synthetic_square_ring,
     write_ridge_berm_dem,
     write_sloped_plane_dem,
     write_sloped_with_micro_depression_dem,

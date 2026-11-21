@@ -1145,7 +1145,8 @@ def export_technical_report_html(field_id: str) -> str:
     runs = store.list_runoff_runs(field_id)
     observations = store.list_observations(field_id)
 
-    esc = lambda v: html.escape(str(v if v is not None else "s/d"))
+    def esc(v):
+        return html.escape(str(v if v is not None else "s/d"))
 
     runs_rows = "".join(
         f"<tr><td>{esc(r['name'])}</td><td>{esc(r['rainfall_event_name'])}</td>"

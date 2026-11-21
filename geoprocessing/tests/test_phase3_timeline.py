@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from geoprocessing.dem.terrain import Dem
 from geoprocessing.hydrology.flow import d8_direction_and_accumulation, mfd_accumulation

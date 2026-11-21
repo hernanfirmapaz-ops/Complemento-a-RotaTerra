@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
-import pytest
-
 from geoprocessing.agronomy.zonation import classify_hydro_agronomic_zones
 from geoprocessing.dem.quality import field_mask
 from geoprocessing.dem.terrain import Dem, slope_aspect
