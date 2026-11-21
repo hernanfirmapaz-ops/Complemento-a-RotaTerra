@@ -511,9 +511,9 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
     dem_source_id = terreno_src.get("source_id", "copernicus_glo30")
     dem_res_m = float(terreno_src.get("nominal_resolution_m", 30.0))
     # Pendiente media real del lote (antes se leía de una clave inexistente y quedaba siempre en 1,0 %)
+    pct_run, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
     pendiente_guardada = hydro.get("summary", {}).get("mean_slope_in_field_pct")
     if pendiente_guardada is None:
-        pct_run, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
         pct_run_lote = pct_run[mascara & np.isfinite(pct_run)]
         pendiente_guardada = float(pct_run_lote.mean()) if pct_run_lote.size else None
     mean_slope_val = float(pendiente_guardada) if pendiente_guardada is not None else 1.0
@@ -524,6 +524,22 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         mean_slope_pct=mean_slope_val,
         soil_source=payload.soil_source or "default",
         rain_source_type=rain_type,
+    )
+
+    # Erosión hídrica USLE real para el evento y condiciones del lote
+    spi_grid = grids.get("spi")
+    if spi_grid is None:
+        _, spi_grid = compute_twi_and_spi(dem.z, pct_run, grids["mfd_area_m2"], mascara, dem.pixel)
+    _, erosion_summary = compute_usle_erosion_and_gullies(
+        mfd_area_m2=grids["mfd_area_m2"],
+        slope_pct=pct_run,
+        spi=spi_grid,
+        mascara_lote=mascara,
+        pixel_size_m=dem.pixel,
+        precipitation_mm=rain_ev["total_mm"],
+        runoff_q_mm=cn_res.runoff_q_mm,
+        soil_group=payload.soil_group,
+        cover_code=payload.cover_code,
     )
 
     run_doc = {
@@ -548,6 +564,8 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         },
         "cn_result": cn_res.to_dict(),
         "spatial_summary": spatial_summary,
+        "erosion_summary": erosion_summary,
+        "ls_mean_in_field": erosion_summary.get("ls_mean_in_field"),
         "confidence": confidence_obj,
         "assumptions_and_notes": notes + [
             f"Condición de humedad antecedente: {payload.antecedent_moisture} -> CN efectivo = {cn_res.cn_effective:.1f}.",
@@ -842,7 +860,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         soil_group=params.soil_group,
         cover_code=params.cover_code,
         field_area_ha=field["area_ha"],
-        low_zone_area_ha=max(0.5, low_zone_ha),
+        low_zone_area_ha=float(low_zone_ha),
         depression_volume_m3=hydro["summary"]["total_depression_volume_in_field_m3"],
     )
 

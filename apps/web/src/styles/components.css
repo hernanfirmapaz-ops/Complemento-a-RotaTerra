@@ -1179,6 +1179,11 @@
   color: #16a34a;
 }
 
+.delta-val.is-muted {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
 .compare-summary-box {
   padding: 8px 10px;
   border-radius: var(--radius-sm);

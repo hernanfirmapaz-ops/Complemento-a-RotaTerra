@@ -277,9 +277,16 @@ export function ResultStep({
                 <div className="compare-deltas-grid">
                   <div className="compare-delta-card">
                     <span className="delta-label">Δ Superficie anegable</span>
-                    <span className={`delta-val ${(comparison.delta_ponded_area_ha ?? 0) < 0 ? 'is-negative' : (comparison.delta_ponded_area_ha ?? 0) > 0 ? 'is-positive' : ''}`}>
-                      {(comparison.delta_ponded_area_ha ?? 0) > 0 ? `+${comparison.delta_ponded_area_ha}` : comparison.delta_ponded_area_ha ?? '0.0'} ha
-                    </span>
+                    {comparison.delta_ponded_area_ha !== null && comparison.delta_ponded_area_ha !== undefined ? (
+                      <span className={`delta-val ${comparison.delta_ponded_area_ha < 0 ? 'is-negative' : comparison.delta_ponded_area_ha > 0 ? 'is-positive' : ''}`}>
+                        {comparison.delta_ponded_area_ha > 0 ? `+${comparison.delta_ponded_area_ha}` : comparison.delta_ponded_area_ha} ha
+                      </span>
+                    ) : (
+                      <>
+                        <span className="delta-val is-muted">Sin dato</span>
+                        <span className="delta-subval">Sin simulación 2D</span>
+                      </>
+                    )}
                   </div>
 
                   <div className="compare-delta-card">
@@ -309,15 +316,33 @@ export function ResultStep({
 
                   <div className="compare-delta-card">
                     <span className="delta-label">Δ Pérdida de suelo</span>
-                    <span className={`delta-val ${(comparison.delta_soil_loss_t_ha ?? 0) < 0 ? 'is-negative' : (comparison.delta_soil_loss_t_ha ?? 0) > 0 ? 'is-positive' : ''}`}>
-                      {(comparison.delta_soil_loss_t_ha ?? 0) > 0 ? `+${comparison.delta_soil_loss_t_ha}` : comparison.delta_soil_loss_t_ha ?? '0.0'} t/ha
-                    </span>
+                    {comparison.delta_soil_loss_t_ha !== null && comparison.delta_soil_loss_t_ha !== undefined ? (
+                      <span className={`delta-val ${comparison.delta_soil_loss_t_ha < 0 ? 'is-negative' : comparison.delta_soil_loss_t_ha > 0 ? 'is-positive' : ''}`}>
+                        {comparison.delta_soil_loss_t_ha > 0 ? `+${comparison.delta_soil_loss_t_ha}` : comparison.delta_soil_loss_t_ha} t/ha
+                      </span>
+                    ) : (
+                      <>
+                        <span className="delta-val is-muted">Sin dato</span>
+                        <span className="delta-subval">Sin datos USLE</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {comparison.summary_text && (
                   <div className="compare-summary-box">
                     {comparison.summary_text}
+                  </div>
+                )}
+
+                {comparison.notes && comparison.notes.length > 0 && (
+                  <div className="compare-notes-list" style={{ fontSize: 11, color: 'var(--ink-2)', marginTop: 6, lineHeight: 1.4 }}>
+                    {comparison.notes.map((note, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ opacity: 0.7 }}>•</span>
+                        <span>{note}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
@@ -103,6 +104,8 @@ def test_compare_scenarios_deltas_and_summary():
             "high_concentration_area_ha": 1.2,
         },
         "hydrodynamic_2d_summary": {"ponded_area_in_field_ha": 2.1},
+        "field_conditions": {"soil_group": "B", "cover_code": "soja_maiz_sd_buena"},
+        "ls_mean_in_field": 1.5,
     }
 
     # Escenario B: 80 mm Labranza Convencional (mayor CN)
@@ -121,6 +124,8 @@ def test_compare_scenarios_deltas_and_summary():
             "high_concentration_area_ha": 3.8,
         },
         "hydrodynamic_2d_summary": {"ponded_area_in_field_ha": 4.9},
+        "field_conditions": {"soil_group": "B", "cover_code": "soja_maiz_convencional"},
+        "ls_mean_in_field": 1.5,
     }
 
     comp = compare_runoff_scenarios(run_a, run_b)
@@ -132,6 +137,108 @@ def test_compare_scenarios_deltas_and_summary():
     assert comp["delta_soil_loss_t_ha"] > 0
     assert "escorrentía" in comp["summary_text"]
     assert "erosión" in comp["summary_text"]
+
+
+def test_compare_scenarios_no_2d_returns_none():
+    """Criterio A4: Si una o ambas corridas carecen de simulación 2D, delta_ponded_area_ha es None con nota."""
+    cn_a = compute_nrcs_cn(precipitation_mm=50.0, cn_ii_base=75.0)
+    cn_b = compute_nrcs_cn(precipitation_mm=75.0, cn_ii_base=75.0)
+    run_a = {
+        "id": "r1",
+        "name": "Run 1",
+        "cn_result": cn_a.to_dict(),
+        "spatial_summary": {"field_runoff_generated_m3": 1000.0, "net_outflow_potential_m3": 800.0, "high_concentration_area_ha": 0.5},
+    }
+    run_b = {
+        "id": "r2",
+        "name": "Run 2",
+        "cn_result": cn_b.to_dict(),
+        "spatial_summary": {"field_runoff_generated_m3": 2000.0, "net_outflow_potential_m3": 1800.0, "high_concentration_area_ha": 1.0},
+    }
+    comp = compare_runoff_scenarios(run_a, run_b)
+    assert comp["delta_ponded_area_ha"] is None
+    assert any("Sin simulación 2D" in n for n in comp["notes"])
+
+
+def test_compare_scenarios_soil_loss_matches_usle():
+    """Criterio A4: La pérdida de suelo del comparador coincide con la USLE del módulo de erosión."""
+    from geoprocessing.agronomy.erosion_usle import compute_usle_erosion_and_gullies
+
+    # Crear una grilla sintética de prueba para USLE
+    pixel_size = 10.0
+    shape = (20, 20)
+    mfd_area = np.full(shape, 2000.0, dtype=np.float32)
+    slope_pct = np.full(shape, 3.0, dtype=np.float32)
+    spi = np.zeros(shape, dtype=np.float32)
+    mascara = np.ones(shape, dtype=bool)
+
+    cn_a = compute_nrcs_cn(precipitation_mm=60.0, cn_ii_base=70.0)
+    cn_b = compute_nrcs_cn(precipitation_mm=90.0, cn_ii_base=85.0)
+
+    _, ero_a = compute_usle_erosion_and_gullies(
+        mfd_area_m2=mfd_area,
+        slope_pct=slope_pct,
+        spi=spi,
+        mascara_lote=mascara,
+        pixel_size_m=pixel_size,
+        precipitation_mm=60.0,
+        runoff_q_mm=cn_a.runoff_q_mm,
+        soil_group="B",
+        cover_code="soja_maiz_sd_buena",
+    )
+    _, ero_b = compute_usle_erosion_and_gullies(
+        mfd_area_m2=mfd_area,
+        slope_pct=slope_pct,
+        spi=spi,
+        mascara_lote=mascara,
+        pixel_size_m=pixel_size,
+        precipitation_mm=90.0,
+        runoff_q_mm=cn_b.runoff_q_mm,
+        soil_group="B",
+        cover_code="soja_maiz_convencional",
+    )
+
+    run_a = {
+        "id": "run-a",
+        "name": "A",
+        "cn_result": cn_a.to_dict(),
+        "spatial_summary": {"field_runoff_generated_m3": 1000.0, "net_outflow_potential_m3": 800.0, "high_concentration_area_ha": 0.5},
+        "erosion_summary": ero_a,
+    }
+    run_b = {
+        "id": "run-b",
+        "name": "B",
+        "cn_result": cn_b.to_dict(),
+        "spatial_summary": {"field_runoff_generated_m3": 2500.0, "net_outflow_potential_m3": 2000.0, "high_concentration_area_ha": 1.2},
+        "erosion_summary": ero_b,
+    }
+
+    comp = compare_runoff_scenarios(run_a, run_b)
+    expected_delta = round(ero_b["mean_soil_loss_t_ha"] - ero_a["mean_soil_loss_t_ha"], 2)
+    assert comp["delta_soil_loss_t_ha"] == pytest.approx(expected_delta)
+
+
+def test_compare_scenarios_summary_omits_soil_loss_when_none():
+    """Criterio A4: Si la pérdida de suelo es None, el texto de resumen no menciona suelo ni erosión."""
+    cn_a = compute_nrcs_cn(precipitation_mm=50.0, cn_ii_base=75.0)
+    cn_b = compute_nrcs_cn(precipitation_mm=75.0, cn_ii_base=75.0)
+    run_a = {
+        "id": "r1",
+        "name": "Escenario Base",
+        "cn_result": cn_a.to_dict(),
+        "spatial_summary": {"field_runoff_generated_m3": 1000.0, "net_outflow_potential_m3": 800.0, "high_concentration_area_ha": 0.5},
+    }
+    run_b = {
+        "id": "r2",
+        "name": "Escenario Mayor",
+        "cn_result": cn_b.to_dict(),
+        "spatial_summary": {"field_runoff_generated_m3": 2000.0, "net_outflow_potential_m3": 1800.0, "high_concentration_area_ha": 1.0},
+    }
+    comp = compare_runoff_scenarios(run_a, run_b)
+    assert comp["delta_soil_loss_t_ha"] is None
+    assert "suelo" not in comp["summary_text"].lower()
+    assert "erosión" not in comp["summary_text"].lower()
+    assert "t/ha" not in comp["summary_text"]
 
 
 def test_compare_scenarios_zero_runoff_edge_cases():
@@ -296,7 +403,11 @@ def test_api_scenarios_compare_and_presets(api_client: TestClient, tmp_path: Pat
     assert comp_data["run_b_id"] == run_critico["id"]
     assert comp_data["delta_precipitation_mm"] == pytest.approx(100.0)
     assert comp_data["delta_runoff_volume_m3"] > 0
-    assert comp_data["delta_ponded_area_ha"] >= 0
+    # Sin simulación 2D en los presets, delta_ponded_area_ha debe ser None
+    assert comp_data["delta_ponded_area_ha"] is None
+    assert any("Sin simulación 2D" in n for n in comp_data["notes"])
+    # Pérdida de suelo USLE real calculada sobre el lote sintético
+    assert comp_data["delta_soil_loss_t_ha"] is not None
     assert comp_data["delta_soil_loss_t_ha"] >= 0
     assert "genera" in comp_data["summary_text"] or "escorrentía" in comp_data["summary_text"]
 

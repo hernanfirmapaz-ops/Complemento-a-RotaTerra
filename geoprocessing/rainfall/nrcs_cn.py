@@ -19,6 +19,12 @@ from typing import Literal
 
 import numpy as np
 
+from geoprocessing.agronomy.erosion_usle import (
+    COVER_C_FACTOR,
+    SOIL_K_BY_GROUP,
+    estimate_mean_soil_loss_usle,
+)
+
 SoilGroup = Literal["A", "B", "C", "D"]
 AntecedentMoisture = Literal["dry", "medium", "wet"]
 
@@ -229,6 +235,48 @@ def distribute_event_runoff_mfd(
     return runoff_load_mm, cumulative_runoff_m3, spatial_summary
 
 
+def _get_run_mean_soil_loss(run: dict) -> tuple[float | None, str | None]:
+    """Obtiene o calcula la pérdida media de suelo USLE (t/ha) para una corrida."""
+    ero = run.get("erosion_summary") or {}
+    if "mean_soil_loss_t_ha" in ero:
+        return float(ero["mean_soil_loss_t_ha"]), None
+    if "mean_soil_loss_t_ha" in run:
+        return float(run["mean_soil_loss_t_ha"]), None
+
+    fc = run.get("field_conditions") or {}
+    soil_group = fc.get("soil_group") or run.get("soil_group")
+    if not soil_group:
+        return None, "Sin grupo hidrológico de suelo (factor K)"
+    if soil_group not in SOIL_K_BY_GROUP:
+        return None, f"Grupo hidrológico '{soil_group}' no reconocido para factor K USLE"
+
+    cover_code = fc.get("cover_code") or run.get("cover_code")
+    if not cover_code:
+        return None, "Sin cobertura declarada (factor C)"
+    if cover_code not in COVER_C_FACTOR:
+        return None, f"Cobertura '{cover_code}' no reconocida en tabla de factor C USLE"
+
+    ls_mean = (
+        run.get("ls_mean_in_field")
+        or run.get("ls_mean")
+        or (run.get("spatial_summary") or {}).get("ls_mean_in_field")
+    )
+    if ls_mean is None:
+        return None, "Sin factor topográfico de relieve (LS)"
+
+    cn = run.get("cn_result") or {}
+    p = float(cn.get("precipitation_mm", 0.0))
+    q = float(cn.get("runoff_q_mm", 0.0))
+    loss = estimate_mean_soil_loss_usle(
+        precipitation_mm=p,
+        runoff_q_mm=q,
+        soil_group=soil_group,
+        cover_code=cover_code,
+        ls_mean=float(ls_mean),
+    )
+    return round(loss, 3), None
+
+
 def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
     """Compara dos corridas de escorrentía sobre el mismo lote (Escenario Base A vs. Escenario B, CU-04 / SDD-003 §4)."""
     ca, cb = run_a["cn_result"], run_b["cn_result"]
@@ -246,53 +294,71 @@ def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
     d_vol_field = round(sb["field_runoff_generated_m3"] - sa["field_runoff_generated_m3"], 1)
     d_outflow = round(sb["net_outflow_potential_m3"] - sa["net_outflow_potential_m3"], 1)
 
-    # Estimación de delta de superficie anegable en hectáreas (2D o estimación combinada cubetas + aporte)
+    notes: list[str] = []
+
+    # Superficie anegable: usar únicamente el resultado de la simulación 2D
     h2d_a = run_a.get("hydrodynamic_2d_summary") or {}
     h2d_b = run_b.get("hydrodynamic_2d_summary") or {}
 
-    def _estimate_ponded_ha(r: dict) -> float:
-        h2d = r.get("hydrodynamic_2d_summary") or {}
-        if "ponded_area_in_field_ha" in h2d:
-            return float(h2d["ponded_area_in_field_ha"])
-        s = r.get("spatial_summary") or {}
-        vol_field_m3 = float(s.get("field_runoff_generated_m3", 0.0))
-        ext_inflow_m3 = float(s.get("external_runoff_inflow_m3", 0.0))
-        tot_supply_m3 = float(s.get("total_runoff_supply_m3", vol_field_m3 + ext_inflow_m3))
-        dep_ret_m3 = float(s.get("potential_depression_retention_m3", 0.0))
-        # Área anegada estimada: cubetas efectivas + desborde proporcional al volumen
-        ponded_vol = min(dep_ret_m3, tot_supply_m3) + max(0.0, tot_supply_m3 - dep_ret_m3) * 0.15
-        return (ponded_vol / 10_000.0) * 0.18
-
     if "ponded_area_in_field_ha" in h2d_a and "ponded_area_in_field_ha" in h2d_b:
-        d_ponded = round(float(h2d_b["ponded_area_in_field_ha"]) - float(h2d_a["ponded_area_in_field_ha"]), 2)
+        d_ponded: float | None = round(
+            float(h2d_b["ponded_area_in_field_ha"]) - float(h2d_a["ponded_area_in_field_ha"]), 2
+        )
     else:
-        ha_a = _estimate_ponded_ha(run_a)
-        ha_b = _estimate_ponded_ha(run_b)
-        d_ponded = round(ha_b - ha_a, 2)
+        d_ponded = None
+        notes.append("Sin simulación 2D en una de las corridas")
 
-    # Estimación de delta de pérdida de suelo USLE en t/ha
-    loss_a = max(0.5, ca.get("runoff_coefficient", 0.2) * 8.4)
-    loss_b = max(0.5, cb.get("runoff_coefficient", 0.2) * 8.4)
-    d_soil = round(loss_b - loss_a, 1)
+    # Pérdida de suelo USLE calculada mediante módulo de erosión real
+    loss_a, reason_a = _get_run_mean_soil_loss(run_a)
+    loss_b, reason_b = _get_run_mean_soil_loss(run_b)
+
+    if loss_a is not None and loss_b is not None:
+        d_soil: float | None = round(loss_b - loss_a, 2)
+    else:
+        d_soil = None
+        if reason_a and reason_b and reason_a == reason_b:
+            notes.append(f"Pérdida de suelo USLE no disponible: {reason_a}")
+        else:
+            reasons = [r for r in (reason_a, reason_b) if r]
+            if reasons:
+                notes.append(f"Pérdida de suelo USLE no disponible ({', '.join(reasons)})")
+            else:
+                notes.append("Pérdida de suelo USLE no disponible: faltan datos de suelo o relieve")
 
     # Resumen agronómico explicativo (SDD-003 §4.1)
     name_a = run_a.get("name", "Escenario A")
     name_b = run_b.get("name", "Escenario B")
+
+    soil_phrase = ""
+    if d_soil is not None:
+        if d_soil < 0:
+            soil_phrase = f" y reduce la pérdida de suelo en {abs(d_soil):.1f} t/ha"
+        elif d_soil > 0:
+            soil_phrase = f" y aumenta el riesgo de erosión en {abs(d_soil):.1f} t/ha"
+        else:
+            soil_phrase = " sin variación en la pérdida de suelo"
+
     if d_vol_field < 0:
         pct_str = f" ({dq_pct:.1f}%)" if dq_pct is not None else ""
         summary_text = (
-            f"El escenario '{name_b}' retiene {abs(d_vol_field):,.0f} m³ más de agua en el suelo{pct_str} "
-            f"y reduce la pérdida de suelo en {abs(d_soil):.1f} t/ha respecto a '{name_a}'."
+            f"El escenario '{name_b}' retiene {abs(d_vol_field):,.0f} m³ más de agua en el suelo{pct_str}"
+            f"{soil_phrase} respecto a '{name_a}'."
         )
     elif d_vol_field > 0:
         pct_str = f" (+{dq_pct:.1f}%)" if dq_pct is not None else ""
         summary_text = (
-            f"El escenario '{name_b}' genera {abs(d_vol_field):,.0f} m³ más de escorrentía{pct_str} "
-            f"y aumenta el riesgo de erosión en {abs(d_soil):.1f} t/ha respecto a '{name_a}'."
+            f"El escenario '{name_b}' genera {abs(d_vol_field):,.0f} m³ más de escorrentía{pct_str}"
+            f"{soil_phrase} respecto a '{name_a}'."
         )
     else:
+        soil_extra = ""
+        if d_soil is not None:
+            if d_soil < 0:
+                soil_extra = f", con una reducción de pérdida de suelo de {abs(d_soil):.1f} t/ha respecto a '{name_a}'"
+            elif d_soil > 0:
+                soil_extra = f", con un aumento de pérdida de suelo de {abs(d_soil):.1f} t/ha respecto a '{name_a}'"
         summary_text = (
-            f"Ambos escenarios presentan un volumen de escorrentía idéntico ({sa.get('field_runoff_generated_m3', 0.0):,.0f} m³)."
+            f"Ambos escenarios presentan un volumen de escorrentía idéntico ({sa.get('field_runoff_generated_m3', 0.0):,.0f} m³){soil_extra}."
         )
 
     return {
@@ -318,5 +384,6 @@ def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
         "delta_runoff_pct": dq_pct,
         "delta_ponded_area_ha": d_ponded,
         "delta_soil_loss_t_ha": d_soil,
+        "notes": notes,
         "summary_text": summary_text,
     }
