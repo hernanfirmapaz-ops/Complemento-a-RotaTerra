@@ -54,7 +54,7 @@ def test_sample_points_are_inside_the_field():
 
 
 def _respuesta_soilgrids(clay: int, sand: int, silt: int) -> dict:
-    """Respuesta con la forma real de la API (valores en g/kg × d_factor 10)."""
+    """Respuesta con la forma real de la API (valores en g/kg, d_factor 10 -> %)."""
 
     def capa(nombre: str, valor: int) -> dict:
         return {
@@ -78,7 +78,7 @@ def test_query_point_converts_units_to_percent():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.host == "rest.isric.org"
         assert request.url.params.get_list("property") == ["clay", "sand", "silt"]
-        return httpx.Response(200, json=_respuesta_soilgrids(clay=1000, sand=7100, silt=1900))
+        return httpx.Response(200, json=_respuesta_soilgrids(clay=100, sand=710, silt=190))
 
     valores = query_point(-65.305, -33.655, http=_cliente(handler))
     assert valores == pytest.approx({"clay": 10.0, "sand": 71.0, "silt": 19.0})
@@ -86,7 +86,7 @@ def test_query_point_converts_units_to_percent():
 
 def test_soil_for_field_with_real_shaped_response():
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=_respuesta_soilgrids(clay=1000, sand=7100, silt=1900))
+        return httpx.Response(200, json=_respuesta_soilgrids(clay=100, sand=710, silt=190))
 
     suelo = soil_for_field(LOTE, http=_cliente(handler))
     assert suelo["soil_group"] == "A"

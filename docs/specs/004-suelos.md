@@ -61,6 +61,24 @@ Reemplazar el grupo hidrológico fijo ("B por omisión") por un dato de suelo **
 - [x] Sin conexión: `soil_group = null`, `soil_source = "default"`, `quality = "descartada"` y motivo (test).
 - [x] Tests sin internet (`httpx.MockTransport`).
 - [x] La simulación usa el grupo y la fuente reales cuando están disponibles, y el indicador de confianza deja de decir "por omisión".
-- [ ] **Verificado en vivo** contra la API de SoilGrids para un lote de Villa Mercedes (pendiente: el entorno de desarrollo no tenía salida a internet).
+- [x] **Verificado en vivo** contra la API de SoilGrids para un lote de Villa Mercedes (ver Sección 7).
 - [ ] INTA (GeoINTA) conectado tras confirmar el servicio.
 - [ ] HYSOGs250m como respaldo.
+
+---
+
+## 7. Verificación en vivo (21/11/2026)
+
+- **Lote de prueba:** Área rural al sur de Villa Mercedes, San Luis (`lat: -33.75, lon: -65.40`).
+  *(Nota técnica: en el casco urbano `-33.68, -65.45`, SoilGrids enmascara el área urbanizada devolviendo capas sin datos (`mean: None`), lo cual activa correctamente el fallback honesto `soil_source="default"` sin inventar valores).*
+- **Respuesta de la API SoilGrids 2.0 (`GET /api/v1/fields/{id}/soil`):**
+  - `soil_group`: `"A"`
+  - `texture_class`: `"Franco arenosa"`
+  - `clay_pct`: `12.2%`
+  - `sand_pct`: `66.1%`
+  - `silt_pct`: `21.7%`
+  - `soil_source`: `"soilgrids"`
+  - `source_label`: `"SoilGrids 2.0 (ISRIC) · 250 m · 0–30 cm"`
+  - `points_used`: `3`
+  - `quality`: `"buena"`
+

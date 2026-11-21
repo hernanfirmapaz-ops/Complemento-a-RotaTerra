@@ -62,8 +62,8 @@ def _weighted_percent(layer: dict) -> float | None:
         valor = por_prof.get(etiqueta)
         if valor is None:
             continue
-        # SoilGrids entrega g/kg multiplicado por d_factor; g/kg / 10 = %
-        total += (float(valor) / d_factor) / 10.0 * espesor
+        # SoilGrids entrega mapped_units en g/kg y d_factor=10; valor / d_factor = %
+        total += (float(valor) / d_factor) * espesor
         peso += espesor
     return total / peso if peso else None
 
