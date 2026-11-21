@@ -22,6 +22,7 @@ import type {
   RunoffTimelineOut,
   ScenarioComparisonOut,
   SimulateDailyRainIn,
+  SoilOut,
   TerrainOut,
 } from '../types/api'
 
@@ -288,8 +289,10 @@ export async function simulatePresetScenarios(
   fieldId: string,
   soilGroup: string = 'B',
   coverCode: string = 'soja_maiz_sd_buena',
+  soilSource?: string,
 ): Promise<RunoffRunOut[]> {
   const params = new URLSearchParams({ soil_group: soilGroup, cover_code: coverCode })
+  if (soilSource) params.set('soil_source', soilSource)
   const res = await fetch(`${BASE}/fields/${fieldId}/scenarios/simulate-presets?${params}`, {
     method: 'POST',
   })
@@ -415,3 +418,9 @@ export async function simulateDailyRainfall(
   }>(res)
 }
 
+
+/** Suelo del lote (spec 004): textura y grupo hidrológico con su fuente real. */
+export async function getFieldSoil(fieldId: string): Promise<SoilOut> {
+  const res = await fetch(`${BASE}/fields/${fieldId}/soil`)
+  return check<SoilOut>(res)
+}

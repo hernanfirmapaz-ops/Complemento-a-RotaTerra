@@ -41,6 +41,7 @@ def simular_escenarios_estandar(
     field_id: str,
     soil_group: str = Query("B", description="Grupo hidrológico de suelo (A, B, C, D)"),
     cover_code: str = Query("soja_maiz_sd_buena", description="Código de cobertura / manejo"),
+    soil_source: str | None = Query(None, description="Origen del grupo hidrológico (soilgrids, inta_regional, user_selected...)"),
 ):
     """Ejecuta en una llamada los 3 escenarios estándar de diseño:
     - Conservador (30 mm) · Lluvia suave
@@ -50,7 +51,9 @@ def simular_escenarios_estandar(
     """
     try:
         store.load_field(field_id)
-        return hydrology.execute_standard_scenarios(field_id, soil_group=soil_group, cover_code=cover_code)
+        return hydrology.execute_standard_scenarios(
+            field_id, soil_group=soil_group, cover_code=cover_code, soil_source=soil_source
+        )
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except Exception as error:

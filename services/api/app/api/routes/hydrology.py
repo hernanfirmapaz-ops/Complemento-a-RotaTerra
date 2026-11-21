@@ -282,6 +282,7 @@ def simular_lluvia_diaria_estimada(
             cover_code=payload.cover_code,
             cover_percent=payload.cover_percent,
             compaction_high=payload.compaction_high,
+            soil_source=payload.soil_source,
         )
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail=f"Recurso no encontrado: {error}") from error

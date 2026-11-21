@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from geoprocessing import PROCESSING_VERSION
-from services.api.app.api.routes import fields, hydrology, scenarios, terrain
+from services.api.app.api.routes import fields, hydrology, scenarios, soils, terrain
 from services.api.app.core.config import CORS_ORIGINS, WEB_DIST
 
 app = FastAPI(
@@ -35,6 +35,7 @@ app.include_router(fields.router, prefix="/api/v1")
 app.include_router(terrain.router, prefix="/api/v1")
 app.include_router(hydrology.router, prefix="/api/v1")
 app.include_router(scenarios.router, prefix="/api/v1")
+app.include_router(soils.router, prefix="/api/v1")
 app.include_router(scenarios.router, prefix="/api")
 
 

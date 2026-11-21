@@ -39,8 +39,8 @@ def fetch_nasa_power_daily_series(
 
     Si la API de la NASA responde en tiempo real, devuelve los datos satelitales observados/reanálisis
     MERRA-2 (`source = "NASA POWER (MERRA-2 / GEOS, 0.5°)"`).
-    Si no hay conexión de red disponible (p. ej. en tests offline), genera una serie climatológica
-    regional calibrada para la latitud/longitud del lote etiquetada explícitamente como respaldo offline.
+    Si no hay conexión o la respuesta es insuficiente, no inventa datos: devuelve la serie vacía
+    con el motivo, y el llamador informa el dato como descartado.
     """
     end_dt = date.today()
     start_dt = date(end_dt.year - max(1, years) + 1, 1, 1)

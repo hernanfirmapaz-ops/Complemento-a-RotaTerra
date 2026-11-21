@@ -20,7 +20,7 @@ Estado: **Integrada** = conectada y en uso · **Planificada** = aprobada, falta 
 | Relieve | NASADEM / SRTM | 30 m | Dominio público | OpenTopography | Integrada (respaldo) |
 | Suelos | Cartas de suelo INTA (GeoINTA) | 1:100.000 | INTA | WMS/WFS GeoINTA | A verificar (servicio y capas) |
 | Suelos | Perfiles SISINTA | Puntual | INTA, abierta | API SISINTA | Planificada |
-| Suelos | SoilGrids (ISRIC) | 250 m | CC BY 4.0 | API REST | Planificada (spec 004) |
+| Suelos | SoilGrids 2.0 (ISRIC) | 250 m | CC BY 4.0 | API REST `rest.isric.org` | Integrada (spec 004; falta verificación en vivo) |
 | Suelos | HYSOGs250m (NASA ORNL DAAC) | 250 m | Libre con cita | Earthdata | Planificada (spec 004) |
 | Lluvia | Pluviómetro del productor | Puntual | Del productor | CSV | Integrada |
 | Lluvia | Estaciones INTA (SIGA) | Puntual | INTA | Portal SIGA | A verificar |

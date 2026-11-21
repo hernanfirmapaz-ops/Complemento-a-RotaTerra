@@ -363,6 +363,7 @@ class SimulateDailyRainIn(BaseModel):
     cover_code: str = "soja_maiz_sd_buena"
     cover_percent: float | None = Field(60.0, ge=0.0, le=100.0)
     compaction_high: bool = False
+    soil_source: str | None = None
 
 
 class RunoffRunIn(BaseModel):
@@ -633,3 +634,20 @@ class HealthOut(BaseModel):
     status: str
     phase: str
     processing_version: str
+
+
+class SoilOut(BaseModel):
+    """Suelo del lote según la fuente real disponible (spec 004). Nunca inventado."""
+
+    soil_group: Literal["A", "B", "C", "D"] | None
+    texture_class: str | None
+    clay_pct: float | None
+    sand_pct: float | None
+    silt_pct: float | None
+    soil_source: str
+    source_label: str
+    resolution_m: float | None
+    license: str | None
+    points_used: int
+    quality: Literal["buena", "dudosa", "descartada"]
+    notes: list[str]

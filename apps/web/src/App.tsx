@@ -8,6 +8,7 @@ import {
   exportReportUrl,
   getAgronomicToolkit,
   getDailyRainfallContext,
+  getFieldSoil,
   getRunoffTimeline,
   getStaticHydrology,
   getTerrain,
@@ -39,6 +40,7 @@ import type {
   RunoffRunOut,
   RunoffTimelineOut,
   SoilGroup,
+  SoilOut,
   TerrainOut,
 } from './types/api'
 import type { AgronomistOverlayMode } from './components/TerrainDiorama3D'
@@ -119,6 +121,8 @@ export function App() {
   const [quickSoilGroup, setQuickSoilGroup] = useState<SoilGroup>('B')
   const [quickAmc, setQuickAmc] = useState<AntecedentMoisture>('medium')
   const [quickCover, setQuickCover] = useState<string>('soja_maiz_sd_buena')
+  // Suelo real del lote (spec 004). Sin fuente: grupo por omisión y la API lo informa como "sin confirmar".
+  const [soilInfo, setSoilInfo] = useState<SoilOut | null>(null)
   const [dailyRainContext, setDailyRainContext] =
     useState<DailyRainfallContextOut | null>(null)
   const [selectedDailyDate, setSelectedDailyDate] = useState<string>('')
@@ -130,6 +134,27 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
 
   const activeField = fields.find((f) => f.id === activeFieldId) ?? null
+
+  /** Fuente del grupo hidrológico usado: la real si coincide con el suelo del lote, si no la elegida por el usuario. */
+  const soilSourceFor = (group: SoilGroup): string | undefined => {
+    if (soilInfo?.soil_group) {
+      return soilInfo.soil_group === group ? soilInfo.soil_source : 'user_selected'
+    }
+    return undefined
+  }
+
+  /** Consulta el suelo del lote y adopta su grupo hidrológico si hay dato real. */
+  const loadFieldSoil = async (fieldId: string): Promise<SoilOut | null> => {
+    try {
+      const soil = await getFieldSoil(fieldId)
+      setSoilInfo(soil)
+      if (soil.soil_group) setQuickSoilGroup(soil.soil_group)
+      return soil
+    } catch {
+      setSoilInfo(null)
+      return null
+    }
+  }
   const activeRun =
     runoffRuns.find((r) => r.is_active) ?? runoffRuns[0] ?? null
 
@@ -156,7 +181,9 @@ export function App() {
     setDailyRainContext(null)
     setSelectedDailyDate('')
     setSelectedPoint(null)
+    setSoilInfo(null)
     if (!activeField) return
+    void loadFieldSoil(activeField.id)
     if (!activeField.has_terrain) return
 
     setBusy('Cargando relieve 3D del lote y simulaciones...')
@@ -250,6 +277,7 @@ export function App() {
         antecedent_moisture: amc,
         compaction_high: false,
         lambda_ratio: 0.2,
+        soil_source: soilSourceFor(soil),
       })
       await runHydrodynamic2DSolver(activeField.id, created.id, {
         ponding_threshold_m: 0.05,
@@ -306,6 +334,7 @@ export function App() {
         date: target,
         soil_group: quickSoilGroup,
         cover_code: quickCover,
+        soil_source: soilSourceFor(quickSoilGroup),
       })
       setDailyRainContext(res.context)
       setSelectedDailyDate(target)
@@ -373,19 +402,23 @@ export function App() {
           mfd_exponent: 1.1,
           routing_basis: 'MFD',
         })
+        const fieldSoil = await loadFieldSoil(fld.id)
+        const soilGroupForRun: SoilGroup = fieldSoil?.soil_group ?? quickSoilGroup
+        const soilSourceForRun = fieldSoil?.soil_group ? fieldSoil.soil_source : undefined
         const ev = await createManualRainfallEvent(fld.id, {
           name: `Lluvia ${quickRainMm} mm`,
           total_mm: quickRainMm,
           source_type: 'manual',
         })
         const created = await executeRunoffRun(fld.id, {
-          name: `${quickRainMm} mm · Suelo ${quickSoilGroup} · Siembra Directa`,
+          name: `${quickRainMm} mm · Suelo ${soilGroupForRun} · Siembra Directa`,
           rainfall_event_id: ev.id,
-          soil_group: quickSoilGroup,
+          soil_group: soilGroupForRun,
           cover_code: quickCover,
           antecedent_moisture: quickAmc,
           compaction_high: false,
           lambda_ratio: 0.2,
+          soil_source: soilSourceForRun,
         })
         await runHydrodynamic2DSolver(fld.id, created.id, {
           ponding_threshold_m: 0.05,
@@ -393,7 +426,7 @@ export function App() {
         })
         setBusy('Paso 4/4: Generando diagnóstico agronómico INTA / NASA...')
         await runAgronomicToolkit(fld.id, {
-          soil_group: quickSoilGroup,
+          soil_group: soilGroupForRun,
           cover_code: quickCover,
           storm_precipitation_mm: quickRainMm,
           crop_code: 'maiz_temprano',
@@ -462,7 +495,12 @@ export function App() {
     setError(null)
     setBusy('Generando escenarios estándar (Conservador 30 mm, Medio 80 mm, Crítico 130 mm)...')
     try {
-      await simulatePresetScenarios(activeField.id, quickSoilGroup, quickCover)
+      await simulatePresetScenarios(
+        activeField.id,
+        quickSoilGroup,
+        quickCover,
+        soilSourceFor(quickSoilGroup),
+      )
       const [rns, m] = await Promise.all([
         listRunoffRuns(activeField.id),
         getTerrainMesh(activeField.id),
@@ -617,6 +655,7 @@ export function App() {
                 onSimulateDailyDate={(date) => handleSimulateDailyRain(date)}
                 onSimulate={() => handleQuickSimulateRain()}
                 onBack={() => setFlowStep('lote')}
+                soilInfo={soilInfo}
                 busy={Boolean(busy)}
               />
             )}
@@ -716,6 +755,7 @@ export function App() {
                     setSheetSnap('half')
                   }}
                   onBack={() => setFlowStep('lote')}
+                soilInfo={soilInfo}
                   busy={Boolean(busy)}
                 />
               )}

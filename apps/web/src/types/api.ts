@@ -764,5 +764,22 @@ export interface SimulateDailyRainIn {
   cover_code?: string
   cover_percent?: number
   compaction_high?: boolean
+  soil_source?: string | null
 }
 
+
+/** Suelo del lote con su fuente real (spec 004). Sin datos: soil_group null y quality "descartada". */
+export interface SoilOut {
+  soil_group: SoilGroup | null
+  texture_class: string | null
+  clay_pct: number | null
+  sand_pct: number | null
+  silt_pct: number | null
+  soil_source: string
+  source_label: string
+  resolution_m: number | null
+  license: string | null
+  points_used: number
+  quality: 'buena' | 'dudosa' | 'descartada'
+  notes: string[]
+}

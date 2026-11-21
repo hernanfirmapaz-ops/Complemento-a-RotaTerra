@@ -1,4 +1,4 @@
-import type { AntecedentMoisture, DailyRainfallContextOut } from '../../types/api'
+import type { AntecedentMoisture, DailyRainfallContextOut, SoilOut } from '../../types/api'
 import { Button } from '../ui/Button'
 import { Segmented } from '../ui/Segmented'
 import { Details } from '../ui/Details'
@@ -18,6 +18,7 @@ interface RainStepProps {
   onSimulate: () => void
   onBack: () => void
   busy: boolean
+  soilInfo?: SoilOut | null
   className?: string
 }
 
@@ -35,6 +36,7 @@ export function RainStep({
   onSimulate,
   onBack,
   busy,
+  soilInfo = null,
   className = '',
 }: RainStepProps) {
   const rainOptions = [
@@ -170,8 +172,16 @@ export function RainStep({
 
       <div className="step-footer-note">
         <SourceNote
-          source="USDA-NRCS Curve Number / Freeman MFD"
-          details="Lluvia de diseño regional, margen típico ±20%"
+          source={
+            soilInfo?.soil_group
+              ? `Suelo ${soilInfo.texture_class?.toLowerCase() ?? ''} · grupo ${soilInfo.soil_group}`
+              : 'Suelo sin confirmar · grupo B por omisión'
+          }
+          details={soilInfo?.soil_group ? soilInfo.source_label : 'No se pudo consultar una fuente de suelos'}
+        />
+        <SourceNote
+          source="Curva Número (USDA-NRCS) y flujo MFD"
+          details="Tormenta de diseño: escenario hipotético, no un evento medido"
         />
       </div>
     </div>

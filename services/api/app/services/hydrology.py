@@ -574,6 +574,7 @@ def execute_standard_scenarios(
     field_id: str,
     soil_group: str = "B",
     cover_code: str = "soja_maiz_sd_buena",
+    soil_source: str | None = None,
 ) -> list[dict]:
     """Ejecuta los 3 escenarios estándar de diseño (Conservador, Medio, Crítico)
     para el lote según Tarea 2.2 / SDD-003.
@@ -602,6 +603,7 @@ def execute_standard_scenarios(
                 soil_group=soil_group,
                 cover_code=cover_code,
                 antecedent_moisture=p["amc"],
+                soil_source=soil_source,
             ),
         )
         results.append(run)
@@ -1260,6 +1262,7 @@ def simulate_field_daily_rainfall(
     cover_code: str = "soja_maiz_sd_buena",
     cover_percent: float | None = 60.0,
     compaction_high: bool = False,
+    soil_source: str | None = None,
 ) -> dict:
     """Simula la escorrentía y respuesta hidrológica para la lluvia diaria estimada (NASA POWER ~55 km),
     con humedad antecedente regional y estación SMN como referencia geográfica.
@@ -1331,6 +1334,7 @@ def simulate_field_daily_rainfall(
         compaction_high=compaction_high,
         antecedent_moisture=day["antecedent_moisture_amc"],
         lambda_ratio=0.2,
+        soil_source=soil_source,
     )
     runoff_res = execute_runoff_run(field_id, runoff_payload)
 
