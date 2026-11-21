@@ -4,7 +4,13 @@ Copiar este archivo a la raíz del repositorio `Complemento-a-RotaTerra`. Si Ant
 
 ## Proyecto
 
-Web app que simula el terreno real de un lote agrícola de la llanura de San Luis (20–500 ha) y cómo drena el suelo y corre el agua. Complementa a Rotaterra (rotación de cultivos con datos NASA; pipeline en `hernanfirmapaz-ops/N4-4-1.2`). Proyecto personal de Hernán Firmapaz, mantenido por una sola persona: priorizar simplicidad y mantenibilidad.
+Web app que simula el terreno real de un lote agrícola de la llanura de San Luis (20–500 ha) y cómo drena el suelo y corre el agua. Proyecto personal de Hernán Firmapaz, mantenido por una sola persona: priorizar simplicidad y mantenibilidad.
+
+**Es un módulo de Rotaterra, no una app independiente** (decisión de Hernán del 21/11/2026). Rotaterra (rotación de cultivos; pipeline de datos en `hernanfirmapaz-ops/N4-4-1.2`) toma las decisiones de rotación, hace las cuentas económicas y arma el informe general. Este módulo entrega, por lote, resultados de **agua, relieve, suelo y erosión** en el contrato `Observacion` de N4-4-1.2 (`GET /api/v1/fields/{id}/observaciones`, spec 011).
+
+| Va en este módulo | Va en Rotaterra |
+|---|---|
+| Relieve, escurrimiento, encharcamiento, días de agua, riesgo de rinde por zona (rango %), suelos, erosión, posición en el paisaje, editar terreno, dirección de siembra | Comparador de rotaciones, impacto económico ($), informe general, decisión de qué sembrar |
 
 - `geoprocessing/` — núcleo científico en Python (MDE, flujo, CN, agua somera 2D, USLE, balance hídrico)
 - `services/api/` — FastAPI

@@ -1,8 +1,8 @@
-# Spec 006 · Días de Encharcamiento, Riesgo de Rinde e Impacto Económico
+# Spec 006 · Días de Encharcamiento y Riesgo de Rinde
 
 **Proyecto:** `Complemento-a-RotaTerra`  
 **Etapa:** 3 (Plan de Trabajo 20/11/2026, tareas 3.2, 3.3, 3.4)  
-**Mejoras que cubre:** R1 (Días de anegamiento y vaciado), R2 (Riesgo agronómico y económico de rinde)  
+**Mejoras que cubre:** R1 (Días de anegamiento y vaciado), R2 (Riesgo agronómico de rinde por zona)  
 **Dependencias:** Spec 001 (Escurrimiento 2D), Spec 004 (Suelos reales / $K_{sat}$ Rawls 1982), Spec 005 (WhiteboxTools / dos grillas).
 
 ---
@@ -14,7 +14,7 @@ Una simulación hidrodinámica 2D entrega láminas de agua máximas instantánea
 El objetivo de esta spec es:
 1. Calcular el **mapa de días de permanencia del agua** para cada bajo o cubeta del lote mediante un balance de vaciado físico (infiltración de fondo saturada + evapotranspiración diaria).
 2. Estimar el **riesgo agronómico de rinde** expresado en **rangos de merma porcentual** según cultivo, fenología y días de anegamiento (basado en literatura agronómica de INTA y USDA).
-3. Traducir el riesgo a un **impacto económico estimado en rango** ($\text{ha} \times \text{rinde} \times \text{precio}$), con parámetros editables por el usuario.
+3. Entregar a Rotaterra, por lote y por zona, las hectáreas afectadas, los días de agua y el rango de merma (spec 011). **El impacto económico lo calcula Rotaterra**, no este módulo (decisión de Hernán del 21/11/2026).
 
 ---
 
@@ -27,14 +27,19 @@ $$\Delta h_{\text{día}} = K_{\text{sat, efectivo}} + ET_0$$
 Donde:
 1. **$K_{\text{sat, efectivo}}$ (Conductividad hidráulica saturada de fondo):**
    - Obtenida a partir de la textura USDA real reportada por SoilGrids 2.0 (Spec 004) según la tabla de Rawls et al. (1982):
-     - Arena: $210\text{ mm/día}$
-     - Franco arenosa (ej. Villa Mercedes): $62\text{ mm/día}$
-     - Franco: $31\text{ mm/día}$
-     - Franco limosa: $16\text{ mm/día}$
-     - Franco arcillo arenosa: $10\text{ mm/día}$
-     - Franco arcillosa: $5,5\text{ mm/día}$
-     - Franco arcillo limosa: $3,6\text{ mm/día}$
-     - Arcillosa: $1,4\text{ mm/día}$
+     - Arenosa: $5040\text{ mm/día}$ (21,0 cm/h)
+     - Arenosa franca: $1466\text{ mm/día}$ (6,11 cm/h)
+     - Franco arenosa (ej. Villa Mercedes): $622\text{ mm/día}$ (2,59 cm/h)
+     - Franca: $317\text{ mm/día}$ (1,32 cm/h)
+     - Franco limosa: $163\text{ mm/día}$ (0,68 cm/h)
+     - Franco arcillo arenosa: $103\text{ mm/día}$ (0,43 cm/h)
+     - Franco arcillosa: $55\text{ mm/día}$ (0,23 cm/h)
+     - Franco arcillo limosa: $36\text{ mm/día}$ (0,15 cm/h)
+     - Arcillo arenosa: $29\text{ mm/día}$ (0,12 cm/h)
+     - Arcillo limosa: $22\text{ mm/día}$ (0,09 cm/h)
+     - Arcillosa: $14\text{ mm/día}$ (0,06 cm/h)
+   - **Corrección (21/11/2026):** la versión anterior de esta tabla tenía valores unas 10 veces menores que los de Rawls et al. (1982), y 24 veces menor en arena. Los valores de arriba convierten la tabla original (cm/h × 240 = mm/día). Verificar contra la publicación antes de programar.
+   - **Límite:** la Ksat de textura es la del suelo sin costra ni compactación. En bajos con napa somera la infiltración real es casi nula; el vaciado lo domina la evaporación y la napa (ver spec 001, modo estacional).
    - Si no hay textura real disponible, se usa el valor conservador por defecto ($10\text{ mm/día}$) con la etiqueta `"Suelo por omisión, sin confirmar"`.
 2. **$ET_0$ (Evapotranspiración diaria de referencia):**
    - Obtenida del promedio del mes del evento según FAO-56 Penman-Monteith (NASA POWER climatológica ya implementada en el módulo de balance hídrico). Típicamente $3\text{ a }7\text{ mm/día}$ en verano pampeano.
@@ -51,7 +56,9 @@ $$D_{\text{encharcamiento}} = \frac{h_{\text{remanente}} \times 1000}{\Delta h_{
 
 Conforme a la **Regla 4 del proyecto** (*"Nunca inventar un valor ni emitir una cifra única engañosa"*), la merma de rinde se presenta siempre en **rangos de incertidumbre** y con la fuente técnica a la vista.
 
-### 3.1 Tablas de referencia agronómica (INTA Marcos Juárez / Oliverio et al. 2018 / USDA-ARS)
+### 3.1 Tablas de referencia agronómica
+
+> **Bloqueada hasta verificar (pedido del 21/11/2026, tarea A2):** la atribución original ("INTA Marcos Juárez / Oliverio et al. 2018 / USDA-ARS") no pudo confirmarse, y el orden de tolerancia del maíz contradice material técnico del INTA. Cada valor necesita su cita exacta; los que no la tengan se eliminan.
 
 | Cultivo | Días con agua ($h > 1\text{ cm}$) | Merma estimada en floración/reproductivo (Rango) | Merma estimada en vegetativo temprano (Rango) | Tolerancia relativa |
 |---|---|---|---|---|
@@ -74,21 +81,19 @@ El usuario en la interfaz debe poder:
 
 ---
 
-## 4. Impacto Económico en Rango (Tarea 3.4)
+## 4. Salida para Rotaterra (en lugar del impacto económico)
 
-El impacto económico estimado calcula las pérdidas potenciales sobre la superficie afectada:
+El cálculo económico (ha × rinde × precio) **no se hace en este módulo**: lo hace Rotaterra con sus propios rindes, precios y cultivos. Este módulo entrega, por lote y por zona de encharcamiento, en el contrato `Observacion` (spec 011):
 
-$$\text{Pérdida Mínima (USD)} = \sum_{z} \text{ha}_z \times \text{Rinde Base (t/ha)} \times \text{Merma Mínima}_z \times \text{Precio Pizarra (USD/t)}$$
+| Variable | Unidad | Ejemplo |
+|---|---|---|
+| `area_encharcada_ha` | ha | 8,4 |
+| `dias_agua_max` | días | 4 |
+| `area_agua_mas_2_dias_ha` | ha | 3,1 |
+| `riesgo_rinde_min_pct` | % | 20 |
+| `riesgo_rinde_max_pct` | % | 45 |
 
-$$\text{Pérdida Máxima (USD)} = \sum_{z} \text{ha}_z \times \text{Rinde Base (t/ha)} \times \text{Merma Máxima}_z \times \text{Precio Pizarra (USD/t)}$$
-
-- **Valores por omisión pampeanos orientativos:**
-  - Soja: Rinde base $3,0\text{ t/ha}$, Precio pizarra $280\text{ USD/t}$.
-  - Maíz: Rinde base $8,0\text{ t/ha}$, Precio pizarra $160\text{ USD/t}$.
-  - Trigo: Rinde base $3,5\text{ t/ha}$, Precio pizarra $210\text{ USD/t}$.
-- **Edición en pantalla:** El productor puede editar en tiempo real el rinde proyectado de su lote y el precio esperado para que el cálculo refleje su costo de oportunidad real.
-- **Formato de visualización:** Nunca una cifra aislada. Ejemplo visible:  
-  *Pérdida estimada en bajos:* **USD 3.200 a USD 6.400** (sobre 8,4 ha afectadas con > 2 días de anegamiento).
+Cada valor con su `fuente`, `calidad` y `nota` (cultivo, etapa y referencia bibliográfica de la merma).
 
 ---
 
@@ -99,8 +104,8 @@ $$\text{Pérdida Máxima (USD)} = \sum_{z} \text{ha}_z \times \text{Rinde Base (
    - [ ] Cálculo de días determinístico y sin división por cero cuando la infiltración es muy baja.
 2. **Estimación agronómica:**
    - [ ] Tests de rango de merma para Soja, Maíz, Trigo y Girasol sin números mágicos hardcodeados sin cita bibliográfica.
-   - [ ] Rango devuelto siempre como tupla `(min_pct, max_pct)` y `(min_usd, max_usd)`.
+   - [ ] Rango devuelto siempre como tupla `(min_pct, max_pct)`.
 3. **Interfaz:**
    - [ ] Capa de visualización "Días de anegamiento" en el visor con paleta discreta (1 día, 2 días, 3-4 días, $\ge 5$ días).
-   - [ ] Tarjeta de resumen económico editable en Paso 3 (Resultado).
+   - [ ] Resultados disponibles para Rotaterra en `GET /api/v1/fields/{id}/observaciones` (spec 011).
    - [ ] Sin incremento en el presupuesto de botones de la primera pantalla.
