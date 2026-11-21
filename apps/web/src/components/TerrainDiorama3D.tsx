@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { DailyRainfallContextOut, FieldOut, MeshOut } from '../types/api'
+import { Legend } from './ui/Legend'
 
 export type AgronomistOverlayMode =
   | 'satellite_water'
@@ -1394,7 +1395,7 @@ export function TerrainDiorama3D({
     <div className="diorama-wrapper">
       <div ref={mountRef} className="diorama-canvas" />
 
-      {/* Botones de control de cámara intuitivos sobre la maqueta 3D */}
+      {/* Botones de control de cámara intuitivos sobre la maqueta 3D (SDD-002) */}
       <div className="diorama-floating-controls">
         <button
           type="button"
@@ -1402,7 +1403,7 @@ export function TerrainDiorama3D({
           onClick={handleResetCamera}
           title="Restablecer vista isométrica 3D"
         >
-          🔄 Centrar 3D
+          Centrar
         </button>
         <button
           type="button"
@@ -1414,23 +1415,25 @@ export function TerrainDiorama3D({
               : 'Cambiar a vista superior de planta (2D)'
           }
         >
-          {is2DView ? '🧊 Vista 3D' : '📐 Vista 2D'}
+          {is2DView ? 'Vista 3D' : 'Planta 2D'}
         </button>
         <button
           type="button"
           className="diorama-ctrl-btn"
           onClick={handleZoomIn}
           title="Acercar zoom"
+          aria-label="Acercar zoom"
         >
-          🔍 ➕
+          +
         </button>
         <button
           type="button"
           className="diorama-ctrl-btn"
           onClick={handleZoomOut}
           title="Alejar zoom"
+          aria-label="Alejar zoom"
         >
-          🔍 ➖
+          −
         </button>
         <button
           type="button"
@@ -1438,35 +1441,80 @@ export function TerrainDiorama3D({
           onClick={handleAlignNorth}
           title="Alinear vista mirando al Norte"
         >
-          🧭 Norte
+          Norte
         </button>
+      </div>
+
+      {/* Leyenda minimalista flotante en el visor (SDD-002 sección 6.5) */}
+      <div className="diorama-legend-dock">
+        {overlayMode === 'waterlogging' && (
+          <Legend
+            title="Lámina de agua"
+            minLabel="0"
+            maxLabel="45"
+            unit="cm"
+            type="water"
+          />
+        )}
+        {overlayMode === 'satellite_water' && (
+          <Legend
+            title="Red y líneas de flujo"
+            minLabel="Difuso"
+            maxLabel="Concentrado"
+            type="water"
+          />
+        )}
+        {overlayMode === 'erosion' && (
+          <Legend
+            title="Pérdida de suelo USLE"
+            minLabel="0"
+            maxLabel="12"
+            unit="t/ha"
+            type="erosion"
+          />
+        )}
+        {overlayMode === 'environments' && (
+          <Legend
+            title="Ambientes del relieve"
+            minLabel="Bajo"
+            maxLabel="Loma"
+            type="relief"
+          />
+        )}
+        {overlayMode === 'ndvi' && (
+          <Legend
+            title="Vigor vegetal (NDVI)"
+            minLabel="0,1"
+            maxLabel="0,8"
+            type="ndvi"
+          />
+        )}
       </div>
 
       {/* Placa de trazabilidad de lluvia diaria estimada */}
       {dailyRainContext?.selected_day && (
         <div className="diorama-smn-watermark">
           <div className="smn-badge-row">
-            <span className="smn-sat-pill">🛰️ NASA POWER (~55 km)</span>
+            <span className="smn-sat-pill">NASA POWER (~55 km)</span>
             <span className="smn-station-label">
-              Estación SMN más cercana (referencia, sin datos conectados): <strong>{dailyRainContext.nearest_smn_station.name}</strong> ({dailyRainContext.nearest_smn_station.distance_km} km)
+              Estación SMN {dailyRainContext.nearest_smn_station.name} ({dailyRainContext.nearest_smn_station.distance_km} km) · referencia geográfica
             </span>
           </div>
           <div className="smn-metrics-row">
-            <span>📅 Fecha: <strong>{dailyRainContext.selected_day.date}</strong></span>
-            <span className="sep">•</span>
-            <span>💧 Lluvia estimada: <strong>{dailyRainContext.selected_day.precipitation_mm.toFixed(1)} mm</strong></span>
-            <span className="sep">•</span>
-            <span>🌱 Humedad antecedente (5d): <strong>{dailyRainContext.selected_day.prior_5d_rain_mm.toFixed(1)} mm ({dailyRainContext.selected_day.antecedent_moisture_amc.toUpperCase()})</strong></span>
+            <span>Fecha: <strong>{dailyRainContext.selected_day.date}</strong></span>
+            <span className="sep">·</span>
+            <span>Lluvia estimada: <strong>{dailyRainContext.selected_day.precipitation_mm.toFixed(1)} mm</strong></span>
+            <span className="sep">·</span>
+            <span>Humedad antecedente: <strong>{dailyRainContext.selected_day.prior_5d_rain_mm.toFixed(1)} mm ({dailyRainContext.selected_day.antecedent_moisture_amc.toUpperCase()})</strong></span>
           </div>
-          <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '3px' }}>
-            ⚠️ Lluvia regional estimada (~55 km), no es la medición de su campo.
+          <div style={{ fontSize: '11px', color: 'var(--ink-2)', marginTop: '3px' }}>
+            Aviso: Lluvia regional estimada (~55 km), no es la medición de su campo.
           </div>
         </div>
       )}
 
       <div className="diorama-hint">
-        🖱️ Arrastrá con botón izquierdo para rotar la maqueta 3D · Rueda para
-        zoom · Clic sobre el lote para consultar cota y pendiente
+        Arrastrá para rotar la maqueta 3D · Rueda para zoom · Clic sobre el lote para consultar cota y pendiente
       </div>
     </div>
   )
