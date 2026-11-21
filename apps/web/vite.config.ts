@@ -13,6 +13,20 @@ export default defineConfig({
     },
   },
   build: {
+    modulePreload: {
+      polyfill: false,
+      resolveDependencies: (_url, deps) => {
+        // Exclude heavy 3D and mapping chunks from initial modulepreload
+        return deps.filter(
+          (dep) =>
+            !dep.includes('vendor-three') &&
+            !dep.includes('vendor-maplibre') &&
+            !dep.includes('TerrainDiorama3D') &&
+            !dep.includes('TerrainScene3D') &&
+            !dep.includes('PolygonMapDrawer'),
+        )
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {

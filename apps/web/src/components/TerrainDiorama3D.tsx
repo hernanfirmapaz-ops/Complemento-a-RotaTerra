@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { DailyRainfallContextOut, FieldOut, MeshOut } from '../types/api'
 import { Legend } from './ui/Legend'
+import { Icon } from './ui/Icon'
 
 export type AgronomistOverlayMode =
   | 'satellite_water'
@@ -16,10 +17,13 @@ interface Props {
   mesh: MeshOut | null
   overlayMode: AgronomistOverlayMode
   exaggeration: number
+  onChangeExaggeration?: (val: number) => void
   rainIntensityFactor: number // 0..2 (0 = sin lluvia, 1 = tormenta 80 mm, 1.6 = temporal 120 mm)
   showBoundary: boolean
   showContours: boolean
   isPlayingRain: boolean
+  onToggleRain?: () => void
+  hasActiveSimulation?: boolean
   selectedPoint?: { lon?: number | null; lat?: number | null } | null
   onPointInspect?: (lon: number, lat: number) => void
   dailyRainContext?: DailyRainfallContextOut | null
@@ -215,10 +219,13 @@ export function TerrainDiorama3D({
   mesh,
   overlayMode,
   exaggeration,
+  onChangeExaggeration,
   rainIntensityFactor,
   showBoundary,
   showContours,
   isPlayingRain,
+  onToggleRain,
+  hasActiveSimulation = false,
   selectedPoint,
   onPointInspect,
   dailyRainContext,
@@ -226,6 +233,7 @@ export function TerrainDiorama3D({
   const mountRef = useRef<HTMLDivElement | null>(null)
   const [textureReady, setTextureReady] = useState<boolean>(false)
   const [is2DView, setIs2DView] = useState<boolean>(false)
+  const [showViewSettings, setShowViewSettings] = useState<boolean>(false)
   const satCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inspectRef = useRef(onPointInspect)
   inspectRef.current = onPointInspect
@@ -1395,15 +1403,35 @@ export function TerrainDiorama3D({
     <div className="diorama-wrapper">
       <div ref={mountRef} className="diorama-canvas" />
 
-      {/* Botones de control de cámara intuitivos sobre la maqueta 3D (SDD-002) */}
-      <div className="diorama-floating-controls">
+      {/* Controles del visor (SDD-002 / Tarea 2.0: vertical en mobile, horizontal en desktop) */}
+      <div className="diorama-controls-dock" role="toolbar" aria-label="Controles del visor">
+        <button
+          type="button"
+          className="diorama-ctrl-btn diorama-ctrl-btn-icon"
+          onClick={handleZoomIn}
+          title="Acercar zoom"
+          aria-label="Acercar zoom"
+        >
+          <Icon name="plus" size={16} />
+        </button>
+        <button
+          type="button"
+          className="diorama-ctrl-btn diorama-ctrl-btn-icon"
+          onClick={handleZoomOut}
+          title="Alejar zoom"
+          aria-label="Alejar zoom"
+        >
+          <Icon name="minus" size={16} />
+        </button>
         <button
           type="button"
           className="diorama-ctrl-btn"
           onClick={handleResetCamera}
-          title="Restablecer vista isométrica 3D"
+          title="Restablecer vista centrada"
+          aria-label="Centrar lote"
         >
-          Centrar
+          <Icon name="maximize" size={16} />
+          <span className="btn-label">Centrar</span>
         </button>
         <button
           type="button"
@@ -1414,35 +1442,66 @@ export function TerrainDiorama3D({
               ? 'Cambiar a vista isométrica 3D'
               : 'Cambiar a vista superior de planta (2D)'
           }
+          aria-label={is2DView ? 'Vista 3D' : 'Planta 2D'}
         >
-          {is2DView ? 'Vista 3D' : 'Planta 2D'}
-        </button>
-        <button
-          type="button"
-          className="diorama-ctrl-btn"
-          onClick={handleZoomIn}
-          title="Acercar zoom"
-          aria-label="Acercar zoom"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          className="diorama-ctrl-btn"
-          onClick={handleZoomOut}
-          title="Alejar zoom"
-          aria-label="Alejar zoom"
-        >
-          −
+          <Icon name="layers" size={16} />
+          <span className="btn-label">{is2DView ? 'Vista 3D' : 'Planta 2D'}</span>
         </button>
         <button
           type="button"
           className="diorama-ctrl-btn compass"
           onClick={handleAlignNorth}
           title="Alinear vista mirando al Norte"
+          aria-label="Alinear al Norte"
         >
-          Norte
+          <Icon name="compass" size={16} />
+          <span className="btn-label">Norte</span>
         </button>
+        {hasActiveSimulation && onToggleRain && (
+          <button
+            type="button"
+            className={`diorama-ctrl-btn ${isPlayingRain ? 'active' : ''}`}
+            onClick={onToggleRain}
+            title={isPlayingRain ? 'Pausar lluvia' : 'Animar lluvia'}
+            aria-label={isPlayingRain ? 'Pausar lluvia' : 'Animar lluvia'}
+          >
+            <Icon name="droplet" size={16} />
+            <span className="btn-label">{isPlayingRain ? 'Pausar lluvia' : 'Animar lluvia'}</span>
+          </button>
+        )}
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className={`diorama-ctrl-btn ${showViewSettings ? 'active' : ''}`}
+            onClick={() => setShowViewSettings((s) => !s)}
+            title="Ajustes de vista (Relieve)"
+            aria-label="Ajustes de vista"
+            aria-expanded={showViewSettings}
+          >
+            <Icon name="sliders" size={16} />
+            <span className="btn-label">Ajustes de vista</span>
+          </button>
+          {showViewSettings && (
+            <div className="diorama-view-settings-popover">
+              <span className="diorama-view-settings-title">Ajustes de vista</span>
+              <div className="diorama-view-settings-row">
+                <span>Relieve:</span>
+                <select
+                  value={exaggeration}
+                  onChange={(e) => {
+                    onChangeExaggeration?.(Number(e.target.value))
+                  }}
+                  className="diorama-relief-select"
+                >
+                  <option value={1}>1×</option>
+                  <option value={2}>2×</option>
+                  <option value={2.5}>2,5×</option>
+                  <option value={3.5}>3,5×</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Leyenda minimalista flotante en el visor (SDD-002 sección 6.5) */}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ProgressBar } from './ui/ProgressBar'
+import { Icon } from './ui/Icon'
 
 interface Props {
   message: string | null
@@ -10,32 +11,32 @@ interface Props {
 
 const AGRO_TIPS = [
   {
-    icon: '🌾',
+    icon: 'layers',
     title: 'Siembra Directa y Conservación',
     text: 'Mantener más del 30% del suelo cubierto con rastrojo reduce la velocidad de la escorrentía superficial hasta un 70% y previene la formación de cárcavas.',
   },
   {
-    icon: '🛰️',
+    icon: 'compass',
     title: 'Radar SAR y Humedad de Suelo',
     text: 'Los radares SAR en Banda L (como SAOCOM) estiman la humedad del suelo y rugosidad superficial; no son pluviómetros ni miden lluvia directa.',
   },
   {
-    icon: '🌧️',
+    icon: 'droplet',
     title: 'Red de Estaciones SMN',
     text: 'Las estaciones del Servicio Meteorológico Nacional se utilizan como referencia geográfica de proximidad al establecimiento.',
   },
   {
-    icon: '🌱',
+    icon: 'sun',
     title: 'Humedad Antecedente (AMC)',
     text: 'Un suelo con lluvias en los 5 días previos (AMC III) tiene menor capacidad de infiltración, provocando mayor escurrimiento hacia los bajos.',
   },
   {
-    icon: '⛰️',
+    icon: 'layers',
     title: 'Terrazas y Curvas de Nivel',
     text: 'Sistematizar el lote con terrazas a nivel frena el agua en las lomas y retiene humedad valiosa para el cultivo durante los meses de verano.',
   },
   {
-    icon: '🌽',
+    icon: 'droplet',
     title: 'Agua Útil en el Perfil',
     text: 'Por cada milímetro de agua útil almacenada en los primeros 100 cm de suelo, el maíz puede rendir entre 18 y 22 kg adicionales de grano por hectárea.',
   },
@@ -73,8 +74,7 @@ export function AgroLoadingOverlay({
         {/* Cabecera con branding agronómico */}
         <div className="agro-loading-header">
           <div className="agro-brand-tag">
-            <span className="agro-leaf">🌾</span>
-            <span>RotaTerra Agro-Hidrológico</span>
+            <span>RotaTerra</span>
           </div>
           {onDismiss && (
             <button
@@ -82,8 +82,9 @@ export function AgroLoadingOverlay({
               className="agro-dismiss-btn"
               onClick={onDismiss}
               title="Continuar en segundo plano"
+              aria-label="Cerrar"
             >
-              ✕
+              <Icon name="x" size={14} />
             </button>
           )}
         </div>
@@ -265,19 +266,19 @@ export function AgroLoadingOverlay({
           {/* Pasos del motor de cálculo */}
           <div className="agro-steps-row">
             <span className="agro-step-badge active">
-              🛰️ 1. Relieve Satelital
+              1. Relieve Satelital
             </span>
             <span className="agro-step-arrow">→</span>
             <span className="agro-step-badge active">
-              💧 2. Drenaje y Bajos
+              2. Drenaje y Bajos
             </span>
             <span className="agro-step-arrow">→</span>
             <span className="agro-step-badge active">
-              🌧️ 3. Serie Climática
+              3. Serie Climática
             </span>
             <span className="agro-step-arrow">→</span>
             <span className="agro-step-badge active">
-              🧊 4. Maqueta 3D
+              4. Maqueta 3D
             </span>
           </div>
 
@@ -286,7 +287,9 @@ export function AgroLoadingOverlay({
             className={`agro-tip-box ${tipFade ? 'fade-in' : 'fade-out'}`}
           >
             <div className="agro-tip-header">
-              <span className="agro-tip-icon">{currentTip.icon}</span>
+              <span className="agro-tip-icon">
+                <Icon name={currentTip.icon as any} size={16} />
+              </span>
               <strong>{currentTip.title}</strong>
             </div>
             <p className="agro-tip-text">{currentTip.text}</p>

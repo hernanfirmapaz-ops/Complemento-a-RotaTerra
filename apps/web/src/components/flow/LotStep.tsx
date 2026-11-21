@@ -118,7 +118,7 @@ export function LotStep({
         <SourceNote
           isNotice
           source=""
-          disclaimer="Tu lote no se guarda en ningún servidor externo. El procesamiento se realiza de forma local y privada."
+          disclaimer="Tu lote no se guarda ni se comparte."
         />
       </div>
     </div>
