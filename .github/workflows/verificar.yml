@@ -19,10 +19,18 @@ jobs:
       - name: Caché del programa WhiteboxTools
         uses: actions/cache@v4
         with:
-          path: ${{ env.pythonLocation }}/lib/python3.12/site-packages/whitebox/WBT
-          key: whitebox-bin-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          # El paquete copia el ejecutable fuera de WBT/ (whitebox/whitebox_tools): hay que guardar ambos.
+          path: |
+            ${{ env.pythonLocation }}/lib/python3.12/site-packages/whitebox/WBT
+            ${{ env.pythonLocation }}/lib/python3.12/site-packages/whitebox/whitebox_tools
+            ${{ env.pythonLocation }}/lib/python3.12/site-packages/whitebox/img
+            ${{ env.pythonLocation }}/lib/python3.12/site-packages/whitebox/plugins
+          key: whitebox-bin-v2-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
       - name: Instalar WhiteboxTools (descarga solo si no está en caché)
         run: python -c "import whitebox; whitebox.WhiteboxTools()"
+      - name: Verificar que el ejecutable de WhiteboxTools existe
+        # En CI los tests de Whitebox deben correr, no saltearse: si falta el binario, falla acá.
+        run: python -c "from geoprocessing.hydrology.conditioning import is_whitebox_available as ok; import sys; sys.exit(0 if ok() else 'Falta el ejecutable de WhiteboxTools')"
       - run: ruff check .
       - run: python -m pytest -q
 
