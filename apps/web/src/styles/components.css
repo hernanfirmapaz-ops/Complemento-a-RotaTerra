@@ -2,18 +2,12 @@
    RotaTerra UI Components Styles (SDD-002)
    ========================================================================== */
 
-/* --------------------------------------------------------------------------
-   Icon
-   -------------------------------------------------------------------------- */
 .ui-icon {
   display: inline-block;
   vertical-align: middle;
   flex-shrink: 0;
 }
 
-/* --------------------------------------------------------------------------
-   Button (6.5)
-   -------------------------------------------------------------------------- */
 .ui-btn {
   display: inline-flex;
   align-items: center;
@@ -60,7 +54,6 @@
   width: 100%;
 }
 
-/* Botón primario: Fondo --accent, texto blanco 15 px/500, alto 44 px, padding 0 22 px, radio 999 px. Hover --accent-hover */
 .ui-btn-primary {
   background-color: var(--accent);
   color: #FFFFFF;
@@ -71,7 +64,6 @@
   background-color: var(--accent-hover);
 }
 
-/* Botón secundario: Fondo transparente, borde 1 px --line, texto --ink. Hover: fondo --surface */
 .ui-btn-secondary {
   background-color: transparent;
   color: var(--ink);
@@ -82,7 +74,6 @@
   background-color: var(--surface);
 }
 
-/* Botón de texto: Solo texto --accent con flecha →; hover con subrayado */
 .ui-btn-text {
   background-color: transparent;
   color: var(--accent);
@@ -119,9 +110,6 @@
   animation: spin 0.8s linear infinite;
 }
 
-/* --------------------------------------------------------------------------
-   Segmented (6.5: Fondo --surface, activa con fondo blanco y borde --line)
-   -------------------------------------------------------------------------- */
 .ui-segmented {
   display: inline-flex;
   background-color: var(--surface);
@@ -170,9 +158,6 @@
   margin-top: 1px;
 }
 
-/* --------------------------------------------------------------------------
-   OptionList (6.5: Filas de 56 px con título y subtítulo gris, divisor 1 px)
-   -------------------------------------------------------------------------- */
 .ui-option-list {
   display: flex;
   flex-direction: column;
@@ -260,9 +245,6 @@
   align-items: center;
 }
 
-/* --------------------------------------------------------------------------
-   Metric (6.5: Número --t-metric con tabular-nums + unidad gris + etiqueta)
-   -------------------------------------------------------------------------- */
 .ui-metric {
   display: flex;
   flex-direction: column;
@@ -314,9 +296,6 @@
   margin-top: 2px;
 }
 
-/* --------------------------------------------------------------------------
-   Details (6.5: details nativo con chevron que rota 90°)
-   -------------------------------------------------------------------------- */
 .ui-details {
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius-card);
@@ -366,9 +345,6 @@
   border-top: var(--border-width) solid var(--surface);
 }
 
-/* --------------------------------------------------------------------------
-   BottomSheet (6.5: 3 alturas, tirador 36 x 4 px)
-   -------------------------------------------------------------------------- */
 .ui-bottom-sheet {
   position: fixed;
   bottom: 0;
@@ -433,9 +409,6 @@
   padding: var(--s2);
 }
 
-/* --------------------------------------------------------------------------
-   Legend (6.5: Barra 120 x 6 px, mín/máx y unidad, fondo blanco 90% opacidad)
-   -------------------------------------------------------------------------- */
 .ui-legend {
   display: inline-flex;
   flex-direction: column;
@@ -467,9 +440,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* --------------------------------------------------------------------------
-   SourceNote y Notice (6.5: 14 px --ink-2, aviso con línea de 1 px)
-   -------------------------------------------------------------------------- */
 .ui-source-note {
   display: flex;
   align-items: center;
@@ -503,9 +473,6 @@
   margin: 0;
 }
 
-/* ==========================================================================
-   Component Showcase Gallery (Tarea 1.1)
-   ========================================================================== */
 .showcase-page {
   max-width: 1120px;
   margin: 0 auto;
@@ -624,10 +591,6 @@
   color: var(--ink);
 }
 
-/* ==========================================================================
-   3-Step Flow Layout & Components (SDD-002 Secciones 7, 8)
-   ========================================================================== */
-
 .app-shell-3step {
   display: flex;
   flex-direction: column;
@@ -704,9 +667,6 @@
   overflow: hidden;
 }
 
-/* --------------------------------------------------------------------------
-   StepNav (8.2: 1. Lote - 2. Lluvia - 3. Resultado, sin insignias)
-   -------------------------------------------------------------------------- */
 .step-nav {
   padding-bottom: var(--s2);
   border-bottom: var(--border-width) solid var(--line);
@@ -792,9 +752,6 @@
   text-overflow: ellipsis;
 }
 
-/* --------------------------------------------------------------------------
-   Paso 1: LotStep
-   -------------------------------------------------------------------------- */
 .lot-step {
   display: flex;
   flex-direction: column;
@@ -934,9 +891,6 @@
   padding-top: var(--s2);
 }
 
-/* --------------------------------------------------------------------------
-   Paso 2: RainStep
-   -------------------------------------------------------------------------- */
 .rain-step {
   display: flex;
   flex-direction: column;
@@ -1024,9 +978,6 @@
   margin-top: var(--s1);
 }
 
-/* --------------------------------------------------------------------------
-   Paso 3: ResultStep & Indicador de Confianza / Comparador
-   -------------------------------------------------------------------------- */
 .result-step {
   display: flex;
   flex-direction: column;
@@ -1078,9 +1029,11 @@
 .confidence-chip-alto .confidence-chip-dot {
   background: #16a34a;
 }
+
 .confidence-chip-medio .confidence-chip-dot {
   background: #d97706;
 }
+
 .confidence-chip-bajo .confidence-chip-dot {
   background: #dc2626;
 }
@@ -1165,6 +1118,7 @@
     grid-template-columns: 1fr;
     gap: 6px;
   }
+
 }
 
 .compare-select-field {
@@ -1207,14 +1161,14 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
-  font-feature-settings: 'tnum';
+  font-feature-settings: "tnum";
 }
 
 .delta-subval {
   font-size: 9.5px;
   color: var(--ink-3);
   margin-top: 1px;
-  font-feature-settings: 'tnum';
+  font-feature-settings: "tnum";
 }
 
 .delta-val.is-positive {
@@ -1283,9 +1237,6 @@
   margin-top: var(--s1);
 }
 
-/* --------------------------------------------------------------------------
-   Toolkit Modal Overlay
-   -------------------------------------------------------------------------- */
 .toolkit-modal-overlay {
   position: fixed;
   inset: 0;
@@ -1330,10 +1281,6 @@
   overflow-y: auto;
   padding: 20px;
 }
-
-/* ==========================================================================
-   Visor 3D Minimalista y Controles Limpios (SDD-002 secciones 8.2 & 6.5)
-   ========================================================================== */
 
 .diorama-wrapper {
   position: relative;
@@ -1522,10 +1469,6 @@
   color: var(--line);
 }
 
-/* ==========================================================================
-   Mobile Responsive Styles (< 768 px, 360 px, 390 px) - SDD-002
-   ========================================================================== */
-
 html, body {
   overflow-x: hidden;
   max-width: 100vw;
@@ -1600,7 +1543,6 @@ html, body {
     border-radius: 0;
   }
 
-  /* Controles de visor en celular: columna vertical de íconos a la derecha (SDD-002 / Tarea 2.0) */
   .diorama-controls-dock {
     top: 12px;
     right: 12px;
@@ -1626,7 +1568,6 @@ html, body {
     min-width: 160px;
   }
 
-  /* Evitar superposición entre la tarjeta satelital y la columna derecha de íconos */
   .diorama-smn-watermark {
     top: 12px;
     left: 12px;
@@ -1635,6 +1576,7 @@ html, body {
     font-size: 11px;
     padding: 6px 10px;
   }
+
 }
 
 @media (max-width: 380px) {
@@ -1658,5 +1600,38 @@ html, body {
 
   .step-heading {
     font-size: 17px;
+  }
+
+}
+
+.stage-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1, 8px);
+  padding: var(--s4, 32px);
+  text-align: center;
+}
+
+.stage-empty-title {
+  margin: 0;
+  font-size: var(--t-h2, 22px);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stage-empty-text {
+  margin: 0;
+  max-width: 36ch;
+  font-size: var(--t-small, 14px);
+  color: var(--ink-2);
+}
+
+@media (max-width: 767px) {
+  .stage-empty {
+    justify-content: flex-start;
+    padding-top: 18vh;
   }
 }

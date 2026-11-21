@@ -748,7 +748,12 @@ export function App() {
 
         {/* Visor 3D o Mapa 2D */}
         <main className="flow-stage">
-          {workspaceView === '3d' ? (
+          {workspaceView === '3d' && !activeField ? (
+            <div className="stage-empty">
+              <p className="stage-empty-title">Tu lote va a aparecer acá</p>
+              <p className="stage-empty-text">Dibujalo en el mapa o subí su archivo para ver el relieve en 3D.</p>
+            </div>
+          ) : workspaceView === '3d' ? (
             <div style={{ width: '100%', height: '100%', position: 'relative' }}>
               <Suspense
                 fallback={
@@ -896,16 +901,18 @@ export function App() {
       </div>
 
       {/* Modal para dibujar lote en el mapa */}
-      <Suspense fallback={null}>
-        <PolygonMapDrawer
-          isOpen={isMapDrawerOpen}
-          initialCenter={activeField?.centroid ?? [-66.085, -33.128]}
-          onClose={() => setIsMapDrawerOpen(false)}
-          onConfirmPolygon={async (name, file) => {
-            await handleFullImportAndSimulate(file, name)
-          }}
-        />
-      </Suspense>
+      {isMapDrawerOpen && (
+        <Suspense fallback={null}>
+          <PolygonMapDrawer
+            isOpen={isMapDrawerOpen}
+            initialCenter={activeField?.centroid ?? [-66.085, -33.128]}
+            onClose={() => setIsMapDrawerOpen(false)}
+            onConfirmPolygon={async (name, file) => {
+              await handleFullImportAndSimulate(file, name)
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Modal de las 8 herramientas agronómicas (SDD-002 sección 8.4) */}
       {isToolkitModalOpen && (

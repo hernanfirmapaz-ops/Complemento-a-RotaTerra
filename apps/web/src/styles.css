@@ -1,16 +1,12 @@
-@import './styles/tokens.css';
-@import './styles/components.css';
+@import "./styles/tokens.css";
 
-/* ==========================================================================
-   Global Base & Typography
-   ========================================================================== */
+@import "./styles/components.css";
+
 * {
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
+html, body, #root {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -22,9 +18,6 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ==========================================================================
-   Toasts & Status Notices
-   ========================================================================== */
 .error-toast {
   display: flex;
   align-items: center;
@@ -49,25 +42,6 @@ body,
   padding: 0 4px;
 }
 
-.status-toast {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(255, 255, 255, 0.95);
-  border: var(--border-width) solid var(--line);
-  border-radius: var(--radius-pill);
-  padding: 8px 18px;
-  font-size: 13px;
-  color: var(--ink);
-  font-weight: 500;
-  z-index: 9999;
-  backdrop-filter: blur(8px);
-}
-
-/* ==========================================================================
-   PolygonMapDrawer (Modal interactivo para dibujar lote)
-   ========================================================================== */
 .drawer-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -498,9 +472,6 @@ body,
   line-height: 1.35;
 }
 
-/* ==========================================================================
-   Agronomic Toolkit Modal Elements
-   ========================================================================== */
 .toolkit-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -508,29 +479,6 @@ body,
   margin-bottom: 16px;
   padding-bottom: 8px;
   border-bottom: var(--border-width) solid var(--line);
-}
-
-.toolkit-tab-btn {
-  height: 32px;
-  padding: 0 12px;
-  background: transparent;
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-pill);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-
-.toolkit-tab-btn:hover {
-  background: var(--surface);
-  color: var(--ink);
-}
-
-.toolkit-tab-btn.active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-color: var(--accent);
 }
 
 .mini-table-wrap {
@@ -544,8 +492,7 @@ body,
   font-size: 12px;
 }
 
-.mini-table th,
-.mini-table td {
+.mini-table th, .mini-table td {
   padding: 8px 10px;
   border-bottom: var(--border-width) solid var(--line);
   text-align: left;
@@ -570,8 +517,7 @@ body,
   color: var(--ink-2);
 }
 
-.field-label select,
-.field-label input {
+.field-label select, .field-label input {
   height: 36px;
   padding: 0 10px;
   border: var(--border-width) solid var(--line);
