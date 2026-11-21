@@ -82,7 +82,8 @@ Estado: **Integrada** = conectada y en uso · **Planificada** = aprobada, falta 
   - Las celdas catalogadas como nube de alta probabilidad (`SCL=9`), nube de media probabilidad (`SCL=8`), sombra de nube (`SCL=3`), cirros (`SCL=10`) o nieve/hielo (`SCL=11`) se enmascaran rigurosamente con `np.nan`.
   - Se descartan escenas con cobertura de nubes declarada $\ge 85\%$.
   - Remuestreo por vecino más cercano (`Resampling.nearest`) para evitar contaminación espectral de bordes de nube sobre píxeles de vegetación limpia.
-  - Conforme a la **Regla R4**, si no se encuentran escenas válidas libres de nubes en la ventana temporal, el sistema no sintetiza índices artificiales y reporta `status: "unavailable"`.
+  - Conforme a la **Regla de datos**, si no se encuentran escenas válidas libres de nubes en la ventana temporal, el sistema no sintetiza índices artificiales y reporta `status: "unavailable"` y `calidad: "descartada"` con `mean_ndvi_in_field: null`.
+  - **Umbrales de vigor:** Los límites 0,38 (bajo vigor) y 0,60 (alto vigor) se declaran formalmente como supuestos agronómicos regionales en `geoprocessing/supuestos.py`.
 
 ---
 
@@ -98,9 +99,10 @@ Estado: **Integrada** = conectada y en uso · **Planificada** = aprobada, falta 
 - **Resolución espacial:** $0.5^\circ \times 0.5^\circ$ (~50 km en latitudes medias pampeanas).
 - **Serie temporal:** 1990 hasta la fecha actual en tiempo real (`date.today()`).
 - **Aplicaciones:**
-  - Balance hídrico mensual FAO-56.
-  - Análisis de riesgo de anegamiento en fechas históricas recientes.
-  - Estadísticas de fechas de primeras y últimas heladas (percentiles P10, P50, P90).
+  - Balance hídrico mensual.
+  - Análisis de volumen de escurrimiento hacia bajos en fechas históricas (sin factores inventados ni umbrales sin fuente; informa volumen y % llenado de bajos; hectáreas solo si vienen de simulación 2D).
+  - Estadísticas agroclimáticas de fechas de heladas (percentiles sin piso artificial ni rellenos sintéticos).
+- **Naturaleza del dato:** Reanálisis asimilado de modelos globales (MERRA-2 / GEOS), no es una observación satelital directa (`is_satellite_observed: False`). Etiquetado con calidad `descartada` si no existen años completos suficientes (mínimo 300 días).
 
 ### 3.2 NASA GPM IMERG (Precipitación Global Multi-Satelital)
 - **Producto:** IMERG Final Run / Late Run (GPM_3IMERGDF).

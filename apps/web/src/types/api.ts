@@ -606,15 +606,17 @@ export interface AgronomicToolkitOut {
     source: string
     evaluated_days: number
     significant_storms_count: number
-    high_waterlogging_events_count: number
+    high_waterlogging_events_count: number | null
     top_historical_events: {
       date: string
       precipitation_mm: number
       prior_5d_rain_mm: number
       antecedent_moisture_amc: string
       runoff_q_mm: number
-      estimated_waterlogged_area_ha: number
-      waterlogging_risk: string
+      runoff_volume_m3?: number
+      depression_fill_pct?: number | null
+      estimated_waterlogged_area_ha: number | null
+      waterlogging_risk: string | null
     }[]
   }
   contour_terraces: {
@@ -683,22 +685,23 @@ export interface AgronomicToolkitOut {
   }
   ndvi_vigor_monitor: {
     source: string
-    acquisition_date: string
-    mean_ndvi_in_field: number
-    low_vigor_area_ha: number
-    low_vigor_pct: number
-    moderate_vigor_pct: number
-    high_vigor_pct: number
-    weak_zones_explained_by_waterlogging_or_erosion_pct: number
+    acquisition_date: string | null
+    mean_ndvi_in_field: number | null
+    low_vigor_area_ha: number | null
+    low_vigor_pct: number | null
+    moderate_vigor_pct: number | null
+    high_vigor_pct: number | null
+    weak_zones_explained_by_waterlogging_or_erosion_pct: number | null
+    supuestos?: Record<string, number>
   }
   frost_risk_sowing: {
     source: string
-    mean_meteorological_frost_days_yr: number
-    mean_agronomic_frost_days_yr: number
-    median_last_spring_frost_date: string
-    safe_spring_sowing_start_date: string
-    median_first_autumn_frost_date: string
-    frost_free_period_days: number
+    mean_meteorological_frost_days_yr: number | null
+    mean_agronomic_frost_days_yr: number | null
+    median_last_spring_frost_date: string | null
+    safe_spring_sowing_start_date: string | null
+    median_first_autumn_frost_date: string | null
+    frost_free_period_days: number | null
     safe_sowing_windows_by_crop: {
       crop: string
       safe_start: string

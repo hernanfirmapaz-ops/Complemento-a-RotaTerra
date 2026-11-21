@@ -286,11 +286,10 @@ export function AgronomicToolkitPanel({
                 <div>
                   <dt>Eventos riesgo ALTO</dt>
                   <dd>
-                    {
-                      toolkit.real_waterlogging_by_date
-                        .high_waterlogging_events_count
-                    }{' '}
-                    fechas
+                    {toolkit.real_waterlogging_by_date.high_waterlogging_events_count !== null &&
+                    toolkit.real_waterlogging_by_date.high_waterlogging_events_count !== undefined
+                      ? `${toolkit.real_waterlogging_by_date.high_waterlogging_events_count} fechas`
+                      : 'Sin clasificación (descartada)'}
                   </dd>
                 </div>
               </dl>
@@ -302,7 +301,7 @@ export function AgronomicToolkitPanel({
                       <th>P</th>
                       <th>5d prev</th>
                       <th>Q</th>
-                      <th>Riesgo</th>
+                      <th>Llenado bajos</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -316,7 +315,11 @@ export function AgronomicToolkitPanel({
                             {ev.prior_5d_rain_mm.toFixed(0)} ({ev.antecedent_moisture_amc})
                           </td>
                           <td>{ev.runoff_q_mm.toFixed(1)} mm</td>
-                          <td>{ev.waterlogging_risk.toUpperCase()}</td>
+                          <td>
+                            {ev.depression_fill_pct !== undefined && ev.depression_fill_pct !== null
+                              ? `${ev.depression_fill_pct.toFixed(0)} %`
+                              : (ev.waterlogging_risk ? ev.waterlogging_risk.toUpperCase() : 'N/D')}
+                          </td>
                         </tr>
                       ))}
                   </tbody>
@@ -486,23 +489,28 @@ export function AgronomicToolkitPanel({
                 <div>
                   <dt>NDVI medio lote</dt>
                   <dd>
-                    {toolkit.ndvi_vigor_monitor.mean_ndvi_in_field.toFixed(3)}
+                    {toolkit.ndvi_vigor_monitor.mean_ndvi_in_field !== null &&
+                    toolkit.ndvi_vigor_monitor.mean_ndvi_in_field !== undefined
+                      ? toolkit.ndvi_vigor_monitor.mean_ndvi_in_field.toFixed(3)
+                      : 'Sin datos'}
                   </dd>
                 </div>
                 <div>
                   <dt>Zonas débiles (&lt;0,38)</dt>
                   <dd>
-                    {toolkit.ndvi_vigor_monitor.low_vigor_area_ha.toFixed(1)} ha
-                    ({toolkit.ndvi_vigor_monitor.low_vigor_pct.toFixed(1)} %)
+                    {toolkit.ndvi_vigor_monitor.low_vigor_area_ha !== null &&
+                    toolkit.ndvi_vigor_monitor.low_vigor_area_ha !== undefined
+                      ? `${toolkit.ndvi_vigor_monitor.low_vigor_area_ha.toFixed(1)} ha (${toolkit.ndvi_vigor_monitor.low_vigor_pct?.toFixed(1) ?? 0} %)`
+                      : 'Sin datos'}
                   </dd>
                 </div>
                 <div>
                   <dt>Coincidencia con bajos/vías</dt>
                   <dd>
-                    {toolkit.ndvi_vigor_monitor.weak_zones_explained_by_waterlogging_or_erosion_pct.toFixed(
-                      1,
-                    )}{' '}
-                    % explicado por relieve
+                    {toolkit.ndvi_vigor_monitor.weak_zones_explained_by_waterlogging_or_erosion_pct !== null &&
+                    toolkit.ndvi_vigor_monitor.weak_zones_explained_by_waterlogging_or_erosion_pct !== undefined
+                      ? `${toolkit.ndvi_vigor_monitor.weak_zones_explained_by_waterlogging_or_erosion_pct.toFixed(1)} % explicado por relieve`
+                      : 'Sin datos'}
                   </dd>
                 </div>
               </dl>
@@ -522,25 +530,31 @@ export function AgronomicToolkitPanel({
                 <div>
                   <dt>Última helada primavera</dt>
                   <dd>
-                    {toolkit.frost_risk_sowing.median_last_spring_frost_date}
+                    {toolkit.frost_risk_sowing.median_last_spring_frost_date ?? 'Sin datos'}
                   </dd>
                 </div>
                 <div>
                   <dt>Siembra segura (P90)</dt>
                   <dd>
-                    desde{' '}
-                    {toolkit.frost_risk_sowing.safe_spring_sowing_start_date}
+                    {toolkit.frost_risk_sowing.safe_spring_sowing_start_date
+                      ? `desde ${toolkit.frost_risk_sowing.safe_spring_sowing_start_date}`
+                      : 'Sin datos'}
                   </dd>
                 </div>
                 <div>
                   <dt>Primera helada otoño</dt>
                   <dd>
-                    {toolkit.frost_risk_sowing.median_first_autumn_frost_date}
+                    {toolkit.frost_risk_sowing.median_first_autumn_frost_date ?? 'Sin datos'}
                   </dd>
                 </div>
                 <div>
                   <dt>Ventana libre heladas</dt>
-                  <dd>{toolkit.frost_risk_sowing.frost_free_period_days} días</dd>
+                  <dd>
+                    {toolkit.frost_risk_sowing.frost_free_period_days !== null &&
+                    toolkit.frost_risk_sowing.frost_free_period_days !== undefined
+                      ? `${toolkit.frost_risk_sowing.frost_free_period_days} días`
+                      : 'Sin datos'}
+                  </dd>
                 </div>
               </dl>
               <ul className="limitations-list" style={{ marginTop: 8 }}>

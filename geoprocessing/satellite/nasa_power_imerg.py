@@ -12,6 +12,10 @@ import numpy as np
 from geoprocessing.dem.terrain import Dem
 from geoprocessing.net import client
 from geoprocessing.rainfall.nrcs_cn import SoilGroup, compute_nrcs_cn, lookup_cn_ii
+from geoprocessing.supuestos import (
+    SUPUESTO_NDVI_UMBRAL_ALTO_VIGOR,
+    SUPUESTO_NDVI_UMBRAL_BAJO_VIGOR,
+)
 
 NASA_POWER_DAILY_URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
 EARTH_SEARCH_STAC_URL = "https://earth-search.aws.element84.com/v1/search"
@@ -228,14 +232,16 @@ def evaluate_real_date_waterlogging_risk(
     low_zone_area_ha: float,
     depression_volume_m3: float,
 ) -> dict:
-    """Herramienta 3: Evalúa los eventos reales de tormenta más intensos y su riesgo de anegamiento por fecha."""
+    """Herramienta 3: Evalúa los eventos reales de tormenta más intensos y su volumen escurrido hacia bajos."""
     if not daily_rows:
         return {
             "source": source_label,
             "status": "unavailable",
+            "calidad": "descartada",
+            "motivo": "Sin datos climáticos diarios para evaluar escurrimiento histórico.",
             "evaluated_days": 0,
             "significant_storms_count": 0,
-            "high_waterlogging_events_count": 0,
+            "high_waterlogging_events_count": None,
             "top_historical_events": [],
         }
 
@@ -258,17 +264,17 @@ def evaluate_real_date_waterlogging_risk(
 
         cn_res = compute_nrcs_cn(p_day, cn_ii, amc, 0.2)
         runoff_m3 = (cn_res.runoff_q_mm / 1000.0) * (float(field_area_ha) * 10_000.0)
-        # Fracción de llenado de los bajos del lote
-        fill_ratio = runoff_m3 / max(100.0, float(depression_volume_m3)) if depression_volume_m3 > 0 else 0.0
-        flooded_ha = min(float(field_area_ha), float(low_zone_area_ha) * min(1.8, fill_ratio))
 
-        if cn_res.runoff_q_mm >= 25.0 or fill_ratio >= 0.85:
-            risk = "alto"
-        elif cn_res.runoff_q_mm >= 8.0 or fill_ratio >= 0.35:
-            risk = "moderado"
+        # Fracción y porcentaje de llenado del volumen total de bajos en el lote
+        dep_vol = float(depression_volume_m3)
+        if dep_vol > 0:
+            fill_pct = round(100.0 * runoff_m3 / dep_vol, 1)
         else:
-            risk = "bajo"
+            fill_pct = None
 
+        # Auditoría 21/11/2026 punto 2:
+        # Se elimina el factor min(1.8, relleno) y los umbrales inventados (25 mm, 8 mm, 0.85, 0.35).
+        # Hectáreas solo si vienen del motor 2D (aquí no hay simulación 2D diaria para cada evento).
         storms.append({
             "date": daily_rows[i]["date"],
             "precipitation_mm": round(p_day, 1),
@@ -276,21 +282,21 @@ def evaluate_real_date_waterlogging_risk(
             "antecedent_moisture_amc": amc,
             "cn_effective": cn_res.cn_effective,
             "runoff_q_mm": cn_res.runoff_q_mm,
-            "runoff_volume_m3": round(runoff_m3, 0),
-            "estimated_waterlogged_area_ha": round(flooded_ha, 2),
-            "waterlogging_risk": risk,
+            "runoff_volume_m3": round(runoff_m3, 1),
+            "depression_fill_pct": fill_pct,
+            "estimated_waterlogged_area_ha": None,
+            "waterlogging_risk": "descartada",
         })
 
     storms.sort(key=lambda item: item["precipitation_mm"], reverse=True)
     top_storms = storms[:8]
-    high_risk_count = sum(1 for s in storms if s["waterlogging_risk"] == "alto")
 
     return {
         "source": source_label,
         "status": "available",
         "evaluated_days": len(daily_rows),
         "significant_storms_count": len(storms),
-        "high_waterlogging_events_count": high_risk_count,
+        "high_waterlogging_events_count": None,
         "top_historical_events": top_storms,
     }
 
@@ -300,17 +306,21 @@ def evaluate_frost_risk_and_sowing_dates(
     source_label: str,
 ) -> dict:
     """Herramienta 8: Riesgo de heladas (Tmin <= 0 °C meteorológica y <= 3 °C agronómica) y fechas seguras."""
+    src = "NASA POWER (reanálisis ~55 km)" if "nasa" in source_label.lower() else source_label
+
     if not daily_rows:
         return {
-            "source": source_label,
+            "source": src,
             "status": "unavailable",
             "is_satellite_observed": False,
-            "mean_meteorological_frost_days_yr": 0.0,
-            "mean_agronomic_frost_days_yr": 0.0,
-            "median_last_spring_frost_date": "N/D",
-            "safe_spring_sowing_start_date": "N/D",
-            "median_first_autumn_frost_date": "N/D",
-            "frost_free_period_days": 0,
+            "calidad": "descartada",
+            "motivo": "Sin serie climática diaria para calcular estadísticas de heladas.",
+            "mean_meteorological_frost_days_yr": None,
+            "mean_agronomic_frost_days_yr": None,
+            "median_last_spring_frost_date": None,
+            "safe_spring_sowing_start_date": None,
+            "median_first_autumn_frost_date": None,
+            "frost_free_period_days": None,
             "safe_sowing_windows_by_crop": [],
         }
 
@@ -333,7 +343,7 @@ def evaluate_frost_risk_and_sowing_dates(
 
         # En el hemisferio sur:
         # - Heladas tardías (invierno/primavera): doy entre 180 (fin de junio) y 350 (diciembre)
-        # - Heladas tempranas (otoño): doy entre 80 (marzo) y 179 (junio)
+        # - Heladas tempranas (otoño): doy entre 75 (marzo) y 179 (junio)
         spring_candidates = [d["day_of_year"] for d in agr_frost if d["day_of_year"] >= 180]
         autumn_candidates = [d["day_of_year"] for d in agr_frost if 75 <= d["day_of_year"] < 180]
         if spring_candidates:
@@ -341,26 +351,46 @@ def evaluate_frost_risk_and_sowing_dates(
         if autumn_candidates:
             first_autumn_doys.append(min(autumn_candidates))
 
-    med_spring_doy = int(round(float(np.median(last_spring_doys)))) if last_spring_doys else 265
-    safe_spring_doy = int(round(float(np.percentile(last_spring_doys, 90)))) + 5 if last_spring_doys else 280
-    med_autumn_doy = int(round(float(np.median(first_autumn_doys)))) if first_autumn_doys else 115
+    # Auditoría 21/11/2026 punto 3:
+    # Si faltan datos suficientes de años completos, null + "descartada", sin valores inventados
+    # (eliminados 12.0 / 28.0 días y fechas 265, 280, 115).
+    if not frost_days_per_year or not last_spring_doys or not first_autumn_doys:
+        return {
+            "source": src,
+            "status": "unavailable",
+            "is_satellite_observed": False,
+            "calidad": "descartada",
+            "motivo": "Años con datos incompletos (<300 días) para determinar percentiles y medianas de heladas.",
+            "mean_meteorological_frost_days_yr": round(float(np.mean(frost_days_per_year)), 1)
+            if frost_days_per_year
+            else None,
+            "mean_agronomic_frost_days_yr": round(float(np.mean(agro_frost_days_per_year)), 1)
+            if agro_frost_days_per_year
+            else None,
+            "median_last_spring_frost_date": None,
+            "safe_spring_sowing_start_date": None,
+            "median_first_autumn_frost_date": None,
+            "frost_free_period_days": None,
+            "safe_sowing_windows_by_crop": [],
+        }
+
+    med_spring_doy = int(round(float(np.median(last_spring_doys))))
+    safe_spring_doy = int(round(float(np.percentile(last_spring_doys, 90)))) + 5
+    med_autumn_doy = int(round(float(np.median(first_autumn_doys))))
 
     def _doy_to_label(doy: int) -> str:
         dt = date(2025, 1, 1) + timedelta(days=max(0, min(364, doy - 1)))
         return f"{dt.day:02d} de {MONTH_NAMES_ES[dt.month - 1]}"
 
-    frost_free_days = max(120, (365 - safe_spring_doy) + med_autumn_doy)
+    # Sin piso artificial de 120 días (auditoría punto 3)
+    frost_free_days = (365 - safe_spring_doy) + med_autumn_doy
 
     return {
-        "source": source_label,
+        "source": src,
         "status": "available",
-        "is_satellite_observed": True,
-        "mean_meteorological_frost_days_yr": round(float(np.mean(frost_days_per_year)), 1)
-        if frost_days_per_year
-        else 12.0,
-        "mean_agronomic_frost_days_yr": round(float(np.mean(agro_frost_days_per_year)), 1)
-        if agro_frost_days_per_year
-        else 28.0,
+        "is_satellite_observed": False,
+        "mean_meteorological_frost_days_yr": round(float(np.mean(frost_days_per_year)), 1),
+        "mean_agronomic_frost_days_yr": round(float(np.mean(agro_frost_days_per_year)), 1),
         "median_last_spring_frost_date": _doy_to_label(med_spring_doy),
         "safe_spring_sowing_start_date": _doy_to_label(safe_spring_doy),
         "median_first_autumn_frost_date": _doy_to_label(med_autumn_doy),
@@ -509,15 +539,21 @@ def compute_ndvi_vigor_monitor(
                 "cloud_cover_pct": None,
                 "is_satellite_observed": False,
                 "status": "unavailable",
+                "calidad": "descartada",
+                "motivo": "No se encontraron escenas Sentinel-2 L2A con cobertura de nubes < 85% para el lote o servicio STAC no disponible.",
                 "mean_ndvi_in_field": None,
                 "min_ndvi_in_field": None,
                 "max_ndvi_in_field": None,
-                "low_vigor_area_ha": 0.0,
-                "low_vigor_pct": 0.0,
-                "moderate_vigor_pct": 0.0,
-                "high_vigor_pct": 0.0,
-                "weak_zones_explained_by_waterlogging_or_erosion_pct": 0.0,
+                "low_vigor_area_ha": None,
+                "low_vigor_pct": None,
+                "moderate_vigor_pct": None,
+                "high_vigor_pct": None,
+                "weak_zones_explained_by_waterlogging_or_erosion_pct": None,
                 "ndvi_by_agronomic_zone": [],
+                "supuestos": {
+                    "umbral_bajo_vigor": float(SUPUESTO_NDVI_UMBRAL_BAJO_VIGOR.valor),
+                    "umbral_alto_vigor": float(SUPUESTO_NDVI_UMBRAL_ALTO_VIGOR.valor),
+                },
             },
         }
 
@@ -526,9 +562,11 @@ def compute_ndvi_vigor_monitor(
     cell_area_ha = (float(dem.pixel) ** 2) / 10_000.0
     total_cells = max(1, int(in_field.sum()))
 
-    low_vigor = in_field & (ndvi_grid < 0.38)
-    mod_vigor = in_field & (ndvi_grid >= 0.38) & (ndvi_grid < 0.60)
-    high_vigor = in_field & (ndvi_grid >= 0.60)
+    u_bajo = float(SUPUESTO_NDVI_UMBRAL_BAJO_VIGOR.valor)
+    u_alto = float(SUPUESTO_NDVI_UMBRAL_ALTO_VIGOR.valor)
+    low_vigor = in_field & (ndvi_grid < u_bajo)
+    mod_vigor = in_field & (ndvi_grid >= u_bajo) & (ndvi_grid < u_alto)
+    high_vigor = in_field & (ndvi_grid >= u_alto)
 
     low_cells = int(low_vigor.sum())
     low_in_wet_bajos = int((low_vigor & (agronomic_zone_id == 4)).sum())
@@ -557,62 +595,18 @@ def compute_ndvi_vigor_monitor(
         "grid": ndvi_grid,
         "summary": {
             **scene_info,
-            "mean_ndvi_in_field": round(float(ndvi_f.mean()), 3) if ndvi_f.size else 0.0,
-            "min_ndvi_in_field": round(float(ndvi_f.min()), 3) if ndvi_f.size else 0.0,
-            "max_ndvi_in_field": round(float(ndvi_f.max()), 3) if ndvi_f.size else 0.0,
-            "low_vigor_area_ha": round(low_cells * cell_area_ha, 2),
-            "low_vigor_pct": round(100.0 * low_cells / total_cells, 1),
-            "moderate_vigor_pct": round(100.0 * int(mod_vigor.sum()) / total_cells, 1),
-            "high_vigor_pct": round(100.0 * int(high_vigor.sum()) / total_cells, 1),
-            "weak_zones_explained_by_waterlogging_or_erosion_pct": overlap_hydro_pct,
+            "mean_ndvi_in_field": round(float(ndvi_f.mean()), 3) if ndvi_f.size else None,
+            "min_ndvi_in_field": round(float(ndvi_f.min()), 3) if ndvi_f.size else None,
+            "max_ndvi_in_field": round(float(ndvi_f.max()), 3) if ndvi_f.size else None,
+            "low_vigor_area_ha": round(low_cells * cell_area_ha, 2) if total_cells else None,
+            "low_vigor_pct": round(100.0 * low_cells / total_cells, 1) if total_cells else None,
+            "moderate_vigor_pct": round(100.0 * int(mod_vigor.sum()) / total_cells, 1) if total_cells else None,
+            "high_vigor_pct": round(100.0 * int(high_vigor.sum()) / total_cells, 1) if total_cells else None,
+            "weak_zones_explained_by_waterlogging_or_erosion_pct": overlap_hydro_pct if low_cells > 0 else 0.0,
             "ndvi_by_agronomic_zone": by_zone,
-        },
-    }
-
-    in_field = mascara_lote & np.isfinite(ndvi_grid)
-    ndvi_f = ndvi_grid[in_field]
-    cell_area_ha = (float(dem.pixel) ** 2) / 10_000.0
-    total_cells = max(1, int(in_field.sum()))
-
-    low_vigor = in_field & (ndvi_grid < 0.38)
-    mod_vigor = in_field & (ndvi_grid >= 0.38) & (ndvi_grid < 0.60)
-    high_vigor = in_field & (ndvi_grid >= 0.60)
-
-    low_cells = int(low_vigor.sum())
-    low_in_wet_bajos = int((low_vigor & (agronomic_zone_id == 4)).sum())
-    low_in_erosion_ways = int((low_vigor & (agronomic_zone_id == 3)).sum())
-    overlap_hydro_pct = (
-        round(100.0 * (low_in_wet_bajos + low_in_erosion_ways) / low_cells, 1)
-        if low_cells > 0
-        else 0.0
-    )
-
-    by_zone = []
-    for z_id, label in (
-        (1, "Ambiente 1 — Loma"),
-        (2, "Ambiente 2 — Media loma"),
-        (3, "Ambiente 3 — Vía escurrimiento"),
-        (4, "Ambiente 4 — Bajo receptor"),
-    ):
-        mz = in_field & (agronomic_zone_id == z_id)
-        by_zone.append({
-            "zone_id": z_id,
-            "label": label,
-            "mean_ndvi": round(float(ndvi_grid[mz].mean()), 3) if mz.any() else None,
-        })
-
-    return {
-        "grid": ndvi_grid,
-        "summary": {
-            **scene_info,
-            "mean_ndvi_in_field": round(float(ndvi_f.mean()), 3) if ndvi_f.size else 0.0,
-            "min_ndvi_in_field": round(float(ndvi_f.min()), 3) if ndvi_f.size else 0.0,
-            "max_ndvi_in_field": round(float(ndvi_f.max()), 3) if ndvi_f.size else 0.0,
-            "low_vigor_area_ha": round(low_cells * cell_area_ha, 2),
-            "low_vigor_pct": round(100.0 * low_cells / total_cells, 1),
-            "moderate_vigor_pct": round(100.0 * int(mod_vigor.sum()) / total_cells, 1),
-            "high_vigor_pct": round(100.0 * int(high_vigor.sum()) / total_cells, 1),
-            "weak_zones_explained_by_waterlogging_or_erosion_pct": overlap_hydro_pct,
-            "ndvi_by_agronomic_zone": by_zone,
+            "supuestos": {
+                "umbral_bajo_vigor": u_bajo,
+                "umbral_alto_vigor": u_alto,
+            },
         },
     }

@@ -14,8 +14,6 @@ import math
 from pathlib import Path
 from typing import Literal
 
-from geoprocessing.satellite.nasa_power_imerg import fetch_nasa_power_daily_series
-
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 SMN_STATIONS_FILE = DATA_DIR / "smn_estaciones.json"
 
@@ -157,6 +155,8 @@ def get_field_daily_rainfall_context(
     la estación SMN más cercana únicamente como referencia geográfica sin datos conectados.
     """
     nearest_station = find_nearest_smn_station(lon, lat)
+    from geoprocessing.satellite.nasa_power_imerg import fetch_nasa_power_daily_series
+
     daily_rows, climate_source, _ = fetch_nasa_power_daily_series(lon, lat, years=2)
 
     power_source_name = "NASA POWER (MERRA-2 / GPCP · ~55 km)"
