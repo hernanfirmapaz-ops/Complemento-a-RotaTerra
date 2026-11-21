@@ -146,3 +146,14 @@ El nivel de confianza se determina a partir de 3 componentes:
 | **2.2** | `feat/entorno-lote` | Cuantificación de escorrentía entrante y buffer 300–500 m | `inflow_m3` verificado con tests |
 | **2.3** | `feat/indicador-confianza` | Cálculo y visualización del indicador de confianza | Chip visible con justificación |
 | **2.4** | `feat/comparar-escenarios` | Comparador numérico y visual de escenarios | Deltas en ha, % y t/ha |
+
+---
+
+## 7. Estado de implementación (revisión del 21/11/2026)
+
+| Punto | Estado | Detalle |
+|---|---|---|
+| Entorno del lote | Parcial | El relieve se recorta con margen (`buffer_m`) y el aporte externo se calcula en **volumen** (`external_inflow_ha × Q`), sumado al balance del lote. **Pendiente:** distribuir espacialmente ese aporte en la grilla (que el agua entre por el borde correcto del lote en la simulación 2D) |
+| Indicador de confianza | Corregido | El suelo ya no se atribuye al INTA sin datos: sin fuente conectada se informa "Suelo por omisión, sin confirmar". Cada fuente de lluvia se nombra con su resolución real; la tormenta de diseño se informa como escenario hipotético, no como curva IDF |
+| Comparador | Hecho | Compara dos corridas cualesquiera, por lo que sirve para manejo (cobertura) y lluvia (30 / 80 / 130 mm). Los presets Conservador / Medio / Crítico solo varían la lluvia con el manejo elegido |
+| Tests | Hecho | El test de presets usa un relieve sintético: la suite corre sin internet |

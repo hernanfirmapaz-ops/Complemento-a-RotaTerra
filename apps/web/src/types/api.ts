@@ -361,6 +361,8 @@ export interface RunoffRunIn {
   antecedent_moisture: AntecedentMoisture
   lambda_ratio: number
   custom_cn_ii?: number | null
+  /** Origen del grupo hidrológico; sin valor el backend informa "Suelo por omisión, sin confirmar". */
+  soil_source?: string | null
 }
 
 export interface CnResultOut {

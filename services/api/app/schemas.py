@@ -375,6 +375,11 @@ class RunoffRunIn(BaseModel):
     antecedent_moisture: Literal["dry", "medium", "wet"] = "medium"
     lambda_ratio: float = Field(0.2, ge=0.01, le=0.5)
     custom_cn_ii: float | None = Field(None, ge=30.0, le=98.0)
+    soil_source: str | None = Field(
+        None,
+        description="Origen del grupo hidrológico (local_survey, inta_regional, soilgrids, hysogs, "
+        "user_selected). Sin valor se informa 'Suelo por omisión, sin confirmar'.",
+    )
 
     @field_validator("cover_code")
     @classmethod

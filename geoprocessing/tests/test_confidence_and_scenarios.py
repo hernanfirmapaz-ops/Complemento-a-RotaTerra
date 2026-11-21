@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,10 @@ from fastapi.testclient import TestClient
 
 from geoprocessing.hydrology.confidence import compute_confidence_indicator
 from geoprocessing.rainfall.nrcs_cn import compare_runoff_scenarios, compute_nrcs_cn
+from geoprocessing.tests.fixtures.synthetic_dem import (
+    synthetic_square_field_geojson,
+    write_synthetic_inclined_plane_utm,
+)
 from services.api.app.core import config
 from services.api.app.main import app
 from services.api.app.services import store, terrain
@@ -58,6 +63,24 @@ def test_confidence_indicator_nasa_power_satellite():
     assert ci["level"] in ("medio", "bajo")
     assert "55 km" in ci["rain_note"]
     assert any("55 km" in r for r in ci["reasons"])
+
+
+def test_confidence_soil_without_source_is_not_attributed_to_inta():
+    """Sin fuente de suelos conectada, el indicador no puede citar al INTA."""
+    ci = compute_confidence_indicator(soil_source=None, rain_source_type="manual")
+    assert "INTA" not in ci["soil_note"]
+    assert "sin confirmar" in ci["soil_note"]
+    assert not any("INTA" in r for r in ci["reasons"])
+
+
+def test_confidence_rain_sources_are_named_exactly():
+    """Cada fuente de lluvia se nombra con su resolución real; ninguna cae en una curva IDF inexistente."""
+    assert "IMERG" in compute_confidence_indicator(rain_source_type="IMERG")["rain_note"]
+    assert "CHIRPS" in compute_confidence_indicator(rain_source_type="CHIRPS")["rain_note"]
+    assert "ERA5-Land" in compute_confidence_indicator(rain_source_type="ERA5-Land")["rain_note"]
+    manual = compute_confidence_indicator(rain_source_type="manual")
+    assert "IDF" not in manual["rain_note"]
+    assert "diseño" in manual["rain_note"]
 
 
 def test_compare_scenarios_deltas_and_summary():
@@ -207,43 +230,36 @@ def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return TestClient(app)
 
 
-def test_api_scenarios_compare_and_presets(api_client: TestClient):
+def test_api_scenarios_compare_and_presets(api_client: TestClient, tmp_path: Path):
     """Prueba de integración API para el endpoint de comparación y los 3 presets estándar."""
-    # 1. Crear lote sintético
-    geojson = {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [
-                            [-65.31, -33.66],
-                            [-65.30, -33.66],
-                            [-65.30, -33.65],
-                            [-65.31, -33.65],
-                            [-65.31, -33.66],
-                        ]
-                    ],
-                },
-                "properties": {"name": "Lote Test Escenarios"},
-            }
-        ],
-    }
+    # 1. Lote sintético (sin internet)
+    geojson_bytes = json.dumps(synthetic_square_field_geojson()).encode("utf-8")
     r_imp = api_client.post(
         "/api/v1/fields/import",
-        files={"file": ("lote.geojson", str(geojson).replace("'", '"').encode("utf-8"), "application/json")},
+        files={"file": ("lote.geojson", geojson_bytes, "application/geo+json")},
+        data={"default_name": "Lote Test Escenarios"},
     )
-    assert r_imp.status_code == 201
+    assert r_imp.status_code == 201, r_imp.text
     field_id = r_imp.json()["fields"][0]["id"]
 
-    # 2. Procesar DEM con Copernicus 30m (usará fixture o backup offline)
-    r_dem = api_client.post(
-        f"/api/v1/fields/{field_id}/terrain/process",
-        data={"source_id": "copernicus_glo30", "buffer_m": "300"},
+    # 2. Relieve sintético subido como archivo: el test no depende de Copernicus ni de la red
+    dem_path = write_synthetic_inclined_plane_utm(
+        tmp_path / "dem_escenarios.tif", slope_east=0.01, slope_south=0.015, pixel_m=10.0, width=220, height=220
     )
-    assert r_dem.status_code == 200
+    with dem_path.open("rb") as fh:
+        r_dem = api_client.post(
+            f"/api/v1/fields/{field_id}/terrain/process",
+            files={"file": ("dem_escenarios.tif", fh, "image/tiff")},
+            data={
+                "source_id": "upload",
+                "buffer_m": "100",
+                "source_name": "DEM sintético (TEST)",
+                "surface_type": "DTM",
+                "vertical_datum": "EGM2008",
+                "vertical_accuracy_m": "0.1",
+            },
+        )
+    assert r_dem.status_code == 200, r_dem.text
 
     # 3. Simular presets estándar (Conservador, Medio, Crítico)
     r_presets = api_client.post(f"/api/v1/fields/{field_id}/scenarios/simulate-presets")

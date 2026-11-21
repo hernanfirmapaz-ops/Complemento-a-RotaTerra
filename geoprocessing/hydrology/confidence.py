@@ -14,8 +14,8 @@ def compute_confidence_indicator(
     source_id: str = "copernicus_glo30",
     resolution_m: float = 30.0,
     mean_slope_pct: float = 1.0,
-    soil_source: str = "inta_regional",
-    rain_source_type: str = "regional_design",
+    soil_source: str | None = "default",
+    rain_source_type: str = "manual",
 ) -> dict:
     """Calcula el índice de confianza (Alto / Medio / Bajo) según SDD-003 §3.1.
 
@@ -60,34 +60,20 @@ def compute_confidence_indicator(
         reasons.append(f"Relieve satelital Copernicus {res_m:.0f} m con pendiente moderada ({slope_pct:.1f}%)")
 
     # 2. Componente Suelo (peso 0.30)
-    soil_lower = (soil_source or "").lower()
-    if soil_lower in ("local_survey", "inta_detailed", "suelo_analisis_local"):
-        score_soil = 0.90
-        soil_note = "Cartografía INTA 1:50.000 / Análisis físico de suelo"
-        reasons.append("Suelo validado con análisis local o cartografía de detalle")
-    elif soil_lower in ("default", "unconfirmed", "omision"):
-        score_soil = 0.40
-        soil_note = "Parámetro por omisión sin confirmación"
-        reasons.append("Parámetro de suelo por omisión sin confirmación edafológica en campo")
-    else:
-        score_soil = 0.65
-        soil_note = "Carta INTA 1:100.000 / HYSOGs250m"
-        reasons.append("Suelo grupo hidrológico inferido por carta INTA regional")
+    # Cada fuente declara exactamente de dónde sale el dato: nunca se atribuye
+    # el suelo a una fuente que no se consultó (AGENTS.md, regla de fuentes).
+    soil_key = (soil_source or "default").lower()
+    soil_info = SOIL_SOURCES.get(soil_key, SOIL_SOURCES["default"])
+    score_soil = soil_info["score"]
+    soil_note = soil_info["note"]
+    reasons.append(soil_info["reason"])
 
     # 3. Componente Precipitación (peso 0.30)
-    rain_lower = (rain_source_type or "").lower()
-    if rain_lower in ("gauge", "pluviometro", "local_pluviometer"):
-        score_rain = 0.95
-        rain_note = "Pluviómetro local de campo"
-        reasons.append("Precipitación registrada in situ con serie temporal continua")
-    elif rain_lower in ("satellite_nasa", "nasa_power", "satellite", "gpcp"):
-        score_rain = 0.45
-        rain_note = "NASA POWER (~55 km)"
-        reasons.append("Dato satelital global (~55 km) con incertidumbre espacial en tormentas convectivas")
-    else:
-        score_rain = 0.75
-        rain_note = "Diseño regional IDF INA"
-        reasons.append("Curva IDF regional transpuesta (error típico ±20%)")
+    rain_key = (rain_source_type or "manual").lower()
+    rain_info = RAIN_SOURCES.get(rain_key, RAIN_SOURCES["manual"])
+    score_rain = rain_info["score"]
+    rain_note = rain_info["note"]
+    reasons.append(rain_info["reason"])
 
     # Ponderación global
     final_score = round(0.40 * score_relief + 0.30 * score_soil + 0.30 * score_rain, 2)
@@ -108,3 +94,52 @@ def compute_confidence_indicator(
         "soil_note": soil_note,
         "rain_note": rain_note,
     }
+
+
+# Fuentes de suelo reconocidas. Una clave desconocida cae en "default".
+SOIL_SOURCES: dict[str, dict] = {
+    "local_survey": {"score": 0.90, "note": "Análisis de suelo del lote",
+                     "reason": "Suelo validado con análisis físico local"},
+    "suelo_analisis_local": {"score": 0.90, "note": "Análisis de suelo del lote",
+                             "reason": "Suelo validado con análisis físico local"},
+    "inta_detailed": {"score": 0.85, "note": "Carta de suelos INTA de detalle (≤ 1:50.000)",
+                      "reason": "Grupo hidrológico derivado de cartografía INTA de detalle"},
+    "inta_regional": {"score": 0.65, "note": "Carta de suelos INTA 1:100.000",
+                      "reason": "Grupo hidrológico derivado de carta INTA regional (mezcla lomas y bajos)"},
+    "soilgrids": {"score": 0.55, "note": "SoilGrids 250 m (ISRIC)",
+                  "reason": "Textura estimada por SoilGrids (modelo global, 250 m)"},
+    "hysogs": {"score": 0.55, "note": "HYSOGs250m (NASA ORNL DAAC)",
+               "reason": "Grupo hidrológico global HYSOGs250m (250 m)"},
+    "user_selected": {"score": 0.45, "note": "Grupo hidrológico elegido por el usuario",
+                      "reason": "Grupo hidrológico elegido por el usuario, sin confirmar con datos de suelo"},
+    "default": {"score": 0.40, "note": "Suelo por omisión, sin confirmar",
+                "reason": "No hay fuente de suelos conectada: grupo hidrológico por omisión, sin confirmar"},
+}
+
+# Fuentes de lluvia reconocidas. Una clave desconocida cae en "manual".
+RAIN_SOURCES: dict[str, dict] = {
+    "gauge": {"score": 0.95, "note": "Pluviómetro local de campo",
+              "reason": "Precipitación registrada en el lote"},
+    "pluviometro": {"score": 0.95, "note": "Pluviómetro local de campo",
+                    "reason": "Precipitación registrada en el lote"},
+    "local_pluviometer": {"score": 0.95, "note": "Pluviómetro local de campo",
+                          "reason": "Precipitación registrada en el lote"},
+    "smn": {"score": 0.75, "note": "Estación SMN (serie cargada por el usuario)",
+            "reason": "Lluvia medida en una estación SMN, a distancia del lote"},
+    "chirps": {"score": 0.55, "note": "CHIRPS (~5 km)",
+               "reason": "Lluvia satelital con ajuste por estaciones (~5 km)"},
+    "imerg": {"score": 0.55, "note": "NASA GPM IMERG (~10 km)",
+              "reason": "Lluvia satelital (~10 km): subestima picos convectivos sobre el lote"},
+    "era5-land": {"score": 0.50, "note": "ERA5-Land (~9 km)",
+                  "reason": "Reanálisis (~9 km): no es una medición en el lote"},
+    "nasa_power": {"score": 0.45, "note": "NASA POWER (~55 km)",
+                   "reason": "Reanálisis regional (~55 km) con incertidumbre en tormentas convectivas"},
+    "satellite_nasa": {"score": 0.45, "note": "NASA POWER (~55 km)",
+                       "reason": "Reanálisis regional (~55 km) con incertidumbre en tormentas convectivas"},
+    "gpcp": {"score": 0.45, "note": "NASA POWER (~55 km)",
+             "reason": "Reanálisis regional (~55 km) con incertidumbre en tormentas convectivas"},
+    "manual": {"score": 0.75, "note": "Tormenta de diseño elegida por el usuario",
+               "reason": "Escenario hipotético de lluvia: no es un evento medido"},
+    "regional_design": {"score": 0.75, "note": "Tormenta de diseño elegida por el usuario",
+                        "reason": "Escenario hipotético de lluvia: no es un evento medido"},
+}

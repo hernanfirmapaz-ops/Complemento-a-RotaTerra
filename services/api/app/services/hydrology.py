@@ -500,7 +500,7 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         source_id=dem_source_id,
         resolution_m=dem_res_m,
         mean_slope_pct=mean_slope_val,
-        soil_source="inta_regional",
+        soil_source=payload.soil_source or "default",
         rain_source_type=rain_type,
     )
 
