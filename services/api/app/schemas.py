@@ -468,8 +468,9 @@ class ScenarioComparisonOut(BaseModel):
     # Spec 003 fields
     delta_runoff_volume_m3: float = 0.0
     delta_runoff_pct: float | None = None
-    delta_ponded_area_ha: float = 0.0
-    delta_soil_loss_t_ha: float = 0.0
+    delta_ponded_area_ha: float | None = None
+    delta_soil_loss_t_ha: float | None = None
+    notes: list[str] = Field(default_factory=list)
     summary_text: str = ""
 
 

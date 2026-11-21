@@ -461,8 +461,9 @@ export interface ScenarioComparisonOut {
   delta_high_concentration_area_ha: number
   delta_runoff_volume_m3?: number
   delta_runoff_pct?: number | null
-  delta_ponded_area_ha?: number
-  delta_soil_loss_t_ha?: number
+  delta_ponded_area_ha?: number | null
+  delta_soil_loss_t_ha?: number | null
+  notes?: string[]
   summary_text?: string
 }
 

@@ -288,6 +288,44 @@ export function ComponentShowcase({ onClose }: { onClose?: () => void }) {
             ))}
           </div>
         </section>
+
+        {/* Sección: Comparador de Escenarios sin números inventados */}
+        <section className="showcase-card showcase-card-full">
+          <h2>10. Comparador de Escenarios (Deltas con "Sin dato")</h2>
+          <p className="showcase-desc">
+            Cuando una corrida no tiene simulación 2D o datos USLE, muestra "Sin dato" con nota explicativa, nunca un número inventado ni 0.0.
+          </p>
+          <div className="compare-deltas-grid" style={{ maxWidth: 520, margin: '12px 0' }}>
+            <div className="compare-delta-card">
+              <span className="delta-label">Δ Superficie anegable</span>
+              <span className="delta-val is-muted">Sin dato</span>
+              <span className="delta-subval">Sin simulación 2D</span>
+            </div>
+            <div className="compare-delta-card">
+              <span className="delta-label">Δ Escurrimiento fuera</span>
+              <span className="delta-val is-positive">+12 %</span>
+              <span className="delta-subval">+3.500 m³</span>
+            </div>
+            <div className="compare-delta-card">
+              <span className="delta-label">Δ Pérdida de suelo</span>
+              <span className="delta-val is-muted">Sin dato</span>
+              <span className="delta-subval">Sin datos USLE</span>
+            </div>
+          </div>
+          <div className="compare-summary-box" style={{ maxWidth: 520, marginTop: 8 }}>
+            El escenario 'Crítico (130 mm)' genera 3.500 m³ más de escorrentía (+12.0%) respecto a 'Medio (80 mm)'.
+          </div>
+          <div className="compare-notes-list" style={{ fontSize: 11, color: 'var(--ink-2)', marginTop: 8, maxWidth: 520, lineHeight: 1.4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ opacity: 0.7 }}>•</span>
+              <span>Sin simulación 2D en una de las corridas</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ opacity: 0.7 }}>•</span>
+              <span>Pérdida de suelo USLE no disponible: faltan datos de suelo o relieve</span>
+            </div>
+          </div>
+        </section>
       </div>
 
       {/* Botón para previsualizar BottomSheet en móvil */}

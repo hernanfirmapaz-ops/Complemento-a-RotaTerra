@@ -83,6 +83,29 @@ def estimate_storm_erosivity_r(precipitation_mm: float, max_intensity_mm_h: floa
     return round(float(ei30), 2)
 
 
+def estimate_mean_soil_loss_usle(
+    precipitation_mm: float,
+    runoff_q_mm: float,
+    soil_group: str,
+    cover_code: str,
+    ls_mean: float,
+    p_factor: float = 1.0,
+    max_intensity_mm_h: float | None = None,
+) -> float:
+    """Calcula la pérdida media de suelo de evento (t/ha) usando la formulación USLE/RUSLE estándar.
+
+    A = R * K * LS * C * P * SDR
+    Donde SDR es el ratio de entrega de sedimentos (delivery_ratio) basado en escorrentía superficial
+    (Williams & Berndt 1977; Wischmeier & Smith 1978).
+    """
+    k_factor = SOIL_K_BY_GROUP.get(soil_group, 0.032)
+    c_factor = COVER_C_FACTOR.get(cover_code, 0.12)
+    r_storm = estimate_storm_erosivity_r(precipitation_mm, max_intensity_mm_h)
+    p = float(precipitation_mm)
+    delivery_ratio = min(1.0, 0.15 + 0.85 * (runoff_q_mm / max(1.0, p))) if p > 0 else 0.0
+    return float(r_storm * k_factor * float(ls_mean) * c_factor * float(p_factor) * delivery_ratio)
+
+
 def compute_usle_erosion_and_gullies(
     mfd_area_m2: np.ndarray,
     slope_pct: np.ndarray,
