@@ -23,6 +23,7 @@ import {
   runHydrodynamic2DSolver,
   runStaticHydrology,
   simulateDailyRainfall,
+  simulatePresetScenarios,
 } from './services/api'
 import type {
   AgronomicToolkitIn,
@@ -456,6 +457,25 @@ export function App() {
     }
   }
 
+  const handleSimulatePresets = async () => {
+    if (!activeField) return
+    setError(null)
+    setBusy('Generando escenarios estándar (Conservador 30 mm, Medio 80 mm, Crítico 130 mm)...')
+    try {
+      await simulatePresetScenarios(activeField.id, quickSoilGroup, quickCover)
+      const [rns, m] = await Promise.all([
+        listRunoffRuns(activeField.id),
+        getTerrainMesh(activeField.id),
+      ])
+      setRunoffRuns(rns)
+      setMesh(m)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const handleMapClick = async (lon: number, lat: number) => {
     if (!activeField) return
     try {
@@ -619,6 +639,7 @@ export function App() {
                     : Promise.resolve(null)
                 }
                 onActivateRun={handleActivateRun}
+                onSimulatePresets={handleSimulatePresets}
                 busy={Boolean(busy)}
               />
             )}
@@ -717,6 +738,7 @@ export function App() {
                       : Promise.resolve(null)
                   }
                   onActivateRun={handleActivateRun}
+                  onSimulatePresets={handleSimulatePresets}
                   busy={Boolean(busy)}
                 />
               )}

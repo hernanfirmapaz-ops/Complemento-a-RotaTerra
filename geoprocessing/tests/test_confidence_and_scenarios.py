@@ -111,6 +111,94 @@ def test_compare_scenarios_deltas_and_summary():
     assert "erosión" in comp["summary_text"]
 
 
+def test_compare_scenarios_zero_runoff_edge_cases():
+    """Verifica que el comparador maneje limpiamente los casos borde donde una o ambas corridas
+    tienen escorrentía nula (P <= Ia -> Q = 0 mm).
+    """
+    # Run 0: 25 mm lluvia (menor a Ia), Q = 0 mm
+    run_zero_1 = {
+        "id": "run-0a",
+        "name": "25 mm Suave (Q=0)",
+        "cn_result": {
+            "precipitation_mm": 25.0,
+            "cn_effective": 75.0,
+            "initial_abstraction_ia_mm": 28.0,
+            "runoff_q_mm": 0.0,
+            "runoff_coefficient": 0.0,
+        },
+        "spatial_summary": {
+            "runoff_generated_q_mm": 0.0,
+            "field_runoff_generated_m3": 0.0,
+            "external_runoff_inflow_m3": 0.0,
+            "total_runoff_supply_m3": 0.0,
+            "potential_depression_retention_m3": 0.0,
+            "net_outflow_potential_m3": 0.0,
+            "high_concentration_area_ha": 0.0,
+        },
+    }
+    # Run 0b: 28 mm lluvia (también Q = 0 mm)
+    run_zero_2 = {
+        "id": "run-0b",
+        "name": "28 mm Suave (Q=0)",
+        "cn_result": {
+            "precipitation_mm": 28.0,
+            "cn_effective": 75.0,
+            "initial_abstraction_ia_mm": 28.0,
+            "runoff_q_mm": 0.0,
+            "runoff_coefficient": 0.0,
+        },
+        "spatial_summary": {
+            "runoff_generated_q_mm": 0.0,
+            "field_runoff_generated_m3": 0.0,
+            "external_runoff_inflow_m3": 0.0,
+            "total_runoff_supply_m3": 0.0,
+            "potential_depression_retention_m3": 0.0,
+            "net_outflow_potential_m3": 0.0,
+            "high_concentration_area_ha": 0.0,
+        },
+    }
+    # Run con escorrentía: 80 mm, Q = 25 mm, 15000 m³
+    run_with_q = {
+        "id": "run-q",
+        "name": "80 mm Tormenta (Q>0)",
+        "cn_result": {
+            "precipitation_mm": 80.0,
+            "cn_effective": 75.0,
+            "initial_abstraction_ia_mm": 28.0,
+            "runoff_q_mm": 25.0,
+            "runoff_coefficient": 0.31,
+        },
+        "spatial_summary": {
+            "runoff_generated_q_mm": 25.0,
+            "field_runoff_generated_m3": 15000.0,
+            "external_runoff_inflow_m3": 1000.0,
+            "total_runoff_supply_m3": 16000.0,
+            "potential_depression_retention_m3": 2000.0,
+            "net_outflow_potential_m3": 14000.0,
+            "high_concentration_area_ha": 1.5,
+        },
+    }
+
+    # Caso 1: Ambos con Q = 0 -> delta_runoff_pct debe ser 0.0%
+    c_zero_both = compare_runoff_scenarios(run_zero_1, run_zero_2)
+    assert c_zero_both["delta_runoff_pct"] == 0.0
+    assert c_zero_both["delta_runoff_volume_m3"] == 0.0
+    assert "idéntico" in c_zero_both["summary_text"]
+
+    # Caso 2: A con Q = 0 y B con Q > 0 -> delta_runoff_pct es None (base cero), pero volumen es positivo
+    c_zero_to_q = compare_runoff_scenarios(run_zero_1, run_with_q)
+    assert c_zero_to_q["delta_runoff_pct"] is None
+    assert c_zero_to_q["delta_runoff_volume_m3"] == pytest.approx(15000.0)
+    assert "genera 15,000 m³ más de escorrentía" in c_zero_to_q["summary_text"]
+
+    # Caso 3: A con Q > 0 y B con Q = 0 -> delta_runoff_pct es -100.0%
+    c_q_to_zero = compare_runoff_scenarios(run_with_q, run_zero_1)
+    assert c_q_to_zero["delta_runoff_pct"] == pytest.approx(-100.0)
+    assert c_q_to_zero["delta_runoff_volume_m3"] == pytest.approx(-15000.0)
+    assert "retiene 15,000 m³ más de agua" in c_q_to_zero["summary_text"]
+    assert "(-100.0%)" in c_q_to_zero["summary_text"]
+
+
 @pytest.fixture()
 def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path / "runs")
@@ -163,16 +251,25 @@ def test_api_scenarios_compare_and_presets(api_client: TestClient):
     presets = r_presets.json()
     assert len(presets) == 3
 
+    # Presets ordenados por definición: 0: Conservador (30 mm), 1: Medio (80 mm), 2: Crítico (130 mm)
+    run_conservador = presets[0]
+    run_medio = presets[1]
+    run_critico = presets[2]
+
+    assert "Conservador" in run_conservador["name"]
+    assert "Medio" in run_medio["name"]
+    assert "Crítico" in run_critico["name"]
+
+    # Medio (80 mm) debe quedar activo por omisión como tormenta de diseño
+    assert run_medio["is_active"] is True
+
     # Verificar que cada preset tenga su indicador de confianza
     for p in presets:
         assert p["confidence"] is not None
         assert p["confidence"]["level"] in ("alto", "medio", "bajo")
         assert len(p["confidence"]["reasons"]) > 0
 
-    run_conservador = presets[2]  # insertados en orden
-    run_critico = presets[0]
-
-    # 4. Comparar Conservador vs Crítico via nuevo endpoint /scenarios/compare
+    # 4. Comparar Conservador (30 mm) vs Crítico (130 mm) via /scenarios/compare
     r_comp = api_client.get(
         f"/api/v1/fields/{field_id}/scenarios/compare",
         params={"run_a_id": run_conservador["id"], "run_b_id": run_critico["id"]},
@@ -181,10 +278,22 @@ def test_api_scenarios_compare_and_presets(api_client: TestClient):
     comp_data = r_comp.json()
     assert comp_data["run_a_id"] == run_conservador["id"]
     assert comp_data["run_b_id"] == run_critico["id"]
-    assert "delta_runoff_volume_m3" in comp_data
-    assert "delta_ponded_area_ha" in comp_data
-    assert "delta_soil_loss_t_ha" in comp_data
-    assert len(comp_data["summary_text"]) > 10
+    assert comp_data["delta_precipitation_mm"] == pytest.approx(100.0)
+    assert comp_data["delta_runoff_volume_m3"] > 0
+    assert comp_data["delta_ponded_area_ha"] >= 0
+    assert comp_data["delta_soil_loss_t_ha"] >= 0
+    assert "genera" in comp_data["summary_text"] or "escorrentía" in comp_data["summary_text"]
+
+    # Comparación inversa: Crítico (Run A) vs Conservador (Run B)
+    r_comp_rev = api_client.get(
+        f"/api/v1/fields/{field_id}/scenarios/compare",
+        params={"run_a_id": run_critico["id"], "run_b_id": run_conservador["id"]},
+    )
+    assert r_comp_rev.status_code == 200
+    comp_rev = r_comp_rev.json()
+    assert comp_rev["delta_precipitation_mm"] == pytest.approx(-100.0)
+    assert comp_rev["delta_runoff_volume_m3"] < 0
+    assert "retiene" in comp_rev["summary_text"]
 
     # 5. Verificar que el endpoint también responde en /api/fields/{id}/scenarios/compare
     r_comp_alt = api_client.get(

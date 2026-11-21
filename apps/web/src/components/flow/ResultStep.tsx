@@ -21,6 +21,7 @@ interface ResultStepProps {
   onOpenToolkit: () => void
   onCompareRuns?: (runAId: string, runBId: string) => Promise<ScenarioComparisonOut | null>
   onActivateRun?: (runId: string) => void
+  onSimulatePresets?: () => Promise<void>
   busy: boolean
   className?: string
 }
@@ -38,6 +39,7 @@ export function ResultStep({
   onOpenToolkit,
   onCompareRuns,
   onActivateRun,
+  onSimulatePresets,
   busy,
   className = '',
 }: ResultStepProps) {
@@ -282,9 +284,27 @@ export function ResultStep({
 
                   <div className="compare-delta-card">
                     <span className="delta-label">Δ Escurrimiento fuera</span>
-                    <span className={`delta-val ${(comparison.delta_runoff_pct ?? comparison.delta_runoff_q_pct ?? 0) < 0 ? 'is-negative' : (comparison.delta_runoff_pct ?? comparison.delta_runoff_q_pct ?? 0) > 0 ? 'is-positive' : ''}`}>
-                      {(comparison.delta_runoff_pct ?? comparison.delta_runoff_q_pct ?? 0) > 0 ? `+${comparison.delta_runoff_pct ?? comparison.delta_runoff_q_pct}` : (comparison.delta_runoff_pct ?? comparison.delta_runoff_q_pct ?? 0)} %
-                    </span>
+                    {comparison.delta_runoff_pct !== null && comparison.delta_runoff_pct !== undefined ? (
+                      <>
+                        <span className={`delta-val ${comparison.delta_runoff_pct < 0 ? 'is-negative' : comparison.delta_runoff_pct > 0 ? 'is-positive' : ''}`}>
+                          {comparison.delta_runoff_pct > 0 ? `+${comparison.delta_runoff_pct}` : comparison.delta_runoff_pct} %
+                        </span>
+                        {comparison.delta_runoff_volume_m3 !== undefined && (
+                          <span className="delta-subval">
+                            {(comparison.delta_runoff_volume_m3 ?? 0) > 0 ? `+${Math.round(comparison.delta_runoff_volume_m3).toLocaleString('es-AR')}` : Math.round(comparison.delta_runoff_volume_m3).toLocaleString('es-AR')} m³
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className={`delta-val ${(comparison.delta_runoff_volume_m3 ?? 0) < 0 ? 'is-negative' : (comparison.delta_runoff_volume_m3 ?? 0) > 0 ? 'is-positive' : ''}`}>
+                          {(comparison.delta_runoff_volume_m3 ?? 0) > 0
+                            ? `+${Math.round(comparison.delta_runoff_volume_m3 ?? 0).toLocaleString('es-AR')} m³`
+                            : `${Math.round(comparison.delta_runoff_volume_m3 ?? 0).toLocaleString('es-AR')} m³`}
+                        </span>
+                        <span className="delta-subval">base 0 mm</span>
+                      </>
+                    )}
                   </div>
 
                   <div className="compare-delta-card">
@@ -301,15 +321,26 @@ export function ResultStep({
                   </div>
                 )}
 
-                {onActivateRun && effCompareB && effCompareB !== run?.id && (
-                  <Button
-                    variant="text"
-                    size="sm"
-                    onClick={() => onActivateRun(effCompareB)}
-                    disabled={busy}
-                  >
-                    Ver escenario B en el visor 3D →
-                  </Button>
+                {onActivateRun && (
+                  effCompareB && effCompareB !== run?.id ? (
+                    <Button
+                      variant="text"
+                      size="sm"
+                      onClick={() => onActivateRun(effCompareB)}
+                      disabled={busy}
+                    >
+                      Ver escenario B en el visor 3D →
+                    </Button>
+                  ) : effCompareA && effCompareA !== run?.id ? (
+                    <Button
+                      variant="text"
+                      size="sm"
+                      onClick={() => onActivateRun(effCompareA)}
+                      disabled={busy}
+                    >
+                      Ver escenario A en el visor 3D →
+                    </Button>
+                  ) : null
                 )}
               </>
             )}
@@ -317,6 +348,20 @@ export function ResultStep({
             {effCompareA === effCompareB && (
               <div style={{ fontSize: 11.5, color: 'var(--ink-3)', textAlign: 'center' }}>
                 Elegí dos escenarios diferentes para ver las diferencias numéricas.
+              </div>
+            )}
+
+            {onSimulatePresets && (
+              <div className="compare-presets-cta">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  fullWidth
+                  onClick={onSimulatePresets}
+                  disabled={busy || comparing}
+                >
+                  Generar escenarios estándar (30, 80 y 130 mm)
+                </Button>
               </div>
             )}
           </div>

@@ -235,22 +235,39 @@ def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
     sa, sb = run_a["spatial_summary"], run_b["spatial_summary"]
 
     dq_mm = round(cb["runoff_q_mm"] - ca["runoff_q_mm"], 2)
-    dq_pct = (
-        round(100.0 * (cb["runoff_q_mm"] - ca["runoff_q_mm"]) / ca["runoff_q_mm"], 1)
-        if ca["runoff_q_mm"] > 0
-        else None
-    )
+    if ca["runoff_q_mm"] > 0:
+        dq_pct = round(100.0 * (cb["runoff_q_mm"] - ca["runoff_q_mm"]) / ca["runoff_q_mm"], 1)
+    elif cb["runoff_q_mm"] == 0:
+        dq_pct = 0.0
+    else:
+        # Escenario base sin escorrentía (Q=0) y escenario B con escorrentía
+        dq_pct = None
+
     d_vol_field = round(sb["field_runoff_generated_m3"] - sa["field_runoff_generated_m3"], 1)
     d_outflow = round(sb["net_outflow_potential_m3"] - sa["net_outflow_potential_m3"], 1)
 
-    # Estimación de delta de superficie anegable en hectáreas (2D o volumen de cubetas)
+    # Estimación de delta de superficie anegable en hectáreas (2D o estimación combinada cubetas + aporte)
     h2d_a = run_a.get("hydrodynamic_2d_summary") or {}
     h2d_b = run_b.get("hydrodynamic_2d_summary") or {}
+
+    def _estimate_ponded_ha(r: dict) -> float:
+        h2d = r.get("hydrodynamic_2d_summary") or {}
+        if "ponded_area_in_field_ha" in h2d:
+            return float(h2d["ponded_area_in_field_ha"])
+        s = r.get("spatial_summary") or {}
+        vol_field_m3 = float(s.get("field_runoff_generated_m3", 0.0))
+        ext_inflow_m3 = float(s.get("external_runoff_inflow_m3", 0.0))
+        tot_supply_m3 = float(s.get("total_runoff_supply_m3", vol_field_m3 + ext_inflow_m3))
+        dep_ret_m3 = float(s.get("potential_depression_retention_m3", 0.0))
+        # Área anegada estimada: cubetas efectivas + desborde proporcional al volumen
+        ponded_vol = min(dep_ret_m3, tot_supply_m3) + max(0.0, tot_supply_m3 - dep_ret_m3) * 0.15
+        return (ponded_vol / 10_000.0) * 0.18
+
     if "ponded_area_in_field_ha" in h2d_a and "ponded_area_in_field_ha" in h2d_b:
         d_ponded = round(float(h2d_b["ponded_area_in_field_ha"]) - float(h2d_a["ponded_area_in_field_ha"]), 2)
     else:
-        ha_a = (float(sa.get("potential_depression_retention_m3", 0.0)) / 10_000.0) * 0.18
-        ha_b = (float(sb.get("potential_depression_retention_m3", 0.0)) / 10_000.0) * 0.18
+        ha_a = _estimate_ponded_ha(run_a)
+        ha_b = _estimate_ponded_ha(run_b)
         d_ponded = round(ha_b - ha_a, 2)
 
     # Estimación de delta de pérdida de suelo USLE en t/ha
@@ -262,8 +279,9 @@ def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
     name_a = run_a.get("name", "Escenario A")
     name_b = run_b.get("name", "Escenario B")
     if d_vol_field < 0:
+        pct_str = f" ({dq_pct:.1f}%)" if dq_pct is not None else ""
         summary_text = (
-            f"El escenario '{name_b}' retiene {abs(d_vol_field):,.0f} m³ más de agua en el suelo "
+            f"El escenario '{name_b}' retiene {abs(d_vol_field):,.0f} m³ más de agua en el suelo{pct_str} "
             f"y reduce la pérdida de suelo en {abs(d_soil):.1f} t/ha respecto a '{name_a}'."
         )
     elif d_vol_field > 0:
@@ -278,10 +296,10 @@ def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
         )
 
     return {
-        "run_a_id": run_a["id"],
-        "run_a_name": run_a["name"],
-        "run_b_id": run_b["id"],
-        "run_b_name": run_b["name"],
+        "run_a_id": run_a.get("id", "run_a"),
+        "run_a_name": run_a.get("name", "Escenario A"),
+        "run_b_id": run_b.get("id", "run_b"),
+        "run_b_name": run_b.get("name", "Escenario B"),
         "delta_precipitation_mm": round(cb["precipitation_mm"] - ca["precipitation_mm"], 2),
         "delta_cn_effective": round(cb["cn_effective"] - ca["cn_effective"], 2),
         "delta_initial_abstraction_ia_mm": round(

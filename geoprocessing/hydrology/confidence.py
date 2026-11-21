@@ -36,28 +36,31 @@ def compute_confidence_indicator(
     """
     reasons: list[str] = []
 
+    res_m = max(0.5, float(resolution_m))
+    slope_pct = max(0.0, float(mean_slope_pct))
+
     # 1. Componente Relieve (peso 0.40)
-    is_high_res_dem = resolution_m <= 2.5 or source_id.lower() in ("drone", "lidar", "dron_local", "uploaded_highres")
-    is_flat_plain = mean_slope_pct < 0.3
+    is_high_res_dem = res_m <= 2.5 or (source_id or "").lower() in ("drone", "lidar", "dron_local", "uploaded_highres")
+    is_flat_plain = slope_pct < 0.3
 
     if is_high_res_dem:
         score_relief = 0.95
-        relief_note = f"DEM local alta precisión ({resolution_m:.1f} m)"
+        relief_note = f"DEM local alta precisión ({res_m:.1f} m)"
         reasons.append("Relieve local de alta resolución (error vertical submétrico)")
     elif is_flat_plain:
         score_relief = 0.35
-        relief_note = f"Copernicus GLO-30 ({resolution_m:.0f} m)"
+        relief_note = f"Copernicus GLO-30 ({res_m:.0f} m)"
         reasons.append(
-            f"Relieve {resolution_m:.0f} m en llanura extremadamente plana ({mean_slope_pct:.2f}%): "
+            f"Relieve {res_m:.0f} m en llanura extremadamente plana ({slope_pct:.2f}%): "
             "error vertical de ±2 m condiciona la dirección de micro-escurrimientos"
         )
     else:
         score_relief = 0.70
-        relief_note = f"Copernicus GLO-30 ({resolution_m:.0f} m)"
-        reasons.append(f"Relieve satelital Copernicus {resolution_m:.0f} m con pendiente moderada ({mean_slope_pct:.1f}%)")
+        relief_note = f"Copernicus GLO-30 ({res_m:.0f} m)"
+        reasons.append(f"Relieve satelital Copernicus {res_m:.0f} m con pendiente moderada ({slope_pct:.1f}%)")
 
     # 2. Componente Suelo (peso 0.30)
-    soil_lower = soil_source.lower()
+    soil_lower = (soil_source or "").lower()
     if soil_lower in ("local_survey", "inta_detailed", "suelo_analisis_local"):
         score_soil = 0.90
         soil_note = "Cartografía INTA 1:50.000 / Análisis físico de suelo"
@@ -72,7 +75,7 @@ def compute_confidence_indicator(
         reasons.append("Suelo grupo hidrológico inferido por carta INTA regional")
 
     # 3. Componente Precipitación (peso 0.30)
-    rain_lower = rain_source_type.lower()
+    rain_lower = (rain_source_type or "").lower()
     if rain_lower in ("gauge", "pluviometro", "local_pluviometer"):
         score_rain = 0.95
         rain_note = "Pluviómetro local de campo"

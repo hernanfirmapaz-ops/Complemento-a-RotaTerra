@@ -605,6 +605,11 @@ def execute_standard_scenarios(
             ),
         )
         results.append(run)
+    # Dejar activo por omisión el escenario de diseño central (Medio 80 mm)
+    if len(results) >= 2:
+        activate_runoff_run(field_id, results[1]["id"])
+        results[1]["is_active"] = True
+        results[2]["is_active"] = False
     return results
 
 
