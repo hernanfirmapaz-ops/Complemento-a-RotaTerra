@@ -24,7 +24,7 @@ Web app que simula el terreno real de un lote agrícola de la llanura de San Lui
 1. **Spec primero (SDD).** Nada de código sin spec aprobada por Hernán. Un criterio se tilda solo cuando se verificó, anotando los números.
 2. **Nunca inventar un valor.** Si falta un dato: `valor: null` + `calidad: "descartada"` + motivo. Prohibido generar datos sintéticos en el camino productivo (ver anomalía A1).
 3. **Contrato común.** Todo valor escalar sale como `Observacion` de N4-4-1.2 (`lote_id, fecha, variable, valor, unidad, fuente, resolucion_m, calidad, nota`); los rasters agregan `raster_ref` (URI de COG).
-4. **Fuentes.** NASA + INTA + productor, más las excepciones aprobadas en la spec (IGN, Copernicus DEM, INA/CONICET). FABDEM solo en modo no comercial.
+4. **Fuentes.** Se usa cualquier fuente abierta, real y verificable (decisión de Hernán del 21/11/2026: el proyecto dejó de ser "solo NASA"). Cada dato declara su fuente exacta, resolución, fecha y licencia. Nunca se atribuye un dato a una fuente que no se consultó. Las fuentes con licencia no comercial (por ejemplo, FABDEM) se marcan como tales. Tabla de fuentes por capa: `docs/data-sources.md`.
 5. **Datum vertical siempre declarado.** SRVN16 (IGN) ≠ EGM2008 (Copernicus) ≠ EGM96 (NASADEM/SRTM).
 6. **Separación de capas.** La física vive en `geoprocessing/`; la API no recalcula; el navegador no simula.
 7. **Pruebas.** `python -m pytest -q` y `npm run build` (en `apps/web/`) en verde. Ningún test accede a internet (`httpx.MockTransport`, fixtures).

@@ -2,6 +2,8 @@
 
 **Fecha:** 19/11/2026 · **Proyecto:** Complemento a RotaTerra · **Alcance:** lotes de 20–500 ha, Villa Mercedes / General Pedernera
 
+> **Nota (21/11/2026):** esta investigación se escribió cuando regía la regla "solo NASA". Esa regla ya no aplica: el proyecto usa cualquier fuente abierta, real y verificable (regla 4 de `AGENTS.md`). Las menciones a "excepciones" quedan como contexto histórico.
+
 ## Conclusión principal
 
 Ningún MDE satelital global alcanza para simular bien el escurrimiento interno de un lote en esta llanura: tienen errores verticales de 1 a 5 m, y la pendiente real ronda el 1%. La base correcta es el **MDE/MDT aerofotogramétrico de 5 m del IGN** (precisión vertical submétrica según el IGN), si cubre el lote. Si no hay cobertura: **MDE-Ar v2.1** (30 m, ~2 m de precisión vertical, IGN) o FABDEM, con resultados declarados como orientativos. Esto requiere una excepción formal a la regla "solo NASA + INTA + productor" de N4-4-1.2.

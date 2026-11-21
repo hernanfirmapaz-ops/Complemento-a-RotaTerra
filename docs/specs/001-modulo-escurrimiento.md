@@ -94,7 +94,7 @@ Todo valor escalar se entrega como `Observacion` (contrato de N4-4-1.2) con `uni
 
 | # | Decisión | Recomendación |
 |---|---|---|
-| D1 | Excepciones a "solo NASA" para este repositorio | Aceptar IGN, Copernicus DEM e INA/CONICET. FABDEM solo si el proyecto nunca será comercial |
+| D1 | Fuentes de datos | **Resuelta (21/11/2026):** el proyecto usa cualquier fuente abierta, real y verificable. Ver regla 4 de `AGENTS.md` y `docs/data-sources.md` |
 | D2 | Complemento consume la API de N4-4-1.2 o duplica conectores | Consumir la API (`/clima`, `/lluvia`, `/humedad-suelo`) |
 | D3 | Reemplazar el motor 2D por inercial local / Landlab | Primero comparar; reemplazar solo si la diferencia supera el criterio |
 | D4 | Vida del PR #2 (agentes) en GitHub | Cerrar o mergear según cómo se trabaje con Antigravity |

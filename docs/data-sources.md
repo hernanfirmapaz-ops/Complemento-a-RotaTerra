@@ -4,6 +4,47 @@ Este documento describe la procedencia, resolución, licencias y mecanismos de i
 
 ---
 
+## 0. Regla de fuentes y tabla por capa (vigente desde el 21/11/2026)
+
+El proyecto usa **cualquier fuente abierta, real y verificable**. Cada dato declara su fuente exacta, resolución, fecha y licencia, y **nunca se atribuye un dato a una fuente que no se consultó**.
+
+Estado: **Integrada** = conectada y en uso · **Planificada** = aprobada, falta conectar · **A verificar** = confirmar que el acceso es real antes de programar.
+
+| Capa | Fuente | Resolución / escala | Licencia | Acceso | Estado |
+|---|---|---|---|---|---|
+| Relieve | Relevamiento propio (dron RTK, LiDAR, GNSS) | 0,05–2 m | Del productor | Subida de GeoTIFF | Integrada |
+| Relieve | IGN · MDT/MDE aerofotogramétrico | 5 m | IGN (citar fuente) | Descarga por hoja / Geoserver IGN | A verificar (cobertura en General Pedernera) |
+| Relieve | IGN · MDE-Ar v2.1 | 30 m | IGN (citar fuente) | Descarga por hoja / WCS | Planificada |
+| Relieve | Copernicus DEM GLO-30 | 30 m | Copernicus (libre con atribución) | AWS COG / OpenTopography | Integrada |
+| Relieve | FABDEM | 30 m | **CC BY-NC-SA 4.0 (no comercial)** | Tiles de data.bris | Planificada |
+| Relieve | NASADEM / SRTM | 30 m | Dominio público | OpenTopography | Integrada (respaldo) |
+| Suelos | Cartas de suelo INTA (GeoINTA) | 1:100.000 | INTA | WMS/WFS GeoINTA | A verificar (servicio y capas) |
+| Suelos | Perfiles SISINTA | Puntual | INTA, abierta | API SISINTA | Planificada |
+| Suelos | SoilGrids (ISRIC) | 250 m | CC BY 4.0 | API REST | Planificada (spec 004) |
+| Suelos | HYSOGs250m (NASA ORNL DAAC) | 250 m | Libre con cita | Earthdata | Planificada (spec 004) |
+| Lluvia | Pluviómetro del productor | Puntual | Del productor | CSV | Integrada |
+| Lluvia | Estaciones INTA (SIGA) | Puntual | INTA | Portal SIGA | A verificar |
+| Lluvia | SMN · datos abiertos | Puntual | SMN | Portal de datos abiertos | A verificar (lluvia diaria por estación) |
+| Lluvia | CHIRPS | ~5 km, diaria | Dominio público | UCSB CHC | Planificada |
+| Lluvia | NASA GPM IMERG | ~10 km, 30 min | Dominio público | GES DISC (Earthdata) | Planificada |
+| Lluvia y clima | NASA POWER | ~55 km, diaria | Dominio público | API REST | Integrada |
+| Clima y humedad | ERA5-Land (Copernicus) | ~9 km, horaria | Copernicus | Climate Data Store | Planificada |
+| Humedad del suelo | NASA SMAP L4 | 9 km | Dominio público | Earthdata | Planificada |
+| Agua histórica | JRC Global Surface Water | 30 m, desde 1984 | Copernicus / CC BY 4.0 | Tiles / GEE | Planificada |
+| Agua histórica | MapBiomas Argentina (agua) | 30 m | CC BY-SA | Plataforma MapBiomas | Planificada |
+| Agua actual | OPERA DSWx-HLS / DSWx-S1 | 30 m | Dominio público | PO.DAAC / AWS | Planificada |
+| Cobertura del suelo | ESA WorldCover · Dynamic World · MapBiomas | 10–30 m | CC BY 4.0 / CC BY-SA | Tiles / GEE | Planificada |
+| Caminos, canales y alcantarillas | OpenStreetMap | Vectorial | ODbL (citar) | Overpass API | Planificada |
+| Vigor del cultivo | Sentinel-2 L2A | 10 m | Copernicus | STAC Earth Search (AWS) | Integrada |
+| Vigor del cultivo | HLS (Landsat + Sentinel-2) | 30 m | Dominio público | LP DAAC | Planificada |
+| Rindes | Estimaciones agrícolas MAGyP | Departamento | Datos abiertos | datos.magyp.gob.ar | Planificada |
+| Precios | Bolsa de Cereales de Buenos Aires · Bolsa de Comercio de Rosario | Diaria | Uso con cita | Publicaciones / API | A verificar |
+| Napa | Freatímetro del productor · informes INTA San Luis | Puntual | Del productor / INTA | Carga manual | Planificada |
+
+**Orden de integración acordado:** suelos (spec 004) → relieve IGN → lluvia de estaciones (INTA SIGA / SMN, tras verificar el acceso) → caminos de OpenStreetMap → agua histórica (JRC / MapBiomas).
+
+---
+
 ## 1. Modelos Digitales de Elevación (MDE / MDT / MDS)
 
 | Prioridad | Fuente | Resolución nominal | Tipo de superficie | Proveedor / Acceso | Uso en el sistema | Limitaciones |
