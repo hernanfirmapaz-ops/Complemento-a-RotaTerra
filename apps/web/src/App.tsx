@@ -46,6 +46,7 @@ import { ProgressBar } from './components/ui/ProgressBar'
 import { ComponentShowcase } from './components/ui/ComponentShowcase'
 import { Segmented } from './components/ui/Segmented'
 import { Button } from './components/ui/Button'
+import { BottomSheet, type BottomSheetSnap } from './components/ui/BottomSheet'
 import { PolygonMapDrawer } from './components/PolygonMapDrawer'
 import { TerrainScene3D } from './components/TerrainScene3D'
 import { AgronomicToolkitPanel } from './components/AgronomicToolkitPanel'
@@ -54,7 +55,24 @@ import { LotStep } from './components/flow/LotStep'
 import { RainStep } from './components/flow/RainStep'
 import { ResultStep } from './components/flow/ResultStep'
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  )
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  return isMobile
+}
+
 export function App() {
+  const isMobile = useIsMobile()
+  const [sheetSnap, setSheetSnap] = useState<BottomSheetSnap>('half')
+
   // Estado del flujo de 3 pasos (SDD-002)
   const [flowStep, setFlowStep] = useState<FlowStep>('lote')
   const [workspaceView, setWorkspaceView] = useState<'3d' | 'map'>('3d')
@@ -497,68 +515,158 @@ export function App() {
 
       {/* Layout principal: Panel izquierdo 380 px + Visor central (≥ 65%) */}
       <div className="flow-main">
-        <aside className="flow-sidebar">
-          {/* Indicador de 3 pasos */}
-          <StepNav
-            currentStep={flowStep}
-            completedSteps={completedSteps}
-            onSelectStep={(step) => setFlowStep(step)}
-            lotSummary={lotSummary}
-            rainSummary={rainSummary}
-            resultSummary={resultSummary}
-          />
-
-          {/* Paso 1: Lote */}
-          {flowStep === 'lote' && (
-            <LotStep
-              fields={fields}
-              activeField={activeField}
-              onSelectField={(id) => {
-                setActiveFieldId(id)
-                setFlowStep('lluvia')
-              }}
-              onOpenDrawer={() => setIsMapDrawerOpen(true)}
-              onFileUpload={handleImportGeoJSON}
-              onContinue={() => setFlowStep('lluvia')}
-              busy={Boolean(busy)}
+        {!isMobile ? (
+          <aside className="flow-sidebar">
+            <StepNav
+              currentStep={flowStep}
+              completedSteps={completedSteps}
+              onSelectStep={(step) => setFlowStep(step)}
+              lotSummary={lotSummary}
+              rainSummary={rainSummary}
+              resultSummary={resultSummary}
             />
-          )}
 
-          {/* Paso 2: Lluvia */}
-          {flowStep === 'lluvia' && (
-            <RainStep
-              stormMm={quickRainMm}
-              onSelectMm={(mm) => setQuickRainMm(mm)}
-              amc={quickAmc}
-              onChangeAmc={setQuickAmc}
-              coverCode={quickCover}
-              onChangeCoverCode={setQuickCover}
-              dailyRainContext={dailyRainContext}
-              selectedDate={selectedDailyDate}
-              onChangeSelectedDate={setSelectedDailyDate}
-              onSimulateDailyDate={(date) => handleSimulateDailyRain(date)}
-              onSimulate={() => handleQuickSimulateRain()}
-              onBack={() => setFlowStep('lote')}
-              busy={Boolean(busy)}
-            />
-          )}
+            {flowStep === 'lote' && (
+              <LotStep
+                fields={fields}
+                activeField={activeField}
+                onSelectField={(id) => {
+                  setActiveFieldId(id)
+                  setFlowStep('lluvia')
+                }}
+                onOpenDrawer={() => setIsMapDrawerOpen(true)}
+                onFileUpload={handleImportGeoJSON}
+                onContinue={() => setFlowStep('lluvia')}
+                busy={Boolean(busy)}
+              />
+            )}
 
-          {/* Paso 3: Resultado */}
-          {flowStep === 'resultado' && (
-            <ResultStep
-              stormMm={quickRainMm}
-              run={activeRun}
-              toolkit={toolkit}
-              terrain={terrain}
-              activeOverlay={dioramaOverlay}
-              onSelectOverlay={setDioramaOverlay}
-              onReplayRain={() => setFlowStep('lluvia')}
-              onChangeLot={() => setFlowStep('lote')}
-              onOpenToolkit={() => setIsToolkitModalOpen(true)}
-              busy={Boolean(busy)}
-            />
-          )}
-        </aside>
+            {flowStep === 'lluvia' && (
+              <RainStep
+                stormMm={quickRainMm}
+                onSelectMm={(mm) => setQuickRainMm(mm)}
+                amc={quickAmc}
+                onChangeAmc={setQuickAmc}
+                coverCode={quickCover}
+                onChangeCoverCode={setQuickCover}
+                dailyRainContext={dailyRainContext}
+                selectedDate={selectedDailyDate}
+                onChangeSelectedDate={setSelectedDailyDate}
+                onSimulateDailyDate={(date) => handleSimulateDailyRain(date)}
+                onSimulate={() => handleQuickSimulateRain()}
+                onBack={() => setFlowStep('lote')}
+                busy={Boolean(busy)}
+              />
+            )}
+
+            {flowStep === 'resultado' && (
+              <ResultStep
+                stormMm={quickRainMm}
+                run={activeRun}
+                toolkit={toolkit}
+                terrain={terrain}
+                activeOverlay={dioramaOverlay}
+                onSelectOverlay={setDioramaOverlay}
+                onReplayRain={() => setFlowStep('lluvia')}
+                onChangeLot={() => setFlowStep('lote')}
+                onOpenToolkit={() => setIsToolkitModalOpen(true)}
+                busy={Boolean(busy)}
+              />
+            )}
+          </aside>
+        ) : (
+          <BottomSheet
+            snap={sheetSnap}
+            onSnapChange={setSheetSnap}
+            headerTitle={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}>
+                <span>
+                  {flowStep === 'lote' && '1. Elegí tu lote'}
+                  {flowStep === 'lluvia' && `2. Lluvia (${quickRainMm} mm)`}
+                  {flowStep === 'resultado' && '3. Resultados del lote'}
+                </span>
+              </div>
+            }
+            headerAction={
+              <Button
+                variant="text"
+                size="sm"
+                onClick={() => setSheetSnap(sheetSnap === 'collapsed' ? 'half' : 'collapsed')}
+              >
+                {sheetSnap === 'collapsed' ? 'Abrir ↑' : 'Plegar ↓'}
+              </Button>
+            }
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <StepNav
+                currentStep={flowStep}
+                completedSteps={completedSteps}
+                onSelectStep={(step) => {
+                  setFlowStep(step)
+                  setSheetSnap('half')
+                }}
+                lotSummary={lotSummary}
+                rainSummary={rainSummary}
+                resultSummary={resultSummary}
+              />
+
+              {flowStep === 'lote' && (
+                <LotStep
+                  fields={fields}
+                  activeField={activeField}
+                  onSelectField={(id) => {
+                    setActiveFieldId(id)
+                    setFlowStep('lluvia')
+                    setSheetSnap('half')
+                  }}
+                  onOpenDrawer={() => setIsMapDrawerOpen(true)}
+                  onFileUpload={handleImportGeoJSON}
+                  onContinue={() => setFlowStep('lluvia')}
+                  busy={Boolean(busy)}
+                />
+              )}
+
+              {flowStep === 'lluvia' && (
+                <RainStep
+                  stormMm={quickRainMm}
+                  onSelectMm={(mm) => setQuickRainMm(mm)}
+                  amc={quickAmc}
+                  onChangeAmc={setQuickAmc}
+                  coverCode={quickCover}
+                  onChangeCoverCode={setQuickCover}
+                  dailyRainContext={dailyRainContext}
+                  selectedDate={selectedDailyDate}
+                  onChangeSelectedDate={setSelectedDailyDate}
+                  onSimulateDailyDate={(date) => {
+                    handleSimulateDailyRain(date)
+                    setSheetSnap('half')
+                  }}
+                  onSimulate={() => {
+                    handleQuickSimulateRain()
+                    setSheetSnap('half')
+                  }}
+                  onBack={() => setFlowStep('lote')}
+                  busy={Boolean(busy)}
+                />
+              )}
+
+              {flowStep === 'resultado' && (
+                <ResultStep
+                  stormMm={quickRainMm}
+                  run={activeRun}
+                  toolkit={toolkit}
+                  terrain={terrain}
+                  activeOverlay={dioramaOverlay}
+                  onSelectOverlay={setDioramaOverlay}
+                  onReplayRain={() => setFlowStep('lluvia')}
+                  onChangeLot={() => setFlowStep('lote')}
+                  onOpenToolkit={() => setIsToolkitModalOpen(true)}
+                  busy={Boolean(busy)}
+                />
+              )}
+            </div>
+          </BottomSheet>
+        )}
 
         {/* Visor 3D o Mapa 2D */}
         <main className="flow-stage">
@@ -626,6 +734,27 @@ export function App() {
                   </select>
                 </label>
               </div>
+
+              {/* Botón flotante móvil para desplegar la hoja inferior cuando está plegada */}
+              {isMobile && sheetSnap === 'collapsed' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 84,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 50,
+                  }}
+                >
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setSheetSnap('half')}
+                  >
+                    {flowStep === 'resultado' ? 'Ver resultados y capas ↑' : 'Continuar configuración ↑'}
+                  </Button>
+                </div>
+              )}
 
               {/* Punto consultado flotante */}
               {selectedPoint && (
