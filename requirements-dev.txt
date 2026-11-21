@@ -1,0 +1,2 @@
+# Dependencias de desarrollo, benchmarking y pruebas científicas (NO requeridas en producción)
+landlab>=2.11.0

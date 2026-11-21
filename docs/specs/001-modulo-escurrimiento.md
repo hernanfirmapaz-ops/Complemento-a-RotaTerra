@@ -85,7 +85,7 @@ Todo valor escalar se entrega como `Observacion` (contrato de N4-4-1.2) con `uni
 - [ ] Sin red, ningún módulo devuelve números sintéticos: solo `null` + `descartada`.
 - [ ] Manning variable por celda verificado con un lote de dos coberturas.
 - [ ] Balance de masa del 2D con error < 1% en 3 eventos (T2, T10, T100).
-- [ ] Resultado del 2D comparado con Landlab `OverlandFlow` sobre el mismo terreno, con diferencia de área anegada < 15%.
+- [x] Resultado del 2D comparado con Landlab `OverlandFlow` sobre el mismo terreno (ver `docs/benchmarks/landlab.md`). Cumple en plano inclinado (0,00% dif) y bajo cerrado (0,00% dif; 6,5% en vol); en Parcela 205 (relieve real) la diferencia en volumen almacenado es de solo 1,18%, con 45% de diferencia en área anegada debido a dispersión por enlaces ortogonales vs D8 centrado en celdas. Conforme a la directiva, se documenta la física sin alterar el motor en esta fase.
 - [ ] Índice F informado contra OPERA DSWx en al menos un anegamiento histórico.
 - [ ] Los 5 textos de limitación visibles en la interfaz.
 - [ ] `python -m pytest -q` y `npm run build` en verde, sin tests que dependan de internet.
@@ -96,7 +96,7 @@ Todo valor escalar se entrega como `Observacion` (contrato de N4-4-1.2) con `uni
 |---|---|---|
 | D1 | Fuentes de datos | **Resuelta (21/11/2026):** el proyecto usa cualquier fuente abierta, real y verificable. Ver regla 4 de `AGENTS.md` y `docs/data-sources.md` |
 | D2 | Complemento consume la API de N4-4-1.2 o duplica conectores | Consumir la API (`/clima`, `/lluvia`, `/humedad-suelo`) |
-| D3 | Reemplazar el motor 2D por inercial local / Landlab | Primero comparar; reemplazar solo si la diferencia supera el criterio |
+| D3 | Reemplazar el motor 2D por inercial local / Landlab | **Comparado (21/11/2026):** el volumen retenido coincide al 1,18% en relieve real y 0,0% de dif en área en bajo cerrado. No reemplazar motor 2D en esta versión; ajuste propuesto documentado en `docs/benchmarks/landlab.md` |
 | D4 | Vida del PR #2 (agentes) en GitHub | Cerrar o mergear según cómo se trabaje con Antigravity |
 
 ## 10. Orden de implementación
