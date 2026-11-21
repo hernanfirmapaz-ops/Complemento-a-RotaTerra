@@ -71,6 +71,8 @@ def run_benchmark_case(
         manning_n=manning_n,
         recession_minutes=recession_minutes,
         ponding_threshold_m=ponding_threshold_m,
+        solver_mode="inertial",
+        is_closed=is_closed,
     )
 
     h_mot_max = res_motor["max_water_depth_m"]
