@@ -251,6 +251,7 @@ class OutletOut(BaseModel):
 
 
 class HydrologySummaryOut(BaseModel):
+    mean_slope_in_field_pct: float | None = None
     depressions_count: int
     depressions_in_field_count: int
     depressions_filled_count: int
@@ -651,3 +652,17 @@ class SoilOut(BaseModel):
     points_used: int
     quality: Literal["buena", "dudosa", "descartada"]
     notes: list[str]
+
+
+class ObservacionOut(BaseModel):
+    """Misma forma que `Observacion` de N4-4-1.2 (rotaterra/contrato.py), spec 011."""
+
+    lote_id: str
+    fecha: str
+    variable: str
+    valor: float | None
+    unidad: str
+    fuente: str = Field(..., min_length=1, max_length=32)
+    resolucion_m: int
+    calidad: Literal["buena", "dudosa", "descartada"]
+    nota: str = ""

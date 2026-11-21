@@ -233,6 +233,7 @@ export interface OutletOut {
 }
 
 export interface HydrologySummaryOut {
+  mean_slope_in_field_pct?: number | null
   depressions_count: number
   depressions_in_field_count: number
   depressions_filled_count: number

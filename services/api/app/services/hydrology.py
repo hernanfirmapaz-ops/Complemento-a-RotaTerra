@@ -196,7 +196,12 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     )
     ext_inflow_ha = sum(float(o["subbasin_external_inflow_ha"]) for o in outlets_info)
 
+    pendiente_pct, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    pendiente_lote = pendiente_pct[mascara & np.isfinite(pendiente_pct)]
+    mean_slope_in_field_pct = round(float(pendiente_lote.mean()), 3) if pendiente_lote.size else None
+
     summary = {
+        "mean_slope_in_field_pct": mean_slope_in_field_pct,
         "depressions_count": len(depressions),
         "depressions_in_field_count": len(deps_in_field),
         "depressions_filled_count": len(deps_filled),
@@ -505,7 +510,13 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
     terreno_src = terreno.get("source") or {}
     dem_source_id = terreno_src.get("source_id", "copernicus_glo30")
     dem_res_m = float(terreno_src.get("nominal_resolution_m", 30.0))
-    mean_slope_val = float(terreno.get("summary", {}).get("mean_slope_pct", 1.0))
+    # Pendiente media real del lote (antes se leía de una clave inexistente y quedaba siempre en 1,0 %)
+    pendiente_guardada = hydro.get("summary", {}).get("mean_slope_in_field_pct")
+    if pendiente_guardada is None:
+        pct_run, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+        pct_run_lote = pct_run[mascara & np.isfinite(pct_run)]
+        pendiente_guardada = float(pct_run_lote.mean()) if pct_run_lote.size else None
+    mean_slope_val = float(pendiente_guardada) if pendiente_guardada is not None else 1.0
     rain_type = rain_ev.get("source_type", "regional_design")
     confidence_obj = compute_confidence_indicator(
         source_id=dem_source_id,
