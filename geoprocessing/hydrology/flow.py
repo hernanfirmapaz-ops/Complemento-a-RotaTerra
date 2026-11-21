@@ -24,6 +24,22 @@ import numpy as np
 from geoprocessing.crs import WGS84, to_crs
 from geoprocessing.dem.terrain import Dem
 
+try:
+    from numba import njit
+
+    _HAS_NUMBA = True
+except ImportError:
+    _HAS_NUMBA = False
+
+    def njit(*args, **kwargs):
+        def decorator(func):
+            return func
+
+        if len(args) == 1 and callable(args[0]):
+            return args[0]
+        return decorator
+
+
 # (dr, dc, código D8, azimut grados desde el norte, factor distancia centro a centro, factor ancho contorno L_i)
 D8_TABLE: tuple[tuple[int, int, int, float, float, float], ...] = (
     (0, 1, 1, 90.0, 1.0, 0.5),             # E
@@ -35,6 +51,59 @@ D8_TABLE: tuple[tuple[int, int, int, float, float, float], ...] = (
     (-1, 0, 64, 0.0, 1.0, 0.5),            # N
     (-1, 1, 128, 45.0, math.sqrt(2.0), 0.354),  # NE
 )
+
+_DR_ARR = np.array([t[0] for t in D8_TABLE], dtype=np.int64)
+_DC_ARR = np.array([t[1] for t in D8_TABLE], dtype=np.int64)
+_DIST_ARR = np.array([t[4] for t in D8_TABLE], dtype=np.float64)
+_CONTOUR_ARR = np.array([t[5] for t in D8_TABLE], dtype=np.float64)
+
+
+@njit
+def _mfd_accumulation_numba(
+    z_cond: np.ndarray,
+    mfd_cells: np.ndarray,
+    rs_ord: np.ndarray,
+    cs_ord: np.ndarray,
+    dr_arr: np.ndarray,
+    dc_arr: np.ndarray,
+    dist_arr: np.ndarray,
+    contour_arr: np.ndarray,
+    pixel_size_m: float,
+    exponent_p: float,
+) -> float:
+    alto, ancho = z_cond.shape
+    n_cells = len(rs_ord)
+    outlet_cells_sum = 0.0
+    for i in range(n_cells):
+        r = rs_ord[i]
+        c = cs_ord[i]
+        z0 = float(z_cond[r, c])
+        acc0 = mfd_cells[r, c]
+        w_sum = 0.0
+        n_nr = 0
+        weights = np.zeros(8, dtype=np.float64)
+        nrs = np.zeros(8, dtype=np.int64)
+        ncs = np.zeros(8, dtype=np.int64)
+        for k in range(8):
+            nr = r + dr_arr[k]
+            nc = c + dc_arr[k]
+            if 0 <= nr < alto and 0 <= nc < ancho:
+                zn = float(z_cond[nr, nc])
+                if np.isfinite(zn) and zn < z0:
+                    tan_beta = (z0 - zn) / (dist_arr[k] * pixel_size_m)
+                    w = (tan_beta ** exponent_p) * contour_arr[k]
+                    nrs[n_nr] = nr
+                    ncs[n_nr] = nc
+                    weights[n_nr] = w
+                    w_sum += w
+                    n_nr += 1
+        if w_sum > 0.0:
+            inv = acc0 / w_sum
+            for k in range(n_nr):
+                mfd_cells[nrs[k], ncs[k]] += weights[k] * inv
+        else:
+            outlet_cells_sum += acc0
+    return outlet_cells_sum
 
 CODE_TO_DELTA: dict[int, tuple[int, int]] = {code: (dr, dc) for dr, dc, code, _, _, _ in D8_TABLE}
 CODE_TO_AZIMUTH: dict[int, float] = {code: az for _, _, code, az, _, _ in D8_TABLE}
@@ -152,33 +221,49 @@ def mfd_accumulation(
     rs, cs = np.nonzero(valid)
     vals = z_cond[rs, cs]
     order = np.argsort(-vals, kind="mergesort")  # de mayor a menor cota
-    rs_ord = rs[order].tolist()
-    cs_ord = cs[order].tolist()
-
-    outlet_cells_sum = 0.0
     p = float(exponent_p)
 
-    for r, c in zip(rs_ord, cs_ord):
-        z0 = float(z_cond[r, c])
-        acc0 = float(mfd_cells[r, c])
-        weights: list[tuple[int, int, float]] = []
-        w_sum = 0.0
-        for dr, dc, _, _, dist_f, contour_f in D8_TABLE:
-            nr, nc = r + dr, c + dc
-            if 0 <= nr < alto and 0 <= nc < ancho:
-                zn = float(z_cond[nr, nc])
-                if math.isfinite(zn) and zn < z0:
-                    tan_beta = (z0 - zn) / (dist_f * pixel_size_m)
-                    w = (tan_beta ** p) * contour_f
-                    weights.append((nr, nc, w))
-                    w_sum += w
-        if w_sum > 0.0:
-            inv = acc0 / w_sum
-            for nr, nc, w in weights:
-                mfd_cells[nr, nc] += w * inv
-        else:
-            # Celda sumidero o salida del dominio: retiene/exporta todo el flujo que llegó hasta ella
-            outlet_cells_sum += acc0
+    rs_ord = rs[order]
+    cs_ord = cs[order]
+
+    if _HAS_NUMBA:
+        outlet_cells_sum = _mfd_accumulation_numba(
+            np.ascontiguousarray(z_cond, dtype=np.float64),
+            mfd_cells,
+            np.ascontiguousarray(rs_ord, dtype=np.int64),
+            np.ascontiguousarray(cs_ord, dtype=np.int64),
+            _DR_ARR,
+            _DC_ARR,
+            _DIST_ARR,
+            _CONTOUR_ARR,
+            float(pixel_size_m),
+            p,
+        )
+    else:
+        rs_ord_list = rs_ord.tolist()
+        cs_ord_list = cs_ord.tolist()
+        outlet_cells_sum = 0.0
+        for r, c in zip(rs_ord_list, cs_ord_list):
+            z0 = float(z_cond[r, c])
+            acc0 = float(mfd_cells[r, c])
+            weights: list[tuple[int, int, float]] = []
+            w_sum = 0.0
+            for dr, dc, _, _, dist_f, contour_f in D8_TABLE:
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < alto and 0 <= nc < ancho:
+                    zn = float(z_cond[nr, nc])
+                    if math.isfinite(zn) and zn < z0:
+                        tan_beta = (z0 - zn) / (dist_f * pixel_size_m)
+                        w = (tan_beta ** p) * contour_f
+                        weights.append((nr, nc, w))
+                        w_sum += w
+            if w_sum > 0.0:
+                inv = acc0 / w_sum
+                for nr, nc, w in weights:
+                    mfd_cells[nr, nc] += w * inv
+            else:
+                # Celda sumidero o salida del dominio: retiene/exporta todo el flujo que llegó hasta ella
+                outlet_cells_sum += acc0
 
     total_valid_cells = float(len(rs_ord))
     rel_err = abs(outlet_cells_sum - total_valid_cells) / max(1.0, total_valid_cells)

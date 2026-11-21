@@ -10,3 +10,4 @@ pytest>=8.0
 ruff>=0.9
 playwright>=1.40
 whitebox>=2.3.0
+numba>=0.59

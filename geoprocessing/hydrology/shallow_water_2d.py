@@ -32,8 +32,162 @@ from geoprocessing.dem.terrain import Dem
 from geoprocessing.hydrology.flow import D8_TABLE
 from geoprocessing.rainfall.nrcs_cn import AntecedentMoisture, compute_nrcs_cn
 
+try:
+    from numba import njit
+
+    _HAS_NUMBA = True
+except ImportError:
+    _HAS_NUMBA = False
+
+    def njit(*args, **kwargs):
+        def decorator(func):
+            return func
+
+        if len(args) == 1 and callable(args[0]):
+            return args[0]
+        return decorator
+
 GRAVITY = 9.81
 H_DRY_M = 1e-4  # 0.1 mm: umbral numérico de celda húmeda para tránsito
+
+_DR_ARR = np.array([t[0] for t in D8_TABLE], dtype=np.int64)
+_DC_ARR = np.array([t[1] for t in D8_TABLE], dtype=np.int64)
+_DIST_ARR = np.array([t[4] for t in D8_TABLE], dtype=np.float64)
+_CONTOUR_ARR = np.array([t[5] for t in D8_TABLE], dtype=np.float64)
+
+
+@njit
+def _shallow_water_substeps_numba(
+    h: np.ndarray,
+    max_h: np.ndarray,
+    max_v: np.ndarray,
+    max_q: np.ndarray,
+    z_bed: np.ndarray,
+    n_grid: np.ndarray,
+    valid: np.ndarray,
+    is_boundary: np.ndarray,
+    dr_arr: np.ndarray,
+    dc_arr: np.ndarray,
+    dist_arr: np.ndarray,
+    contour_arr: np.ndarray,
+    dx: float,
+    dt: float,
+    cell_area_m2: float,
+    rain_rate: float,
+    n_sub: int,
+) -> float:
+    alto, ancho = h.shape
+    total_outflow_m3 = 0.0
+
+    dh_out = np.zeros((8, alto, ancho), dtype=np.float64)
+    weight_sum = np.zeros((alto, ancho), dtype=np.float64)
+    step_max_v = np.zeros((alto, ancho), dtype=np.float64)
+    delta_h = np.zeros((alto, ancho), dtype=np.float64)
+
+    for _ in range(n_sub):
+        if rain_rate > 0.0:
+            for r in range(alto):
+                for c in range(ancho):
+                    if valid[r, c]:
+                        h[r, c] += rain_rate
+
+        dh_out.fill(0.0)
+        weight_sum.fill(0.0)
+        step_max_v.fill(0.0)
+        delta_h.fill(0.0)
+
+        any_wet = False
+        for r in range(alto):
+            for c in range(ancho):
+                if valid[r, c] and h[r, c] > H_DRY_M:
+                    any_wet = True
+                    break
+            if any_wet:
+                break
+        if not any_wet:
+            continue
+
+        for r in range(alto):
+            for c in range(ancho):
+                if not (valid[r, c] and h[r, c] > H_DRY_M):
+                    continue
+                eta0 = z_bed[r, c] + h[r, c]
+                h_src = h[r, c]
+                n_src = n_grid[r, c]
+                v_froude = 1.2 * math.sqrt(GRAVITY * h_src)
+                w_sum = 0.0
+                smv = 0.0
+
+                for k in range(8):
+                    nr = r + dr_arr[k]
+                    nc = c + dc_arr[k]
+                    if 0 <= nr < alto and 0 <= nc < ancho and valid[nr, nc]:
+                        eta_n = z_bed[nr, nc] + h[nr, nc]
+                        d_eta = eta0 - eta_n
+                        if d_eta > 1e-5:
+                            dist = dist_arr[k] * dx
+                            width_eff = contour_arr[k] * dx
+                            sf = d_eta / dist
+                            v_man = (1.0 / n_src) * (h_src ** (2.0 / 3.0)) * math.sqrt(sf)
+                            v_dir = min(v_man, v_froude)
+                            dh = (v_dir * h_src * width_eff * dt) / cell_area_m2
+                            max_t = 0.45 * max(0.0, d_eta)
+                            if dh > max_t:
+                                dh = max_t
+                            dh_out[k, r, c] = dh
+                            w_sum += dh
+                            if v_dir > smv:
+                                smv = v_dir
+                weight_sum[r, c] = w_sum
+                step_max_v[r, c] = smv
+
+        for r in range(alto):
+            for c in range(ancho):
+                if valid[r, c] and h[r, c] > H_DRY_M and is_boundary[r, c]:
+                    h_b = h[r, c]
+                    v_b = min(
+                        (1.0 / n_grid[r, c]) * (h_b ** (2.0 / 3.0)) * math.sqrt(0.005),
+                        1.2 * math.sqrt(GRAVITY * h_b),
+                    )
+                    dh_bnd = min(0.5 * h_b, (v_b * h_b * dx * dt) / cell_area_m2)
+                    w_bnd = weight_sum[r, c] + dh_bnd
+                    scale_bnd = (h_b / max(1e-12, w_bnd)) if w_bnd > h_b else 1.0
+                    dh_bnd_actual = dh_bnd * scale_bnd
+                    h[r, c] -= dh_bnd_actual
+                    total_outflow_m3 += dh_bnd_actual * cell_area_m2
+                    if v_b > step_max_v[r, c]:
+                        step_max_v[r, c] = v_b
+
+        for r in range(alto):
+            for c in range(ancho):
+                if valid[r, c] and h[r, c] > H_DRY_M:
+                    h_curr = h[r, c]
+                    w = weight_sum[r, c]
+                    s = (0.95 * h_curr / max(1e-12, w)) if w > 0.95 * h_curr else 1.0
+                    for k in range(8):
+                        dh = dh_out[k, r, c]
+                        if dh > 0.0:
+                            actual = dh * s
+                            delta_h[r, c] -= actual
+                            delta_h[r + dr_arr[k], c + dc_arr[k]] += actual
+
+        for r in range(alto):
+            for c in range(ancho):
+                if valid[r, c]:
+                    new_h = h[r, c] + delta_h[r, c]
+                    if new_h < 0.0:
+                        new_h = 0.0
+                    h[r, c] = new_h
+                    if new_h > max_h[r, c]:
+                        max_h[r, c] = new_h
+                    smv = step_max_v[r, c]
+                    if smv > max_v[r, c]:
+                        max_v[r, c] = smv
+                    q = new_h * smv
+                    if q > max_q[r, c]:
+                        max_q[r, c] = q
+
+    return total_outflow_m3
 
 # Coeficientes de rugosidad de Manning n recomendados para superficies agrícolas (Chow 1959 / NRCS)
 MANNING_N_BY_COVER: dict[str, float] = {
@@ -175,80 +329,103 @@ def run_2d_diffusive_wave_simulation(
         dt = dur_s / n_sub
         rain_rate_m_per_sub = dq_m / n_sub
 
-        for _ in range(n_sub):
+        if _HAS_NUMBA:
             if rain_rate_m_per_sub > 0.0:
-                h[valid] += rain_rate_m_per_sub
-                total_input_runoff_m += rain_rate_m_per_sub
+                total_input_runoff_m += rain_rate_m_per_sub * n_sub
+            total_boundary_outflow_m3 += _shallow_water_substeps_numba(
+                h,
+                max_h,
+                max_v,
+                max_q,
+                z_bed,
+                n_grid,
+                valid,
+                is_boundary,
+                _DR_ARR,
+                _DC_ARR,
+                _DIST_ARR,
+                _CONTOUR_ARR,
+                dx,
+                dt,
+                cell_area_m2,
+                rain_rate_m_per_sub,
+                n_sub,
+            )
+        else:
+            for _ in range(n_sub):
+                if rain_rate_m_per_sub > 0.0:
+                    h[valid] += rain_rate_m_per_sub
+                    total_input_runoff_m += rain_rate_m_per_sub
 
-            eta = z_bed + h
-            wet = valid & (h > H_DRY_M)
-            if not wet.any():
-                continue
+                eta = z_bed + h
+                wet = valid & (h > H_DRY_M)
+                if not wet.any():
+                    continue
 
-            # Calcular velocidades y flujos salientes hacia los 8 vecinos
-            out_flux = []
-            weight_sum = np.zeros((alto, ancho), dtype="float64")
-            step_max_v = np.zeros((alto, ancho), dtype="float64")
+                # Calcular velocidades y flujos salientes hacia los 8 vecinos
+                out_flux = []
+                weight_sum = np.zeros((alto, ancho), dtype="float64")
+                step_max_v = np.zeros((alto, ancho), dtype="float64")
 
-            for dr, dc, _, _, dist_f, contour_f in D8_TABLE:
-                dist = dist_f * dx
-                width_eff = contour_f * dx
-                r_s = slice(max(0, -dr), alto - max(0, dr))
-                c_s = slice(max(0, -dc), ancho - max(0, dc))
-                r_d = slice(max(0, dr), alto - max(0, -dr))
-                c_d = slice(max(0, dc), ancho - max(0, -dc))
+                for dr, dc, _, _, dist_f, contour_f in D8_TABLE:
+                    dist = dist_f * dx
+                    width_eff = contour_f * dx
+                    r_s = slice(max(0, -dr), alto - max(0, dr))
+                    c_s = slice(max(0, -dc), ancho - max(0, dc))
+                    r_d = slice(max(0, dr), alto - max(0, -dr))
+                    c_d = slice(max(0, dc), ancho - max(0, -dc))
 
-                d_eta = eta[r_s, c_s] - eta[r_d, c_d]
-                active = wet[r_s, c_s] & valid[r_d, c_d] & (d_eta > 1e-5)
+                    d_eta = eta[r_s, c_s] - eta[r_d, c_d]
+                    active = wet[r_s, c_s] & valid[r_d, c_d] & (d_eta > 1e-5)
 
-                sf = np.where(active, d_eta / dist, 0.0)
-                h_src = np.where(active, h[r_s, c_s], 0.0)
-                n_src = n_grid[r_s, c_s]
+                    sf = np.where(active, d_eta / dist, 0.0)
+                    h_src = np.where(active, h[r_s, c_s], 0.0)
+                    n_src = n_grid[r_s, c_s]
 
-                v_man = np.where(active, (1.0 / n_src) * np.power(h_src, 2.0 / 3.0) * np.sqrt(sf), 0.0)
-                v_froude = 1.2 * np.sqrt(GRAVITY * h_src)
-                v_dir = np.minimum(v_man, v_froude)
+                    v_man = np.where(active, (1.0 / n_src) * np.power(h_src, 2.0 / 3.0) * np.sqrt(sf), 0.0)
+                    v_froude = 1.2 * np.sqrt(GRAVITY * h_src)
+                    v_dir = np.minimum(v_man, v_froude)
 
-                # Volumen potencial saliente en esa dirección expresado en altura de celda (m)
-                dh_out = (v_dir * h_src * width_eff * dt) / cell_area_m2
-                # No transferir más que la mitad del desnivel de superficie libre para evitar oscilación
-                dh_out = np.minimum(dh_out, 0.45 * np.maximum(0.0, d_eta))
+                    # Volumen potencial saliente en esa dirección expresado en altura de celda (m)
+                    dh_out = (v_dir * h_src * width_eff * dt) / cell_area_m2
+                    # No transferir más que la mitad del desnivel de superficie libre para evitar oscilación
+                    dh_out = np.minimum(dh_out, 0.45 * np.maximum(0.0, d_eta))
 
-                out_flux.append((r_s, c_s, r_d, c_d, dh_out))
-                weight_sum[r_s, c_s] += dh_out
-                step_max_v[r_s, c_s] = np.maximum(step_max_v[r_s, c_s], v_dir)
+                    out_flux.append((r_s, c_s, r_d, c_d, dh_out))
+                    weight_sum[r_s, c_s] += dh_out
+                    step_max_v[r_s, c_s] = np.maximum(step_max_v[r_s, c_s], v_dir)
 
-            # Condición de borde de salida libre en el perímetro del dominio (pendiente normal S_0 = 0.005)
-            bnd_wet = wet & is_boundary
-            if bnd_wet.any():
-                h_b = h[bnd_wet]
-                v_b = np.minimum(
-                    (1.0 / n_grid[bnd_wet]) * np.power(h_b, 2.0 / 3.0) * math.sqrt(0.005),
-                    1.2 * np.sqrt(GRAVITY * h_b),
-                )
-                dh_bnd = np.minimum(0.5 * h_b, (v_b * h_b * dx * dt) / cell_area_m2)
-                weight_sum_bnd = weight_sum[bnd_wet] + dh_bnd
-                scale_bnd = np.where(weight_sum_bnd > h_b, h_b / np.maximum(1e-12, weight_sum_bnd), 1.0)
-                dh_bnd_actual = dh_bnd * scale_bnd
-                h[bnd_wet] -= dh_bnd_actual
-                total_boundary_outflow_m3 += float(dh_bnd_actual.sum() * cell_area_m2)
-                step_max_v[bnd_wet] = np.maximum(step_max_v[bnd_wet], v_b)
+                # Condición de borde de salida libre en el perímetro del dominio (pendiente normal S_0 = 0.005)
+                bnd_wet = wet & is_boundary
+                if bnd_wet.any():
+                    h_b = h[bnd_wet]
+                    v_b = np.minimum(
+                        (1.0 / n_grid[bnd_wet]) * np.power(h_b, 2.0 / 3.0) * math.sqrt(0.005),
+                        1.2 * np.sqrt(GRAVITY * h_b),
+                    )
+                    dh_bnd = np.minimum(0.5 * h_b, (v_b * h_b * dx * dt) / cell_area_m2)
+                    weight_sum_bnd = weight_sum[bnd_wet] + dh_bnd
+                    scale_bnd = np.where(weight_sum_bnd > h_b, h_b / np.maximum(1e-12, weight_sum_bnd), 1.0)
+                    dh_bnd_actual = dh_bnd * scale_bnd
+                    h[bnd_wet] -= dh_bnd_actual
+                    total_boundary_outflow_m3 += float(dh_bnd_actual.sum() * cell_area_m2)
+                    step_max_v[bnd_wet] = np.maximum(step_max_v[bnd_wet], v_b)
 
-            # Factor limitador por celda para garantizar positividad estricta (sum(dh_out) <= 0.95 * h)
-            scale = np.where(weight_sum > 0.95 * h, (0.95 * h) / np.maximum(1e-12, weight_sum), 1.0)
+                # Factor limitador por celda para garantizar positividad estricta (sum(dh_out) <= 0.95 * h)
+                scale = np.where(weight_sum > 0.95 * h, (0.95 * h) / np.maximum(1e-12, weight_sum), 1.0)
 
-            delta_h = np.zeros((alto, ancho), dtype="float64")
-            for r_s, c_s, r_d, c_d, dh_out in out_flux:
-                actual = dh_out * scale[r_s, c_s]
-                delta_h[r_s, c_s] -= actual
-                delta_h[r_d, c_d] += actual
+                delta_h = np.zeros((alto, ancho), dtype="float64")
+                for r_s, c_s, r_d, c_d, dh_out in out_flux:
+                    actual = dh_out * scale[r_s, c_s]
+                    delta_h[r_s, c_s] -= actual
+                    delta_h[r_d, c_d] += actual
 
-            h += delta_h
-            np.maximum(h, 0.0, out=h)
+                h += delta_h
+                np.maximum(h, 0.0, out=h)
 
-            np.maximum(max_h, h, out=max_h)
-            np.maximum(max_v, step_max_v, out=max_v)
-            np.maximum(max_q, h * step_max_v, out=max_q)
+                np.maximum(max_h, h, out=max_h)
+                np.maximum(max_v, step_max_v, out=max_v)
+                np.maximum(max_q, h * step_max_v, out=max_q)
 
     # Verificación de conservación de masa en todo el dominio 2D:
     # Volumen total de lluvia efectiva ingresado == Volumen almacenado final + Volumen exportado por bordes
