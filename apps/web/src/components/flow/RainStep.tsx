@@ -38,9 +38,9 @@ export function RainStep({
   className = '',
 }: RainStepProps) {
   const rainOptions = [
-    { value: '30', label: 'Suave 30 mm', sublabel: 'Llovizna' },
-    { value: '80', label: 'Fuerte 80 mm', sublabel: 'Tormenta de diseño' },
-    { value: '130', label: 'Temporal 130 mm', sublabel: 'Crecida' },
+    { value: '30', label: 'Conservador 30 mm', sublabel: 'Lluvia suave' },
+    { value: '80', label: 'Medio 80 mm', sublabel: 'Tormenta de diseño' },
+    { value: '130', label: 'Crítico 130 mm', sublabel: 'Crecida extraordinaria' },
   ]
 
   return (
@@ -48,7 +48,7 @@ export function RainStep({
       <div className="step-header">
         <h2 className="step-heading">¿Cuánto llueve?</h2>
         <p className="step-subtext">
-          Elegí la intensidad de lluvia de diseño para simular el escurrimiento y los bajos de retención.
+          Elegí el escenario de tormenta de diseño (Conservador, Medio o Crítico) para simular el escurrimiento y los bajos de retención.
         </p>
       </div>
 

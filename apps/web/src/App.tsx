@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import {
+  activateRunoffRun,
+  compareScenarios,
   createManualRainfallEvent,
   executeRunoffRun,
   exportGeoJsonUrl,
@@ -227,13 +229,18 @@ export function App() {
           bufferM: 300,
         })
       }
+      let presetLabel = `Lluvia ${mm} mm`
+      if (mm === 30) presetLabel = 'Conservador (30 mm) · Lluvia suave'
+      else if (mm === 80) presetLabel = 'Medio (80 mm) · Tormenta de diseño'
+      else if (mm === 130) presetLabel = 'Crítico (130 mm) · Crecida extraordinaria'
+
       const ev = await createManualRainfallEvent(activeField.id, {
-        name: `Lluvia ${mm} mm`,
+        name: presetLabel,
         total_mm: mm,
         source_type: 'manual',
       })
       const created = await executeRunoffRun(activeField.id, {
-        name: `${mm} mm · Suelo ${soil} · ${
+        name: `${presetLabel} · Suelo ${soil} · ${
           amc === 'wet' ? 'Húmedo' : amc === 'dry' ? 'Seco' : 'Normal'
         }`,
         rainfall_event_id: ev.id,
@@ -430,6 +437,25 @@ export function App() {
     }
   }
 
+  const handleActivateRun = async (runId: string) => {
+    if (!activeField) return
+    setError(null)
+    setBusy('Cambiando al escenario seleccionado...')
+    try {
+      await activateRunoffRun(activeField.id, runId)
+      const [rns, m] = await Promise.all([
+        listRunoffRuns(activeField.id),
+        getTerrainMesh(activeField.id),
+      ])
+      setRunoffRuns(rns)
+      setMesh(m)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const handleMapClick = async (lon: number, lat: number) => {
     if (!activeField) return
     try {
@@ -579,6 +605,7 @@ export function App() {
               <ResultStep
                 stormMm={quickRainMm}
                 run={activeRun}
+                runsList={runoffRuns}
                 toolkit={toolkit}
                 terrain={terrain}
                 activeOverlay={dioramaOverlay}
@@ -586,6 +613,12 @@ export function App() {
                 onReplayRain={() => setFlowStep('lluvia')}
                 onChangeLot={() => setFlowStep('lote')}
                 onOpenToolkit={() => setIsToolkitModalOpen(true)}
+                onCompareRuns={(a, b) =>
+                  activeField
+                    ? compareScenarios(activeField.id, a, b)
+                    : Promise.resolve(null)
+                }
+                onActivateRun={handleActivateRun}
                 busy={Boolean(busy)}
               />
             )}
@@ -670,6 +703,7 @@ export function App() {
                 <ResultStep
                   stormMm={quickRainMm}
                   run={activeRun}
+                  runsList={runoffRuns}
                   toolkit={toolkit}
                   terrain={terrain}
                   activeOverlay={dioramaOverlay}
@@ -677,6 +711,12 @@ export function App() {
                   onReplayRain={() => setFlowStep('lluvia')}
                   onChangeLot={() => setFlowStep('lote')}
                   onOpenToolkit={() => setIsToolkitModalOpen(true)}
+                  onCompareRuns={(a, b) =>
+                    activeField
+                      ? compareScenarios(activeField.id, a, b)
+                      : Promise.resolve(null)
+                  }
+                  onActivateRun={handleActivateRun}
                   busy={Boolean(busy)}
                 />
               )}

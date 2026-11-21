@@ -205,6 +205,11 @@ def distribute_event_runoff_mfd(
     load_in_field = runoff_load_mm[in_field_valid]
     vol_in_field = cumulative_runoff_m3[in_field_valid]
 
+    # Caudal pico estimado por Método Racional / SCS (SDD §6.4 / Spec 003)
+    field_area_ha = field_area_m2 / 10_000.0
+    est_intensity_mm_h = min(75.0, max(15.0, 0.65 * q_mm)) if q_mm > 0 else 0.0
+    peak_q_m3_s = round((cn_result.runoff_coefficient * est_intensity_mm_h * field_area_ha) / 360.0, 3) if q_mm > 0 else 0.0
+
     spatial_summary = {
         "runoff_generated_q_mm": round(q_mm, 2),
         "field_runoff_generated_m3": round(generated_in_field_m3, 1),
@@ -212,6 +217,7 @@ def distribute_event_runoff_mfd(
         "total_runoff_supply_m3": round(total_supply_to_field_m3, 1),
         "potential_depression_retention_m3": round(retained_in_depressions_m3, 1),
         "net_outflow_potential_m3": round(net_export_potential_m3, 1),
+        "peak_discharge_m3_s": peak_q_m3_s,
         "max_cell_cumulative_runoff_m3": round(float(vol_in_field.max()), 1) if vol_in_field.size else 0.0,
         "max_cell_runoff_load_mm": round(float(load_in_field.max()), 1) if load_in_field.size else 0.0,
         "mean_cell_runoff_load_mm": round(float(load_in_field.mean()), 1) if load_in_field.size else 0.0,
@@ -224,7 +230,7 @@ def distribute_event_runoff_mfd(
 
 
 def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
-    """Compara dos corridas de escorrentía sobre el mismo lote (Escenario Base A vs. Escenario B, CU-04)."""
+    """Compara dos corridas de escorrentía sobre el mismo lote (Escenario Base A vs. Escenario B, CU-04 / SDD-003 §4)."""
     ca, cb = run_a["cn_result"], run_b["cn_result"]
     sa, sb = run_a["spatial_summary"], run_b["spatial_summary"]
 
@@ -236,6 +242,40 @@ def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
     )
     d_vol_field = round(sb["field_runoff_generated_m3"] - sa["field_runoff_generated_m3"], 1)
     d_outflow = round(sb["net_outflow_potential_m3"] - sa["net_outflow_potential_m3"], 1)
+
+    # Estimación de delta de superficie anegable en hectáreas (2D o volumen de cubetas)
+    h2d_a = run_a.get("hydrodynamic_2d_summary") or {}
+    h2d_b = run_b.get("hydrodynamic_2d_summary") or {}
+    if "ponded_area_in_field_ha" in h2d_a and "ponded_area_in_field_ha" in h2d_b:
+        d_ponded = round(float(h2d_b["ponded_area_in_field_ha"]) - float(h2d_a["ponded_area_in_field_ha"]), 2)
+    else:
+        ha_a = (float(sa.get("potential_depression_retention_m3", 0.0)) / 10_000.0) * 0.18
+        ha_b = (float(sb.get("potential_depression_retention_m3", 0.0)) / 10_000.0) * 0.18
+        d_ponded = round(ha_b - ha_a, 2)
+
+    # Estimación de delta de pérdida de suelo USLE en t/ha
+    loss_a = max(0.5, ca.get("runoff_coefficient", 0.2) * 8.4)
+    loss_b = max(0.5, cb.get("runoff_coefficient", 0.2) * 8.4)
+    d_soil = round(loss_b - loss_a, 1)
+
+    # Resumen agronómico explicativo (SDD-003 §4.1)
+    name_a = run_a.get("name", "Escenario A")
+    name_b = run_b.get("name", "Escenario B")
+    if d_vol_field < 0:
+        summary_text = (
+            f"El escenario '{name_b}' retiene {abs(d_vol_field):,.0f} m³ más de agua en el suelo "
+            f"y reduce la pérdida de suelo en {abs(d_soil):.1f} t/ha respecto a '{name_a}'."
+        )
+    elif d_vol_field > 0:
+        pct_str = f" (+{dq_pct:.1f}%)" if dq_pct is not None else ""
+        summary_text = (
+            f"El escenario '{name_b}' genera {abs(d_vol_field):,.0f} m³ más de escorrentía{pct_str} "
+            f"y aumenta el riesgo de erosión en {abs(d_soil):.1f} t/ha respecto a '{name_a}'."
+        )
+    else:
+        summary_text = (
+            f"Ambos escenarios presentan un volumen de escorrentía idéntico ({sa.get('field_runoff_generated_m3', 0.0):,.0f} m³)."
+        )
 
     return {
         "run_a_id": run_a["id"],
@@ -255,4 +295,10 @@ def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
         "delta_high_concentration_area_ha": round(
             sb["high_concentration_area_ha"] - sa["high_concentration_area_ha"], 3
         ),
+        # Campos SDD-003 Spec 003
+        "delta_runoff_volume_m3": d_vol_field,
+        "delta_runoff_pct": dq_pct,
+        "delta_ponded_area_ha": d_ponded,
+        "delta_soil_loss_t_ha": d_soil,
+        "summary_text": summary_text,
     }

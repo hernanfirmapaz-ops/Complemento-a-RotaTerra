@@ -20,6 +20,7 @@ from geoprocessing.agronomy.zonation import ZONE_CATALOG, classify_hydro_agronom
 from geoprocessing.dem.quality import field_mask
 from geoprocessing.dem.terrain import Dem, contours_geojson, slope_aspect
 from geoprocessing.hydrology.conditioning import condition_dem
+from geoprocessing.hydrology.confidence import compute_confidence_indicator
 from geoprocessing.hydrology.flow import (
     CODE_TO_LABEL,
     d8_direction_and_accumulation,
@@ -489,6 +490,20 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
             f"Ia ({cn_res.initial_abstraction_ia_mm:.1f} mm): la escorrentía directa estimada Q es 0,0 mm."
         )
 
+    # Indicador de confianza hidrológica (SDD-003 §3)
+    terreno_src = terreno.get("source") or {}
+    dem_source_id = terreno_src.get("source_id", "copernicus_glo30")
+    dem_res_m = float(terreno_src.get("nominal_resolution_m", 30.0))
+    mean_slope_val = float(terreno.get("summary", {}).get("mean_slope_pct", 1.0))
+    rain_type = rain_ev.get("source_type", "regional_design")
+    confidence_obj = compute_confidence_indicator(
+        source_id=dem_source_id,
+        resolution_m=dem_res_m,
+        mean_slope_pct=mean_slope_val,
+        soil_source="inta_regional",
+        rain_source_type=rain_type,
+    )
+
     run_doc = {
         "id": run_id,
         "field_id": field_id,
@@ -511,6 +526,7 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         },
         "cn_result": cn_res.to_dict(),
         "spatial_summary": spatial_summary,
+        "confidence": confidence_obj,
         "assumptions_and_notes": notes + [
             f"Condición de humedad antecedente: {payload.antecedent_moisture} -> CN efectivo = {cn_res.cn_effective:.1f}.",
             f"Retención potencial máxima S = {cn_res.potential_retention_s_mm:.1f} mm; abstracción inicial Ia = {cn_res.initial_abstraction_ia_mm:.1f} mm (λ = {cn_res.lambda_ratio:.2f}).",
@@ -552,6 +568,44 @@ def compare_two_runs(field_id: str, run_a_id: str, run_b_id: str) -> dict:
     if run_a is None or run_b is None:
         raise store.NotFound("No se encontraron ambas corridas para comparar.")
     return compare_runoff_scenarios(run_a, run_b)
+
+
+def execute_standard_scenarios(
+    field_id: str,
+    soil_group: str = "B",
+    cover_code: str = "soja_maiz_sd_buena",
+) -> list[dict]:
+    """Ejecuta los 3 escenarios estándar de diseño (Conservador, Medio, Crítico)
+    para el lote según Tarea 2.2 / SDD-003.
+    """
+    store.load_field(field_id)
+    presets = [
+        {"name": "Conservador (30 mm) · Lluvia suave", "mm": 30.0, "amc": "dry"},
+        {"name": "Medio (80 mm) · Tormenta de diseño", "mm": 80.0, "amc": "medium"},
+        {"name": "Crítico (130 mm) · Crecida extraordinaria", "mm": 130.0, "amc": "wet"},
+    ]
+    results = []
+    for p in presets:
+        ev = create_manual_rainfall_event(
+            field_id,
+            RainfallEventManualIn(
+                name=p["name"],
+                total_mm=p["mm"],
+                source_type="manual",
+            ),
+        )
+        run = execute_runoff_run(
+            field_id,
+            RunoffRunIn(
+                name=p["name"],
+                rainfall_event_id=ev["id"],
+                soil_group=soil_group,
+                cover_code=cover_code,
+                antecedent_moisture=p["amc"],
+            ),
+        )
+        results.append(run)
+    return results
 
 
 def execute_hydrodynamic_2d_on_run(

@@ -407,10 +407,20 @@ class SpatialRunoffSummaryOut(BaseModel):
     total_runoff_supply_m3: float
     potential_depression_retention_m3: float
     net_outflow_potential_m3: float
+    peak_discharge_m3_s: float | None = None
     max_cell_cumulative_runoff_m3: float
     max_cell_runoff_load_mm: float
     mean_cell_runoff_load_mm: float
     high_concentration_area_ha: float
+
+
+class ConfidenceIndicatorOut(BaseModel):
+    level: Literal["alto", "medio", "bajo"]
+    score: float
+    reasons: list[str]
+    relief_note: str
+    soil_note: str
+    rain_note: str
 
 
 class RunoffRunOut(BaseModel):
@@ -426,6 +436,7 @@ class RunoffRunOut(BaseModel):
     field_conditions: dict
     cn_result: CnResultOut
     spatial_summary: SpatialRunoffSummaryOut
+    confidence: ConfidenceIndicatorOut | None = None
     hydrodynamic_2d_summary: dict | None = None
     agronomic_zonation: dict | None = None
     assumptions_and_notes: list[str]
@@ -439,14 +450,20 @@ class ScenarioComparisonOut(BaseModel):
     run_b_id: str
     run_b_name: str
     delta_precipitation_mm: float
-    delta_cn_effective: float
-    delta_initial_abstraction_ia_mm: float
-    delta_runoff_q_mm: float
-    delta_runoff_q_pct: float | None
-    delta_runoff_coefficient: float
-    delta_field_runoff_generated_m3: float
-    delta_net_outflow_potential_m3: float
-    delta_high_concentration_area_ha: float
+    delta_cn_effective: float = 0.0
+    delta_initial_abstraction_ia_mm: float = 0.0
+    delta_runoff_q_mm: float = 0.0
+    delta_runoff_q_pct: float | None = None
+    delta_runoff_coefficient: float = 0.0
+    delta_field_runoff_generated_m3: float = 0.0
+    delta_net_outflow_potential_m3: float = 0.0
+    delta_high_concentration_area_ha: float = 0.0
+    # Spec 003 fields
+    delta_runoff_volume_m3: float = 0.0
+    delta_runoff_pct: float | None = None
+    delta_ponded_area_ha: float = 0.0
+    delta_soil_loss_t_ha: float = 0.0
+    summary_text: str = ""
 
 
 class TimelineFrameOut(BaseModel):

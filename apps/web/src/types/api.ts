@@ -385,6 +385,7 @@ export interface SpatialRunoffSummaryOut {
   total_runoff_supply_m3: number
   potential_depression_retention_m3: number
   net_outflow_potential_m3: number
+  peak_discharge_m3_s?: number | null
   max_cell_cumulative_runoff_m3: number
   max_cell_runoff_load_mm: number
   mean_cell_runoff_load_mm: number
@@ -411,6 +412,15 @@ export interface Hydrodynamic2DSummaryOut {
   mass_balance_relative_error: number
 }
 
+export interface ConfidenceIndicator {
+  level: 'alto' | 'medio' | 'bajo'
+  score: number
+  reasons: string[]
+  relief_note: string
+  soil_note: string
+  rain_note: string
+}
+
 export interface RunoffRunOut {
   id: string
   field_id: string
@@ -424,6 +434,7 @@ export interface RunoffRunOut {
   field_conditions: Record<string, unknown>
   cn_result: CnResultOut
   spatial_summary: SpatialRunoffSummaryOut
+  confidence?: ConfidenceIndicator | null
   hydrodynamic_2d_summary?: Hydrodynamic2DSummaryOut | null
   agronomic_zonation?: AgronomicZonationOut | null
   assumptions_and_notes: string[]
@@ -445,6 +456,11 @@ export interface ScenarioComparisonOut {
   delta_field_runoff_generated_m3: number
   delta_net_outflow_potential_m3: number
   delta_high_concentration_area_ha: number
+  delta_runoff_volume_m3?: number
+  delta_runoff_pct?: number | null
+  delta_ponded_area_ha?: number
+  delta_soil_loss_t_ha?: number
+  summary_text?: string
 }
 
 export interface TimelineFrameOut {

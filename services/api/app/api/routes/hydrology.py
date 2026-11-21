@@ -138,11 +138,20 @@ def activar_corrida_escorrentia(field_id: str, run_id: str):
 @router.get("/compare", response_model=ScenarioComparisonOut)
 def comparar_escenarios_escorrentia(
     field_id: str,
-    run_a: str = Query(..., description="ID de la corrida base A"),
-    run_b: str = Query(..., description="ID de la corrida comparada B"),
+    run_a: str | None = Query(None, description="ID de la corrida base A"),
+    run_b: str | None = Query(None, description="ID de la corrida comparada B"),
+    run_a_id: str | None = Query(None, description="Alias alternativo run_a_id"),
+    run_b_id: str | None = Query(None, description="Alias alternativo run_b_id"),
 ):
+    id_a = run_a or run_a_id
+    id_b = run_b or run_b_id
+    if not id_a or not id_b:
+        raise HTTPException(
+            status_code=422,
+            detail="Se requieren los identificadores de ambas corridas para comparar.",
+        )
     try:
-        return hydrology.compare_two_runs(field_id, run_a, run_b)
+        return hydrology.compare_two_runs(field_id, id_a, id_b)
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 

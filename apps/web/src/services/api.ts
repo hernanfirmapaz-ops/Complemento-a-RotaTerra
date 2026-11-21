@@ -268,16 +268,32 @@ export async function activateRunoffRun(
   return check<RunoffRunOut>(res)
 }
 
-export async function compareRunoffScenarios(
+export async function compareScenarios(
   fieldId: string,
   runA: string,
   runB: string,
 ): Promise<ScenarioComparisonOut> {
-  const params = new URLSearchParams({ run_a: runA, run_b: runB })
-  const res = await fetch(
-    `${BASE}/fields/${fieldId}/hydrology/compare?${params}`,
-  )
+  const params = new URLSearchParams({ run_a_id: runA, run_b_id: runB })
+  let res = await fetch(`${BASE}/fields/${fieldId}/scenarios/compare?${params}`)
+  if (!res.ok) {
+    const fallbackParams = new URLSearchParams({ run_a: runA, run_b: runB })
+    res = await fetch(`${BASE}/fields/${fieldId}/hydrology/compare?${fallbackParams}`)
+  }
   return check<ScenarioComparisonOut>(res)
+}
+
+export const compareRunoffScenarios = compareScenarios
+
+export async function simulatePresetScenarios(
+  fieldId: string,
+  soilGroup: string = 'B',
+  coverCode: string = 'soja_maiz_sd_buena',
+): Promise<RunoffRunOut[]> {
+  const params = new URLSearchParams({ soil_group: soilGroup, cover_code: coverCode })
+  const res = await fetch(`${BASE}/fields/${fieldId}/scenarios/simulate-presets?${params}`, {
+    method: 'POST',
+  })
+  return check<RunoffRunOut[]>(res)
 }
 
 export async function getRunoffTimeline(

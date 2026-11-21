@@ -1025,12 +1025,104 @@
 }
 
 /* --------------------------------------------------------------------------
-   Paso 3: ResultStep
+   Paso 3: ResultStep & Indicador de Confianza / Comparador
    -------------------------------------------------------------------------- */
 .result-step {
   display: flex;
   flex-direction: column;
   gap: var(--s3);
+}
+
+.result-header-with-confidence {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.confidence-chip-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.confidence-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  color: var(--ink-2);
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.confidence-chip:hover {
+  background: var(--surface-hover);
+  border-color: var(--ink-3);
+}
+
+.confidence-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.confidence-chip-alto .confidence-chip-dot {
+  background: #16a34a;
+}
+.confidence-chip-medio .confidence-chip-dot {
+  background: #d97706;
+}
+.confidence-chip-bajo .confidence-chip-dot {
+  background: #dc2626;
+}
+
+.confidence-panel {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.confidence-panel-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.confidence-reasons-list {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.4;
+}
+
+.confidence-notes-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  font-size: 11px;
+  color: var(--ink-3);
 }
 
 .result-metrics-grid {
@@ -1043,6 +1135,90 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.result-compare-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.scenario-compare-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+}
+
+.compare-selectors-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.compare-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.compare-field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.compare-deltas-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.compare-delta-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.delta-label {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-bottom: 2px;
+}
+
+.delta-val {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  font-feature-settings: 'tnum';
+}
+
+.delta-val.is-positive {
+  color: #dc2626;
+}
+
+.delta-val.is-negative {
+  color: #16a34a;
+}
+
+.compare-summary-box {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(22, 163, 74, 0.08);
+  border: 1px solid rgba(22, 163, 74, 0.2);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink);
 }
 
 .result-toolkit-callout {
