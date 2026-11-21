@@ -37,9 +37,16 @@ def is_whitebox_available() -> bool:
     El resultado se guarda: sin binario local, el paquete intenta descargarlo y eso no debe
     repetirse en cada llamada."""
     try:
+        import os
+
         import whitebox
 
         wbt = whitebox.WhiteboxTools()
+        # Los métodos existen siempre en el envoltorio de Python: lo que puede faltar es el
+        # ejecutable (por ejemplo, una caché que restauró `WBT/` sin `whitebox_tools`).
+        binario = os.path.join(wbt.exe_path, wbt.exe_name)
+        if not (os.path.isfile(binario) and os.access(binario, os.X_OK)):
+            return False
         return hasattr(wbt, "feature_preserving_smoothing") and hasattr(wbt, "breach_depressions_least_cost")
     except Exception:
         return False

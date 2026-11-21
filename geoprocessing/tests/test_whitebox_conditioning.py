@@ -176,3 +176,38 @@ def test_breach_without_whitebox_falls_back_to_fill_small(monkeypatch):
     z_breach, *_ = conditioning.condition_dem(dem, mascara, mode="breach")
     z_small, *_ = conditioning.condition_dem(dem, mascara, mode="fill_small")
     np.testing.assert_array_equal(z_breach, z_small)
+
+
+def test_whitebox_unavailable_when_binary_file_is_missing(monkeypatch, tmp_path):
+    """Caso real de CI (21/11/2026): la caché restauró `whitebox/WBT/` pero no el ejecutable
+    `whitebox/whitebox_tools`. El paquete no vuelve a descargar y las corridas fallan con
+    `./whitebox_tools: No such file or directory`. La verificación debe mirar el archivo."""
+    import sys
+    import types
+
+    from geoprocessing.hydrology import conditioning
+
+    class WbtSinBinario:
+        exe_path = str(tmp_path)
+        exe_name = "whitebox_tools"
+
+        def feature_preserving_smoothing(self, *a, **k):
+            return 0
+
+        def breach_depressions_least_cost(self, *a, **k):
+            return 0
+
+    falso = types.ModuleType("whitebox")
+    falso.WhiteboxTools = WbtSinBinario
+    monkeypatch.setitem(sys.modules, "whitebox", falso)
+    conditioning.is_whitebox_available.cache_clear()
+    try:
+        assert conditioning.is_whitebox_available() is False
+
+        binario = tmp_path / "whitebox_tools"
+        binario.write_text("")
+        binario.chmod(0o755)
+        conditioning.is_whitebox_available.cache_clear()
+        assert conditioning.is_whitebox_available() is True
+    finally:
+        conditioning.is_whitebox_available.cache_clear()
