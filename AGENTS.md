@@ -27,6 +27,7 @@ Web app que simula el terreno real de un lote agrícola de la llanura de San Lui
 
 ## Reglas
 
+0. **Metodología obligatoria.** Seguir el ciclo y las reglas de [docs/metodologia.md](docs/metodologia.md) en cada tarea (spec previa, test que falla primero, revisión cruzada, checklist de PR y política estricta de datos sin inventar).
 1. **Spec primero (SDD).** Nada de código sin spec aprobada por Hernán. Un criterio se tilda solo cuando se verificó, anotando los números.
 2. **Nunca inventar un valor.** Si falta un dato: `valor: null` + `calidad: "descartada"` + motivo. Prohibido generar datos sintéticos en el camino productivo (ver anomalía A1).
 3. **Contrato común.** Todo valor escalar sale como `Observacion` de N4-4-1.2 (`lote_id, fecha, variable, valor, unidad, fuente, resolucion_m, calidad, nota`); los rasters agregan `raster_ref` (URI de COG).
@@ -43,7 +44,7 @@ Web app que simula el terreno real de un lote agrícola de la llanura de San Lui
 | Rol | Área | Hace | No hace |
 |---|---|---|---|
 | Coordinador | Todo (lectura) | Plan, criterios, delegación, revisión, integración | Código de producción |
-| Experto en datos NASA | `geoprocessing/satellite/`, `net.py`, `dem/sources.py`, `docs/data-sources.md` | Elegir producto y versión, descargar, recortar, control de calidad, metadatos | Modelos físicos |
+| Experto en datos | `geoprocessing/satellite/`, `net.py`, `dem/sources.py`, `docs/data-sources.md` | Elegir producto y versión, descargar, recortar, control de calidad, metadatos | Modelos físicos |
 | Hidrólogo | `geoprocessing/hydrology`, `rainfall`, `agronomy`, `dem` | Fórmulas con fuente, unidades SI, tests de referencia y conservación | Red, endpoints |
 | Backend | `services/api/` | Endpoints, schemas, caché, errores, orquestación | Física, descarga satelital |
 | Frontend 3D | `apps/web/` | Visor, capas, paneles, celular, textos de limitación | Simular en el navegador |
