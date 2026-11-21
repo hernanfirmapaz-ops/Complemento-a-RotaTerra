@@ -503,45 +503,6 @@
   margin: 0;
 }
 
-/* --------------------------------------------------------------------------
-   ProgressBar (6.5: Barra fina de 2 px en --accent con texto del paso)
-   -------------------------------------------------------------------------- */
-.ui-progress-linear {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: var(--line);
-  z-index: 99999;
-}
-
-.ui-progress-fill {
-  height: 100%;
-  background-color: var(--accent);
-  transition: width var(--motion-duration) var(--motion-ease);
-}
-
-.ui-progress-step-text {
-  position: fixed;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(255, 255, 255, 0.94);
-  border: var(--border-width) solid var(--line);
-  border-radius: var(--radius-pill);
-  padding: 4px 14px;
-  font-size: 12px;
-  color: var(--ink);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  backdrop-filter: blur(6px);
-  z-index: 99999;
-}
-
 /* ==========================================================================
    Component Showcase Gallery (Tarea 1.1)
    ========================================================================== */
@@ -663,7 +624,6 @@
   color: var(--ink);
 }
 
-
 /* ==========================================================================
    3-Step Flow Layout & Components (SDD-002 Secciones 7, 8)
    ========================================================================== */
@@ -707,15 +667,6 @@
   margin: 0;
 }
 
-.flow-brand-tag {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--accent);
-  background-color: var(--accent-soft);
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-}
-
 .flow-topbar-actions {
   display: flex;
   align-items: center;
@@ -754,7 +705,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   StepNav (8.2: 1. Lote ✓ · 2. Lluvia ● · 3. Resultado, sin insignias)
+   StepNav (8.2: 1. Lote - 2. Lluvia - 3. Resultado, sin insignias)
    -------------------------------------------------------------------------- */
 .step-nav {
   padding-bottom: var(--s2);
@@ -1187,113 +1138,6 @@
 }
 
 /* ==========================================================================
-   Mobile Responsive Styles (< 768 px, 360 px, 390 px) - SDD-002
-   ========================================================================== */
-
-html, body {
-  overflow-x: hidden;
-  max-width: 100vw;
-}
-
-@media (max-width: 767px) {
-  .flow-topbar {
-    height: 52px;
-    padding: 0 12px;
-  }
-  
-  .flow-brand-title {
-    font-size: 15px;
-  }
-
-  .flow-brand-tag {
-    display: none;
-  }
-
-  .flow-main {
-    flex-direction: column;
-    height: calc(100vh - 52px);
-    position: relative;
-    overflow: hidden;
-  }
-
-  .flow-stage {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    inset: 0;
-  }
-
-  .flow-sidebar {
-    display: none;
-  }
-
-  .ui-bottom-sheet {
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
-  }
-
-  .ui-bottom-sheet .ui-sheet-body {
-    padding: 0 16px 24px 16px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .ui-segmented {
-    width: 100%;
-    display: flex;
-  }
-
-  .ui-segmented-btn {
-    flex: 1;
-    padding: 6px 6px;
-    font-size: 12px;
-  }
-
-  .ui-segmented-sublabel {
-    font-size: 10px;
-  }
-
-  .result-metrics-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .toolkit-modal-overlay {
-    padding: 0;
-  }
-
-  .toolkit-modal-container {
-    max-width: 100%;
-    max-height: 100%;
-    height: 100%;
-    border-radius: 0;
-  }
-}
-
-@media (max-width: 380px) {
-  .flow-topbar {
-    padding: 0 8px;
-  }
-
-  .flow-topbar-actions .ui-btn-sm {
-    padding: 0 8px;
-    font-size: 11px;
-  }
-
-  .ui-segmented-btn {
-    padding: 4px 4px;
-    font-size: 11px;
-  }
-
-  .step-nav-title {
-    font-size: 11px;
-  }
-
-  .step-heading {
-    font-size: 17px;
-  }
-}
-
-/* ==========================================================================
    Visor 3D Minimalista y Controles Limpios (SDD-002 secciones 8.2 & 6.5)
    ========================================================================== */
 
@@ -1310,10 +1154,10 @@ html, body {
   height: 100%;
 }
 
-.diorama-floating-controls {
+.diorama-controls-dock {
   position: absolute;
   top: 14px;
-  left: 14px;
+  right: 14px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1322,7 +1166,12 @@ html, body {
 
 .diorama-ctrl-btn {
   height: 36px;
+  min-width: 36px;
   padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background-color: rgba(255, 255, 255, 0.92);
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius-pill);
@@ -1349,6 +1198,59 @@ html, body {
 
 .diorama-ctrl-btn.compass {
   font-weight: 600;
+}
+
+.diorama-ctrl-btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.diorama-view-settings-popover {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  background-color: rgba(255, 255, 255, 0.96);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 12px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(12px);
+  z-index: 40;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.diorama-view-settings-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.diorama-view-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.diorama-relief-select {
+  border: var(--border-width) solid var(--line);
+  background-color: var(--surface);
+  border-radius: var(--radius-pill);
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  outline: none;
 }
 
 .diorama-legend-dock {
@@ -1424,4 +1326,143 @@ html, body {
 
 .smn-metrics-row .sep {
   color: var(--line);
+}
+
+/* ==========================================================================
+   Mobile Responsive Styles (< 768 px, 360 px, 390 px) - SDD-002
+   ========================================================================== */
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+@media (max-width: 767px) {
+  .flow-topbar {
+    height: 52px;
+    padding: 0 12px;
+  }
+
+  .flow-brand-title {
+    font-size: 15px;
+  }
+
+  .flow-main {
+    flex-direction: column;
+    height: calc(100vh - 52px);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .flow-stage {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+  }
+
+  .flow-sidebar {
+    display: none;
+  }
+
+  .ui-bottom-sheet {
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+  }
+
+  .ui-bottom-sheet .ui-sheet-body {
+    padding: 0 16px 24px 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ui-segmented {
+    width: 100%;
+    display: flex;
+  }
+
+  .ui-segmented-btn {
+    flex: 1;
+    padding: 6px 6px;
+    font-size: 12px;
+  }
+
+  .ui-segmented-sublabel {
+    font-size: 10px;
+  }
+
+  .result-metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .toolkit-modal-overlay {
+    padding: 0;
+  }
+
+  .toolkit-modal-container {
+    max-width: 100%;
+    max-height: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  /* Controles de visor en celular: columna vertical de íconos a la derecha (SDD-002 / Tarea 2.0) */
+  .diorama-controls-dock {
+    top: 12px;
+    right: 12px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .diorama-ctrl-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .diorama-ctrl-btn span.btn-label {
+    display: none;
+  }
+
+  .diorama-view-settings-popover {
+    top: 0;
+    right: 44px;
+    min-width: 160px;
+  }
+
+  /* Evitar superposición entre la tarjeta satelital y la columna derecha de íconos */
+  .diorama-smn-watermark {
+    top: 12px;
+    left: 12px;
+    right: 56px;
+    max-width: 310px;
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .flow-topbar {
+    padding: 0 8px;
+  }
+
+  .flow-topbar-actions .ui-btn-sm {
+    padding: 0 8px;
+    font-size: 11px;
+  }
+
+  .ui-segmented-btn {
+    padding: 4px 4px;
+    font-size: 11px;
+  }
+
+  .step-nav-title {
+    font-size: 11px;
+  }
+
+  .step-heading {
+    font-size: 17px;
+  }
 }

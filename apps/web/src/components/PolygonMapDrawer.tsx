@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { Icon } from './ui/Icon'
 
 interface Props {
   isOpen: boolean
@@ -647,7 +648,7 @@ export function PolygonMapDrawer({
             onClick={onClose}
             disabled={submitting}
           >
-            ✕ Cerrar
+            <Icon name="x" size={14} /> Cerrar
           </button>
         </div>
 
@@ -883,7 +884,7 @@ export function PolygonMapDrawer({
                         onClick={() => handleDeleteVertex(i)}
                         title={`Eliminar esquina #${i + 1}`}
                       >
-                        ✕
+                        <Icon name="x" size={12} />
                       </button>
                     </div>
                   ))}

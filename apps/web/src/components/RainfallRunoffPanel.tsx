@@ -432,7 +432,7 @@ export function RainfallRunoffPanel({
             >
               {activeRun.hydrodynamic_2d_summary
                 ? '↻ Recalcular Solver Hidrodinámico 2D (Manning · Fase 4)'
-                : '⚡ Ejecutar Solver Hidrodinámico 2D (water_depth_m + velocity_m_s · Fase 4)'}
+                : 'Ejecutar Solver Hidrodinámico 2D (water_depth_m + velocity_m_s · Fase 4)'}
             </button>
 
             {activeRun.hydrodynamic_2d_summary && (

@@ -26,7 +26,14 @@ export function Button({
   children,
   ...props
 }: ButtonProps) {
-  const isTextWithArrow = variant === 'text' && !icon
+  const isTextWithArrow =
+    variant === 'text' &&
+    !icon &&
+    typeof children === 'string' &&
+    !children.includes('→') &&
+    !children.includes('↓') &&
+    !children.includes('↑') &&
+    !children.includes('←')
 
   return (
     <button

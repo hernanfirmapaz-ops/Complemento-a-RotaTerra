@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import {
   createManualRainfallEvent,
   executeRunoffRun,
@@ -38,21 +38,31 @@ import type {
   SoilGroup,
   TerrainOut,
 } from './types/api'
-import {
-  type AgronomistOverlayMode,
-  TerrainDiorama3D,
-} from './components/TerrainDiorama3D'
-import { ComponentShowcase } from './components/ui/ComponentShowcase'
+import type { AgronomistOverlayMode } from './components/TerrainDiorama3D'
 import { Segmented } from './components/ui/Segmented'
 import { Button } from './components/ui/Button'
 import { BottomSheet, type BottomSheetSnap } from './components/ui/BottomSheet'
-import { PolygonMapDrawer } from './components/PolygonMapDrawer'
-import { TerrainScene3D } from './components/TerrainScene3D'
-import { AgronomicToolkitPanel } from './components/AgronomicToolkitPanel'
+import { Icon } from './components/ui/Icon'
 import { StepNav, type FlowStep } from './components/flow/StepNav'
 import { LotStep } from './components/flow/LotStep'
 import { RainStep } from './components/flow/RainStep'
 import { ResultStep } from './components/flow/ResultStep'
+
+const TerrainDiorama3D = lazy(() =>
+  import('./components/TerrainDiorama3D').then((m) => ({ default: m.TerrainDiorama3D })),
+)
+const TerrainScene3D = lazy(() =>
+  import('./components/TerrainScene3D').then((m) => ({ default: m.TerrainScene3D })),
+)
+const PolygonMapDrawer = lazy(() =>
+  import('./components/PolygonMapDrawer').then((m) => ({ default: m.PolygonMapDrawer })),
+)
+const AgronomicToolkitPanel = lazy(() =>
+  import('./components/AgronomicToolkitPanel').then((m) => ({ default: m.AgronomicToolkitPanel })),
+)
+const ComponentShowcase = lazy(() =>
+  import('./components/ui/ComponentShowcase').then((m) => ({ default: m.ComponentShowcase })),
+)
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() =>
@@ -101,7 +111,7 @@ export function App() {
   // Configuración de visualización y lluvia
   const [dioramaOverlay, setDioramaOverlay] =
     useState<AgronomistOverlayMode>('waterlogging')
-  const [isPlayingDioramaRain, setIsPlayingDioramaRain] = useState<boolean>(true)
+  const [isPlayingDioramaRain, setIsPlayingDioramaRain] = useState<boolean>(false)
   const [quickRainMm, setQuickRainMm] = useState<number>(80)
   const [quickSoilGroup, setQuickSoilGroup] = useState<SoilGroup>('B')
   const [quickAmc, setQuickAmc] = useState<AntecedentMoisture>('medium')
@@ -443,12 +453,14 @@ export function App() {
 
   if (showComponentShowcase) {
     return (
-      <ComponentShowcase
-        onClose={() => {
-          setShowComponentShowcase(false)
-          if (window.location.hash) window.location.hash = ''
-        }}
-      />
+      <Suspense fallback={<div className="diorama-loading" style={{ padding: 32 }}>Cargando catálogo...</div>}>
+        <ComponentShowcase
+          onClose={() => {
+            setShowComponentShowcase(false)
+            if (window.location.hash) window.location.hash = ''
+          }}
+        />
+      </Suspense>
     )
   }
 
@@ -458,7 +470,6 @@ export function App() {
       <header className="flow-topbar">
         <div className="flow-brand-group">
           <h1 className="flow-brand-title">RotaTerra</h1>
-          <span className="flow-brand-tag">Agro-Hidrología</span>
         </div>
 
         <div className="flow-topbar-actions">
@@ -471,16 +482,18 @@ export function App() {
             ]}
           />
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowComponentShowcase(true)}
-            title="Ver catálogo de componentes del sistema de diseño (SDD-002)"
-          >
-            Galería UI
-          </Button>
+          {!isMobile && import.meta.env.DEV && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowComponentShowcase(true)}
+              title="Ver catálogo de componentes del sistema de diseño (SDD-002)"
+            >
+              Galería UI
+            </Button>
+          )}
 
-          {activeField && terrain && (
+          {!isMobile && activeField && terrain && (
             <>
               <Button
                 variant="text"
@@ -505,7 +518,14 @@ export function App() {
       {error && (
         <div className="error-toast" role="alert" style={{ margin: '8px 16px' }}>
           <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} aria-label="Cerrar">✕</button>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            aria-label="Cerrar"
+            style={{ display: 'inline-flex', alignItems: 'center' }}
+          >
+            <Icon name="x" size={14} />
+          </button>
         </div>
       )}
 
@@ -668,68 +688,40 @@ export function App() {
         <main className="flow-stage">
           {workspaceView === '3d' ? (
             <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-              <TerrainDiorama3D
-                field={activeField}
-                mesh={mesh}
-                overlayMode={dioramaOverlay}
-                exaggeration={exaggeration}
-                rainIntensityFactor={Math.min(1.8, Math.max(0.2, quickRainMm / 70.0))}
-                showBoundary={true}
-                showContours={false}
-                isPlayingRain={isPlayingDioramaRain}
-                selectedPoint={selectedPoint}
-                onPointInspect={handleMapClick}
-                dailyRainContext={dailyRainContext}
-              />
-
-              {/* Controles flotantes mínimos sobre el visor */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 14,
-                  right: 14,
-                  display: 'flex',
-                  gap: 8,
-                  zIndex: 20,
-                }}
-              >
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setIsPlayingDioramaRain((p) => !p)}
-                  icon={isPlayingDioramaRain ? 'droplet' : undefined}
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)' }}
-                >
-                  {isPlayingDioramaRain ? 'Pausar lluvia' : 'Animar lluvia'}
-                </Button>
-
-                <label
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '0 12px',
-                    height: 36,
-                    borderRadius: 'var(--radius-pill)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    border: 'var(--border-width) solid var(--line)',
-                    fontSize: 12,
-                    fontWeight: 500,
-                  }}
-                >
-                  <span>Relieve:</span>
-                  <select
-                    value={exaggeration}
-                    onChange={(e) => setExaggeration(Number(e.target.value))}
-                    style={{ border: 'none', background: 'transparent', outline: 'none' }}
+              <Suspense
+                fallback={
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--ink-2)',
+                      fontSize: 13,
+                    }}
                   >
-                    <option value={1}>1×</option>
-                    <option value={2}>2×</option>
-                    <option value={2.5}>2,5×</option>
-                    <option value={3.5}>3,5×</option>
-                  </select>
-                </label>
-              </div>
+                    Cargando visor 3D...
+                  </div>
+                }
+              >
+                <TerrainDiorama3D
+                  field={activeField}
+                  mesh={mesh}
+                  overlayMode={dioramaOverlay}
+                  exaggeration={exaggeration}
+                  onChangeExaggeration={setExaggeration}
+                  rainIntensityFactor={Math.min(1.8, Math.max(0.2, quickRainMm / 70.0))}
+                  showBoundary={true}
+                  showContours={false}
+                  isPlayingRain={isPlayingDioramaRain}
+                  onToggleRain={() => setIsPlayingDioramaRain((p) => !p)}
+                  hasActiveSimulation={flowStep === 'resultado' && Boolean(activeRun)}
+                  selectedPoint={selectedPoint}
+                  onPointInspect={handleMapClick}
+                  dailyRainContext={dailyRainContext}
+                />
+              </Suspense>
 
               {/* Botón flotante móvil para desplegar la hoja inferior cuando está plegada */}
               {isMobile && sheetSnap === 'collapsed' && (
@@ -773,9 +765,10 @@ export function App() {
                     <button
                       type="button"
                       onClick={() => setSelectedPoint(null)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-2)' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-2)', display: 'inline-flex', alignItems: 'center' }}
+                      aria-label="Cerrar detalle de punto"
                     >
-                      ✕
+                      <Icon name="x" size={14} />
                     </button>
                   </div>
                   <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--ink-2)' }}>
@@ -791,46 +784,66 @@ export function App() {
             </div>
           ) : (
             <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-              <TerrainScene3D
-                field={activeField}
-                mesh={mesh}
-                hydrology={hydrology}
-                observations={[]}
-                particlePaths={[]}
-                showParticles={false}
-                transitFraction={0}
-                viewMode="2d"
-                exaggeration={exaggeration}
-                layers={{
-                  basemap: 'satellite',
-                  surfaceColor: 'elevation',
-                  mesh3d: false,
-                  wireframe: false,
-                  boundary: true,
-                  contours: true,
-                  drainageNetwork: true,
-                  depressionsAndOutlets: true,
-                }}
-                interactionMode="inspect"
-                profileDraft={[]}
-                selectedPoint={selectedPoint}
-                onMapClick={handleMapClick}
-                onCursorMove={() => {}}
-              />
+              <Suspense
+                fallback={
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--ink-2)',
+                      fontSize: 13,
+                    }}
+                  >
+                    Cargando mapa 2D...
+                  </div>
+                }
+              >
+                <TerrainScene3D
+                  field={activeField}
+                  mesh={mesh}
+                  hydrology={hydrology}
+                  observations={[]}
+                  particlePaths={[]}
+                  showParticles={false}
+                  transitFraction={0}
+                  viewMode="2d"
+                  exaggeration={exaggeration}
+                  layers={{
+                    basemap: 'satellite',
+                    surfaceColor: 'elevation',
+                    mesh3d: false,
+                    wireframe: false,
+                    boundary: true,
+                    contours: true,
+                    drainageNetwork: true,
+                    depressionsAndOutlets: true,
+                  }}
+                  interactionMode="inspect"
+                  profileDraft={[]}
+                  selectedPoint={selectedPoint}
+                  onMapClick={handleMapClick}
+                  onCursorMove={() => {}}
+                />
+              </Suspense>
             </div>
           )}
         </main>
       </div>
 
       {/* Modal para dibujar lote en el mapa */}
-      <PolygonMapDrawer
-        isOpen={isMapDrawerOpen}
-        initialCenter={activeField?.centroid ?? [-66.085, -33.128]}
-        onClose={() => setIsMapDrawerOpen(false)}
-        onConfirmPolygon={async (name, file) => {
-          await handleFullImportAndSimulate(file, name)
-        }}
-      />
+      <Suspense fallback={null}>
+        <PolygonMapDrawer
+          isOpen={isMapDrawerOpen}
+          initialCenter={activeField?.centroid ?? [-66.085, -33.128]}
+          onClose={() => setIsMapDrawerOpen(false)}
+          onConfirmPolygon={async (name, file) => {
+            await handleFullImportAndSimulate(file, name)
+          }}
+        />
+      </Suspense>
 
       {/* Modal de las 8 herramientas agronómicas (SDD-002 sección 8.4) */}
       {isToolkitModalOpen && (
@@ -845,21 +858,30 @@ export function App() {
                 size="sm"
                 onClick={() => setIsToolkitModalOpen(false)}
                 aria-label="Cerrar modal"
+                icon="x"
               >
-                Cerrar ✕
+                Cerrar
               </Button>
             </div>
             <div className="toolkit-modal-body">
-              <AgronomicToolkitPanel
-                hasTerrain={Boolean(terrain)}
-                toolkit={toolkit}
-                busy={Boolean(busy)}
-                onRun={handleRunToolkit}
-                onSelect3DLayer={(layer) => {
-                  setDioramaOverlay(layer === 'erosion' ? 'erosion' : 'ndvi')
-                  setIsToolkitModalOpen(false)
-                }}
-              />
+              <Suspense
+                fallback={
+                  <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-2)', fontSize: 13 }}>
+                    Cargando panel de herramientas...
+                  </div>
+                }
+              >
+                <AgronomicToolkitPanel
+                  hasTerrain={Boolean(terrain)}
+                  toolkit={toolkit}
+                  busy={Boolean(busy)}
+                  onRun={handleRunToolkit}
+                  onSelect3DLayer={(layer) => {
+                    setDioramaOverlay(layer === 'erosion' ? 'erosion' : 'ndvi')
+                    setIsToolkitModalOpen(false)
+                  }}
+                />
+              </Suspense>
             </div>
           </div>
         </div>
