@@ -149,11 +149,12 @@ El nivel de confianza se determina a partir de 3 componentes:
 
 ---
 
-## 7. Estado de implementación (revisión del 21/11/2026)
+## 7. Estado de implementación y pendientes (revisión del 21/11/2026)
 
 | Punto | Estado | Detalle |
 |---|---|---|
-| Entorno del lote | Parcial | El relieve se recorta con margen (`buffer_m`) y el aporte externo se calcula en **volumen** (`external_inflow_ha × Q`), sumado al balance del lote. **Pendiente:** distribuir espacialmente ese aporte en la grilla (que el agua entre por el borde correcto del lote en la simulación 2D) |
+| Entorno del lote | Parcial | El relieve se recorta con margen (`buffer_m`) y el aporte externo se calcula en **volumen** (`external_inflow_ha × Q`), sumado al balance del lote. **Pendiente para etapa 3/4:** distribuir espacialmente ese aporte sobre las celdas perimetrales de la grilla (inyección del hidrograma entrante por el borde aguas arriba según el ruteo D8/MFD del buffer circundante, en lugar de solo sumar el volumen escalar) |
 | Indicador de confianza | Corregido | El suelo ya no se atribuye al INTA sin datos: sin fuente conectada se informa "Suelo por omisión, sin confirmar". Cada fuente de lluvia se nombra con su resolución real; la tormenta de diseño se informa como escenario hipotético, no como curva IDF |
 | Comparador | Hecho | Compara dos corridas cualesquiera, por lo que sirve para manejo (cobertura) y lluvia (30 / 80 / 130 mm). Los presets Conservador / Medio / Crítico solo varían la lluvia con el manejo elegido |
 | Tests | Hecho | El test de presets usa un relieve sintético: la suite corre sin internet |
+| Endpoint `/fields/sample` | Restringido a pruebas | El endpoint `GET /api/v1/fields/sample` se mantiene en la API para tests de integración y validación sin conexión; **no debe exponerse** en la interfaz ni en el menú de usuario de producción |

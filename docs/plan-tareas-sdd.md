@@ -328,3 +328,24 @@ Conforme a `docs/agentes.md`, `.claude/agents/coordinador.md` y los criterios de
 5. **Documentación viva:** `docs/` (`architecture.md`, `data-sources.md`, `model-limitations.md`, `plan-tareas-sdd.md`) actualizado ante cada cambio de arquitectura, fuente de datos o limitación del modelo.
 6. **Pruebas 100% offline:** Ningún test depende de acceso a internet.
 7. **Integridad R4 y aislamiento:** Cero datos inventados o fabricados en código, cálculos, respuestas de API, UI o reportes; `C:\Users\haf01\.gemini\antigravity\scratch\Earth2Worlds` intacto; trabajo final verificado, commiteado y subido a `main` en GitHub con el árbol de trabajo limpio.
+
+---
+
+## 7. Próximas Herramientas y Evolución Tecnológica (Investigación 21/11/2026)
+
+Conforme a la investigación de herramientas (`herramientas-desarrollo-rotaterra.md`), se registran las siguientes tecnologías evaluadas para las siguientes etapas de desarrollo del núcleo científico e infraestructura:
+
+1. **Microsoft Planetary Computer (STAC API):**
+   - Catálogo gratuito de acceso a colecciones globales Sentinel-2, Landsat, Copernicus DEM y series de agua histórica (JRC Global Surface Water).
+   - Acceso autenticado sin costo con tokens temporales de lectura de Azure Blobs.
+2. **Copernicus Data Space Ecosystem (CDSE):**
+   - Acceso sistemático a Sentinel-1 SAR (radar de apertura sintética) para monitoreo de anegamiento en eventos lluviosos con cobertura nubosa densa.
+   - Procesamiento mediante openEO en el tier gratuito para mosaicos pampeanos.
+3. **TiTiler (Dynamic Tiling):**
+   - Servidor dinámico de teselas raster Cloud-Optimized GeoTIFF (COG) y numpy arrays construido sobre FastAPI.
+   - Permitirá servir teselas de elevación, profundidad de agua y mapas agronómicos bajo demanda sin rasterizar archivos estáticos pesados en disco.
+4. **PWA (Progressive Web App) y despliegue online:**
+   - Habilitación de caché de aplicación (Service Worker) para uso del visor y delimitador en dispositivos móviles a campo sin conectividad rural.
+5. **WebGPU para cálculo y visualización en el cliente:**
+   - Uso de compute shaders WGSL (WebGPU Shading Language) para previsualización instantánea de láminas de agua en la GPU del celular (soportado en Chrome, Edge, Firefox y Safari).
+
