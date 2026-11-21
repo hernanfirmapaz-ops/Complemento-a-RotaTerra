@@ -548,7 +548,7 @@ export function PolygonMapDrawer({
             setVertices(coords)
             setLotName(candidateName)
             fitToVertices(coords)
-            setSearchStatus(`✅ Lote "${candidateName}" cargado en el mapa (${coords.length} esquinas).`)
+            setSearchStatus(`Lote "${candidateName}" cargado en el mapa (${coords.length} esquinas).`)
           } else {
             setSubmitError('El archivo GeoJSON no contiene un polígono con al menos 3 coordenadas válidas.')
           }
@@ -634,11 +634,11 @@ export function PolygonMapDrawer({
         <div className="drawer-modal-header">
           <div>
             <span className="drawer-step-badge">
-              PASO 1 · SELECCIONÁ DÓNDE ESTÁ TU TERRENO CON POLÍGONOS
+              PASO 1 · DIBUJAR LOTE
             </span>
-            <h2>✏️ Delimitador Interactivo de Lotes y Parcelas Agrícolas</h2>
+            <h2>Delimitador interactivo de lotes</h2>
             <p>
-              Hacé clic en el mapa para marcar cada esquina de tu lote, arrastrá los números para acomodar el alambre, o probá un lote real precargado.
+              Hacé clic en el mapa para marcar cada esquina de tu terreno o subí un archivo catastral.
             </p>
           </div>
           <button
@@ -658,7 +658,7 @@ export function PolygonMapDrawer({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Buscar ciudad, paraje o coordenadas GPS (como Río Cuarto, Pergamino o -33.12, -66.08)..."
+              placeholder="Buscar ciudad, paraje o coordenadas GPS (-33.12, -66.08)..."
               className="drawer-search-input"
             />
             <button type="submit" className="drawer-search-btn">
@@ -704,7 +704,7 @@ export function PolygonMapDrawer({
                   setRectFirstCorner(null)
                 }}
               >
-                ✏️ Polígono libre (clic por esquina)
+                Polígono libre
               </button>
               <button
                 type="button"
@@ -717,7 +717,7 @@ export function PolygonMapDrawer({
                   setVertices([])
                 }}
               >
-                ⬛ Lote rectangular (2 clics)
+                Rectángulo
               </button>
               <button
                 type="button"
@@ -725,7 +725,7 @@ export function PolygonMapDrawer({
                 onClick={handleStampPolygonAtCenter}
                 title="Crea un lote de 4 esquinas en el centro del mapa para que lo ajustes arrastrando los vértices"
               >
-                🎯 Marcar lote aquí y ajustar
+                Marcar lote aquí y ajustar
               </button>
               {vertices.length >= 2 && (
                 <button
@@ -734,7 +734,7 @@ export function PolygonMapDrawer({
                   onClick={() => fitToVertices(vertices)}
                   title="Centra el mapa en el polígono que estás dibujando"
                 >
-                  🔍 Centrar en mi polígono
+                  Centrar en mi polígono
                 </button>
               )}
               <button
@@ -747,8 +747,8 @@ export function PolygonMapDrawer({
                 }
               >
                 {basemapStyle === 'satellite'
-                  ? '🗺️ Ver Mapa / Rutas'
-                  : '🛰️ Ver Satélite'}
+                  ? 'Ver calles'
+                  : 'Ver satélite'}
               </button>
             </div>
 
@@ -756,13 +756,13 @@ export function PolygonMapDrawer({
             <div className="drawer-map-bottom-hint">
               {drawTool === 'rectangle'
                 ? rectFirstCorner
-                  ? '👉 Hacé clic en la esquina opuesta para completar el rectángulo del lote'
-                  : '👉 Hacé clic en la primera esquina de tu lote rectangular'
+                  ? 'Hacé clic en la esquina opuesta para completar el rectángulo'
+                  : 'Hacé clic en la primera esquina de tu lote'
                 : vertices.length === 0
-                  ? '👉 Hacé clic sobre el mapa satelital para marcar la Esquina 1 de tu lote'
+                  ? 'Hacé clic sobre el mapa para marcar la primera esquina'
                   : vertices.length < 3
-                    ? `👉 Tenés ${vertices.length} punto(s). Marcá al menos 3 esquinas para cerrar el polígono del lote`
-                    : `✅ Polígono de ${vertices.length} esquinas listo (${areaHa.toFixed(1)} ha). Podés seguir agregando puntos o arrastrar los números para corregir.`}
+                    ? `Tenés ${vertices.length} punto(s). Marcá al menos 3 esquinas para cerrar el lote`
+                    : `Polígono de ${vertices.length} esquinas listo (${areaHa.toFixed(1)} ha). Podés arrastrar los números para ajustar.`}
             </div>
           </div>
 
@@ -784,7 +784,7 @@ export function PolygonMapDrawer({
             {/* Carga directa de archivo en el drawer */}
             <div className="drawer-upload-box">
               <label className="drawer-file-btn">
-                📂 Cargar archivo (.kml, .kmz, .geojson, .zip)
+                Subir archivo (.kml, .kmz, .geojson, .zip)
                 <input
                   type="file"
                   accept=".geojson,.json,.kml,.kmz,.zip"
@@ -794,7 +794,7 @@ export function PolygonMapDrawer({
                 />
               </label>
               <small className="drawer-upload-help">
-                ¿Tenés tu lote en Google Earth o QGIS? Subilo y se dibuja solo.
+                Si tenés el lote en Google Earth o QGIS, subilo y se dibuja solo.
               </small>
             </div>
 
@@ -827,7 +827,7 @@ export function PolygonMapDrawer({
 
             {dimensions.widthM > 0 && (
               <div className="drawer-dimensions-badge">
-                📏 Dimensiones aprox:{' '}
+                Dimensiones aprox:{' '}
                 <strong>
                   {dimensions.widthM >= 1000
                     ? `${(dimensions.widthM / 1000).toFixed(2)} km`
@@ -850,7 +850,7 @@ export function PolygonMapDrawer({
                 onClick={() => setVertices((prev) => prev.slice(0, -1))}
                 disabled={vertices.length === 0 || submitting}
               >
-                ↩️ Deshacer último
+                Deshacer último
               </button>
               <button
                 type="button"
@@ -861,7 +861,7 @@ export function PolygonMapDrawer({
                 }}
                 disabled={vertices.length === 0 || submitting}
               >
-                🗑️ Borrar todo
+                Borrar todo
               </button>
             </div>
 
@@ -892,7 +892,7 @@ export function PolygonMapDrawer({
             )}
 
             {submitError && (
-              <div className="drawer-error-banner">⚠️ {submitError}</div>
+              <div className="drawer-error-banner">{submitError}</div>
             )}
 
             <div className="drawer-confirm-box">
@@ -903,8 +903,8 @@ export function PolygonMapDrawer({
                 onClick={handleConfirm}
               >
                 {submitting
-                  ? '⏳ Descargando relieve 3D y simulando lluvia...'
-                  : '🚀 Confirmar Lote y Ver Maqueta 3D'}
+                  ? 'Descargando relieve 3D y simulando lluvia...'
+                  : 'Confirmar lote y ver en 3D'}
               </button>
               <small className="drawer-confirm-note">
                 Al confirmar, el sistema descarga automáticamente las alturas

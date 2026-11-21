@@ -134,8 +134,8 @@ export function AgronomicToolkitPanel({
         disabled={!hasTerrain || busy}
       >
         {toolkit
-          ? '↻ Actualizar 8 Herramientas (USLE + NASA POWER + INTA + NDVI)'
-          : '🚀 Ejecutar 8 Herramientas Complementarias RotaTerra'}
+          ? 'Actualizar 8 herramientas (USLE, NASA POWER, INTA, NDVI)'
+          : 'Ejecutar 8 herramientas complementarias RotaTerra'}
       </button>
 
       {toolkit && (

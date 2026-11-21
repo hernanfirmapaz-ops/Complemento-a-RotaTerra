@@ -481,7 +481,7 @@ export function App() {
             onClick={() => setShowComponentShowcase(true)}
             title="Ver catálogo de componentes del sistema de diseño (SDD-002)"
           >
-            🎨 Galería UI
+            Galería UI
           </Button>
 
           {activeField && terrain && (
