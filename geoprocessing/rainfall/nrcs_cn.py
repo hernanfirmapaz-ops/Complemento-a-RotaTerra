@@ -314,6 +314,10 @@ def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
 
     if loss_a is not None and loss_b is not None:
         d_soil: float | None = round(loss_b - loss_a, 2)
+        notes.append(
+            "Pérdida de suelo USLE: supuesto pendiente de verificación (auditoría punto 4): "
+            "usa K por grupo y razón de entrega 0,15 + 0,85·Q/P sin fuente verificada"
+        )
     else:
         d_soil = None
         if reason_a and reason_b and reason_a == reason_b:

@@ -216,6 +216,7 @@ def test_compare_scenarios_soil_loss_matches_usle():
     comp = compare_runoff_scenarios(run_a, run_b)
     expected_delta = round(ero_b["mean_soil_loss_t_ha"] - ero_a["mean_soil_loss_t_ha"], 2)
     assert comp["delta_soil_loss_t_ha"] == pytest.approx(expected_delta)
+    assert any("auditoría punto 4" in n for n in comp["notes"])
 
 
 def test_compare_scenarios_summary_omits_soil_loss_when_none():
