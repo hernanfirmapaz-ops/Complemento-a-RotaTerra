@@ -413,6 +413,7 @@ export interface Hydrodynamic2DSummaryOut {
   domain_final_storage_m3: number
   domain_boundary_outflow_m3: number
   mass_balance_relative_error: number
+  solver_mode: 'inertial' | 'diffusive'
 }
 
 export interface ConfidenceIndicator {
