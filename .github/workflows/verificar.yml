@@ -17,7 +17,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt
       - name: Caché del programa WhiteboxTools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           # El paquete copia el ejecutable fuera de WBT/ (whitebox/whitebox_tools): hay que guardar ambos.
           path: |
