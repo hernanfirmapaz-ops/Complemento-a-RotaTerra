@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import maplibregl, {
+import * as maplibregl from 'maplibre-gl'
+import {
   type CustomLayerInterface,
   MercatorCoordinate,
 } from 'maplibre-gl'
@@ -894,14 +895,14 @@ export function TerrainScene3D({
       map.addLayer(customLayer, 'contours-layer')
     })
 
-    map.on('click', (e) => {
+    map.on('click', (e: maplibregl.MapMouseEvent) => {
       clickHandlerRef.current(
         Number(e.lngLat.lng.toFixed(6)),
         Number(e.lngLat.lat.toFixed(6)),
       )
     })
 
-    map.on('mousemove', (e) => {
+    map.on('mousemove', (e: maplibregl.MapMouseEvent) => {
       moveHandlerRef.current(
         Number(e.lngLat.lng.toFixed(6)),
         Number(e.lngLat.lat.toFixed(6)),
