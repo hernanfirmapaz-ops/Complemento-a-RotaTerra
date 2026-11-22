@@ -80,9 +80,9 @@ function attenuateOutside(
 /** Gradiente hipsométrico (verde bajo -> ocre medio -> marrón/crema alto). */
 function hypsometricColor(t: number, inField: boolean): [number, number, number] {
   const u = Math.min(1, Math.max(0, t))
-  let r = 0
-  let g = 0
-  let b = 0
+  let r: number
+  let g: number
+  let b: number
   if (u < 0.35) {
     const k = u / 0.35
     r = 0.20 + 0.30 * k
@@ -106,9 +106,9 @@ function hypsometricColor(t: number, inField: boolean): [number, number, number]
 function slopeColor(slopePct: number | null, inField: boolean): [number, number, number] {
   const s = slopePct ?? 0
   const u = Math.min(1, Math.max(0, s / 8.0))
-  let r = 0
-  let g = 0
-  let b = 0
+  let r: number
+  let g: number
+  let b: number
   if (u < 0.5) {
     const k = u / 0.5
     r = 0.16 + 0.78 * k
@@ -192,9 +192,9 @@ function runoffLoadColor(
   }
   const denom = Math.log10(1 + Math.max(10, maxLoadMm))
   const u = Math.min(1, Math.max(0, Math.log10(1 + v) / denom))
-  let r = 0
-  let g = 0
-  let b = 0
+  let r: number
+  let g: number
+  let b: number
   if (u < 0.5) {
     const k = u / 0.5
     r = 0.92 - 0.72 * k
@@ -277,9 +277,9 @@ function ndviColor(
 ): [number, number, number] {
   const v = ndviVal ?? 0.35
   const u = Math.min(1, Math.max(0, (v - 0.15) / 0.65))
-  let r = 0
-  let g = 0
-  let b = 0
+  let r: number
+  let g: number
+  let b: number
   if (u < 0.45) {
     const k = u / 0.45
     r = 0.78 + 0.14 * k
