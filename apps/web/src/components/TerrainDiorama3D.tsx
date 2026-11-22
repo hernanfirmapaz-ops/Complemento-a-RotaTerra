@@ -8,6 +8,7 @@ import {
   createWaterGeometry4x,
   createWaterShaderMaterial,
 } from './WaterSurfaceMesh'
+import { RainSimulationSystem } from './RainSimulation'
 
 export type AgronomistOverlayMode =
   | 'satellite_water'
@@ -796,77 +797,15 @@ export function TerrainDiorama3D({
     const headPoints = new THREE.Points(headGeom, headMat)
     dioramaGroup.add(headPoints)
 
-    // 5.5 Sistema volumétrico de lluvia cayendo desde el cielo hacia el terreno
-    const numFallingRain = Math.round(1500 * Math.max(0.35, rainIntensityFactor))
-    const rainPosX = new Float32Array(numFallingRain)
-    const rainPosY = new Float32Array(numFallingRain)
-    const rainPosZ = new Float32Array(numFallingRain)
-    const rainSpeed = new Float32Array(numFallingRain)
-    const rainLength = new Float32Array(numFallingRain)
-
-    const respawnRainDrop = (k: number, initHigh: boolean = false) => {
-      const u = Math.random()
-      const v = Math.random()
-      rainPosX[k] = (u - 0.5) * boxW
-      rainPosY[k] = (0.5 - v) * boxH
-      const gz = sampleZUnits(u, v)
-      rainPosZ[k] = initHigh ? gz + 5 + Math.random() * 45 : gz + 35 + Math.random() * 20
-      rainSpeed[k] = 1.45 + Math.random() * 0.9 + rainIntensityFactor * 0.5
-      rainLength[k] = 3.5 + Math.random() * 2.5
-    }
-    for (let k = 0; k < numFallingRain; k++) respawnRainDrop(k, true)
-
-    const fallingRainPositions = new Float32Array(numFallingRain * 6)
-    const fallingRainGeom = new THREE.BufferGeometry()
-    fallingRainGeom.setAttribute(
-      'position',
-      new THREE.BufferAttribute(fallingRainPositions, 3),
-    )
-    const fallingRainMat = new THREE.LineBasicMaterial({
-      color: 0xbae6fd, // Celeste lluvia brillante
-      transparent: true,
-      opacity: 0.65,
-      blending: THREE.AdditiveBlending,
+    // 5.5 Sistema volumétrico de lluvia realista (Spec 013 - Etapa 5: Sprites redondos 2-4 px y salpicaduras)
+    const rainSystem = new RainSimulationSystem({
+      boxW,
+      boxH,
+      sampleZUnits,
+      maxParticles: 1800,
     })
-    const fallingRainLines = new THREE.LineSegments(fallingRainGeom, fallingRainMat)
-    dioramaGroup.add(fallingRainLines)
-
-    // 5.6 Salpicaduras y ondas de impacto en el suelo
-    const numSplashes = 60
-    const splashX = new Float32Array(numSplashes)
-    const splashY = new Float32Array(numSplashes)
-    const splashZ = new Float32Array(numSplashes)
-    const splashAge = new Float32Array(numSplashes)
-    const splashMaxAge = new Float32Array(numSplashes)
-    const splashActive = new Uint8Array(numSplashes)
-    let nextSplashIdx = 0
-
-    const splashSegsCount = 8
-    const splashPositions = new Float32Array(numSplashes * splashSegsCount * 6)
-    const splashGeom = new THREE.BufferGeometry()
-    splashGeom.setAttribute(
-      'position',
-      new THREE.BufferAttribute(splashPositions, 3),
-    )
-    const splashMat = new THREE.LineBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.72,
-      blending: THREE.AdditiveBlending,
-    })
-    const splashLines = new THREE.LineSegments(splashGeom, splashMat)
-    dioramaGroup.add(splashLines)
-
-    const triggerSplash = (sx: number, sy: number, sz: number) => {
-      const idx = nextSplashIdx
-      nextSplashIdx = (nextSplashIdx + 1) % numSplashes
-      splashX[idx] = sx
-      splashY[idx] = sy
-      splashZ[idx] = sz + 0.12
-      splashAge[idx] = 0
-      splashMaxAge[idx] = 16 + Math.floor(Math.random() * 12)
-      splashActive[idx] = 1
-    }
+    dioramaGroup.add(rainSystem.getPointsMesh())
+    dioramaGroup.add(rainSystem.getSplashMesh())
 
     // Precalcular gradiente descendente (du, dv) en cada celda de la malla
     const gradU = new Float32Array(rows * cols)
@@ -1025,92 +964,11 @@ export function TerrainDiorama3D({
       if (isPlayingRain && rainIntensityFactor > 0.05) {
         streakLines.visible = true
         headPoints.visible = true
-        fallingRainLines.visible = true
-        splashLines.visible = true
 
-        // 3a. Lluvia volumétrica cayendo desde el cielo
-        const rPos = (
-          fallingRainGeom.getAttribute('position') as THREE.BufferAttribute
-        ).array as Float32Array
-        const slantX = -0.14
-        const slantY = -0.09
-        for (let k = 0; k < numFallingRain; k++) {
-          const uNorm = rainPosX[k] / boxW + 0.5
-          const vNorm = 0.5 - rainPosY[k] / boxH
-          const groundZ =
-            uNorm >= 0 && uNorm <= 1 && vNorm >= 0 && vNorm <= 1
-              ? sampleZUnits(uNorm, vNorm)
-              : 0
+        // 3a. Lluvia realista en gotas sprite 2-4 px y salpicaduras al impacto (Spec 013 - Etapa 5)
+        rainSystem.update(0.016, rainIntensityFactor, isPlayingRain)
 
-          rainPosZ[k] -= rainSpeed[k]
-          if (rainPosZ[k] <= groundZ) {
-            // Impactó el terreno: generar salpicadura / onda
-            if (Math.random() < 0.3) {
-              triggerSplash(rainPosX[k], rainPosY[k], groundZ)
-            }
-            respawnRainDrop(k, false)
-          }
-
-          const topX = rainPosX[k]
-          const topY = rainPosY[k]
-          const topZ = rainPosZ[k]
-          const len = rainLength[k]
-          const botX = topX + slantX * len
-          const botY = topY + slantY * len
-          const botZ = Math.max(groundZ, topZ - len)
-
-          rPos[6 * k] = topX
-          rPos[6 * k + 1] = topY
-          rPos[6 * k + 2] = topZ
-          rPos[6 * k + 3] = botX
-          rPos[6 * k + 4] = botY
-          rPos[6 * k + 5] = botZ
-        }
-        ;(
-          fallingRainGeom.getAttribute('position') as THREE.BufferAttribute
-        ).needsUpdate = true
-
-        // 3b. Ondas de impacto y salpicaduras en el suelo
-        const sPos = (
-          splashGeom.getAttribute('position') as THREE.BufferAttribute
-        ).array as Float32Array
-        for (let k = 0; k < numSplashes; k++) {
-          if (!splashActive[k]) {
-            for (let seg = 0; seg < splashSegsCount * 6; seg++) {
-              sPos[k * splashSegsCount * 6 + seg] = 0
-            }
-            continue
-          }
-          splashAge[k] += 1
-          const progress = splashAge[k] / splashMaxAge[k]
-          if (progress >= 1.0) {
-            splashActive[k] = 0
-            for (let seg = 0; seg < splashSegsCount * 6; seg++) {
-              sPos[k * splashSegsCount * 6 + seg] = 0
-            }
-            continue
-          }
-          const radius = 0.25 + progress * 1.55
-          const cx = splashX[k]
-          const cy = splashY[k]
-          const cz = splashZ[k]
-          for (let seg = 0; seg < splashSegsCount; seg++) {
-            const a1 = (seg / splashSegsCount) * Math.PI * 2
-            const a2 = ((seg + 1) / splashSegsCount) * Math.PI * 2
-            const baseIdx = k * splashSegsCount * 6 + seg * 6
-            sPos[baseIdx] = cx + Math.cos(a1) * radius
-            sPos[baseIdx + 1] = cy + Math.sin(a1) * radius
-            sPos[baseIdx + 2] = cz
-            sPos[baseIdx + 3] = cx + Math.cos(a2) * radius
-            sPos[baseIdx + 4] = cy + Math.sin(a2) * radius
-            sPos[baseIdx + 5] = cz
-          }
-        }
-        ;(
-          splashGeom.getAttribute('position') as THREE.BufferAttribute
-        ).needsUpdate = true
-
-        // 3c. Gotas y chorros de agua escurriendo por las pendientes del terreno
+        // 3b. Gotas y chorros de agua escurriendo por las pendientes del terreno
         const sArr = (
           streakGeom.getAttribute('position') as THREE.BufferAttribute
         ).array as Float32Array
@@ -1184,8 +1042,7 @@ export function TerrainDiorama3D({
       } else {
         streakLines.visible = false
         headPoints.visible = false
-        fallingRainLines.visible = false
-        splashLines.visible = false
+        rainSystem.update(0.016, 0.0, false)
       }
 
       // Guardar orientación y posición actual de la cámara para que nunca se resetee al interactuar
@@ -1232,10 +1089,7 @@ export function TerrainDiorama3D({
       streakMat.dispose()
       headGeom.dispose()
       headMat.dispose()
-      fallingRainGeom.dispose()
-      fallingRainMat.dispose()
-      splashGeom.dispose()
-      splashMat.dispose()
+      rainSystem.dispose()
       waterMesh?.geometry.dispose()
       if (waterMesh?.material) {
         if (Array.isArray(waterMesh.material)) {
