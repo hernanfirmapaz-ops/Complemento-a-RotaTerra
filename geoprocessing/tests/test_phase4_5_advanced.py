@@ -134,11 +134,13 @@ def test_eight_complementary_tools_erosion_terraces_seeding_rotation_and_climate
 
     # 1. Erosión USLE y 4. Terrazas a nivel
     loss_grid, ero_sum = compute_usle_erosion_and_gullies(
-        mfd_area, pct, spi, mascara, dem.pixel, 80.0, 35.0, "B", "soja_maiz_convencional"
+        mfd_area, pct, spi, mascara, dem.pixel, 80.0, 35.0, "B", "soja_maiz_convencional",
+        sand_pct=40.0, silt_pct=40.0, clay_pct=20.0,
     )
     assert ero_sum["mean_soil_loss_t_ha"] > 0.0
     terr = design_and_simulate_contour_terraces(
-        dem, mascara, mfd_area, pct, spi, 80.0, 35.0, "B", "soja_maiz_convencional"
+        dem, mascara, mfd_area, pct, spi, 80.0, 35.0, "B", "soja_maiz_convencional",
+        sand_pct=40.0, silt_pct=40.0, clay_pct=20.0,
     )
     assert terr["soil_loss_after_t_ha"] < terr["soil_loss_before_t_ha"]
     assert terr["erosion_reduction_pct"] > 20.0
@@ -160,6 +162,9 @@ def test_eight_complementary_tools_erosion_terraces_seeding_rotation_and_climate
         spi,
         mascara,
         dem.pixel,
+        sand_pct=40.0,
+        silt_pct=40.0,
+        clay_pct=20.0,
     )
     assert rot["delta_b_vs_a"]["soil_saved_by_b_tons"] > 0.0
     assert rot["delta_b_vs_a"]["runoff_saved_by_b_mm"] > 0.0

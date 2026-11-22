@@ -244,6 +244,11 @@ def compare_triennial_rotations(
     spi,
     mascara_lote,
     pixel_size_m: float,
+    sand_pct: float | None = None,
+    silt_pct: float | None = None,
+    clay_pct: float | None = None,
+    organic_matter_pct: float | None = None,
+    k_factor: float | None = None,
 ) -> dict:
     """Herramienta 6: Compara lado a lado escurrimiento, erosión y cobertura de 2 rotaciones trienales."""
     COVER_PCT_BY_CODE = {
@@ -273,6 +278,11 @@ def compare_triennial_rotations(
                 runoff_q_mm=cn_res.runoff_q_mm,
                 soil_group=soil_group,
                 cover_code=code,
+                sand_pct=sand_pct,
+                silt_pct=silt_pct,
+                clay_pct=clay_pct,
+                organic_matter_pct=organic_matter_pct,
+                k_factor=k_factor,
             )
             years_out.append({
                 "year": yr_idx,
@@ -281,33 +291,36 @@ def compare_triennial_rotations(
                 "cover_percent": cov_pct,
                 "cn_effective": cn_res.cn_effective,
                 "runoff_q_mm": cn_res.runoff_q_mm,
-                "soil_loss_t_ha": ero_sum["mean_soil_loss_t_ha"],
-                "total_field_soil_loss_tons": ero_sum["total_field_soil_loss_tons"],
+                "soil_loss_t_ha": ero_sum.get("mean_soil_loss_t_ha"),
+                "total_field_soil_loss_tons": ero_sum.get("total_field_soil_loss_tons"),
             })
 
         mean_cn = sum(y["cn_effective"] for y in years_out) / max(1, len(years_out))
         mean_cover = sum(y["cover_percent"] for y in years_out) / max(1, len(years_out))
         total_q = sum(y["runoff_q_mm"] for y in years_out)
-        total_loss_t_ha = sum(y["soil_loss_t_ha"] for y in years_out)
-        total_loss_tons = sum(y["total_field_soil_loss_tons"] for y in years_out)
+        has_null_loss = any(y["soil_loss_t_ha"] is None for y in years_out)
+        total_loss_t_ha = round(sum(y["soil_loss_t_ha"] for y in years_out), 3) if not has_null_loss else None
+        total_loss_tons = round(sum(y["total_field_soil_loss_tons"] for y in years_out), 2) if not has_null_loss else None
         return {
             "name": seq_name,
             "years": years_out,
             "mean_cn_3yr": round(mean_cn, 1),
             "mean_cover_pct_3yr": round(mean_cover, 1),
             "cumulative_runoff_3yr_mm": round(total_q, 2),
-            "cumulative_soil_loss_3yr_t_ha": round(total_loss_t_ha, 3),
-            "cumulative_field_soil_loss_3yr_tons": round(total_loss_tons, 2),
+            "cumulative_soil_loss_3yr_t_ha": total_loss_t_ha,
+            "cumulative_field_soil_loss_3yr_tons": total_loss_tons,
         }
 
     eval_a = _eval_seq(sequence_a_name, sequence_a_crops)
     eval_b = _eval_seq(sequence_b_name, sequence_b_crops)
 
     saved_runoff_mm = round(eval_a["cumulative_runoff_3yr_mm"] - eval_b["cumulative_runoff_3yr_mm"], 2)
-    saved_soil_tons = round(
-        eval_a["cumulative_field_soil_loss_3yr_tons"] - eval_b["cumulative_field_soil_loss_3yr_tons"],
-        2,
-    )
+    tons_a = eval_a["cumulative_field_soil_loss_3yr_tons"]
+    tons_b = eval_b["cumulative_field_soil_loss_3yr_tons"]
+    saved_soil_tons = round(tons_a - tons_b, 2) if tons_a is not None and tons_b is not None else None
+    loss_a_t_ha = eval_a["cumulative_soil_loss_3yr_t_ha"]
+    loss_b_t_ha = eval_b["cumulative_soil_loss_3yr_t_ha"]
+    soil_loss_change = round(loss_b_t_ha - loss_a_t_ha, 3) if loss_a_t_ha is not None and loss_b_t_ha is not None else None
 
     return {
         "design_storm_mm": design_storm_mm,
@@ -316,9 +329,7 @@ def compare_triennial_rotations(
         "sequence_b": eval_b,
         "delta_b_vs_a": {
             "runoff_change_3yr_mm": round(eval_b["cumulative_runoff_3yr_mm"] - eval_a["cumulative_runoff_3yr_mm"], 2),
-            "soil_loss_change_3yr_t_ha": round(
-                eval_b["cumulative_soil_loss_3yr_t_ha"] - eval_a["cumulative_soil_loss_3yr_t_ha"], 3
-            ),
+            "soil_loss_change_3yr_t_ha": soil_loss_change,
             "soil_saved_by_b_tons": saved_soil_tons,
             "runoff_saved_by_b_mm": saved_runoff_mm,
             "cover_gain_pct": round(eval_b["mean_cover_pct_3yr"] - eval_a["mean_cover_pct_3yr"], 1),
