@@ -53,27 +53,24 @@ export function ResultStep({
   // Indicador de confianza (SDD-003 §3)
   const confidence = run?.confidence
   const confLevel = confidence?.level ?? 'medio'
-  const confScore = confidence ? Math.round(confidence.score * 100) : 68
+  const confScore = confidence ? Math.round(confidence.score * 100) : null
 
   // Cálculo de métricas
-  const runoffCoeff = run?.cn_result?.runoff_coefficient ?? 0.35
-  const runoffPct = Math.round(runoffCoeff * 100)
+  const runoffCoeff = run?.cn_result?.runoff_coefficient ?? null
+  const runoffPct = runoffCoeff !== null ? Math.round(runoffCoeff * 100) : null
 
-  // Estimación de hectáreas anegadas a partir del modelo hidrodinámico 2D o volumen
-  const floodedHa = run?.hydrodynamic_2d_summary?.ponded_area_in_field_ha
-    ?? (run ? (run.spatial_summary.field_runoff_generated_m3 / 10000) * 0.18 : 0)
+  // Estimación de hectáreas anegadas a partir del modelo hidrodinámico 2D
+  const floodedHa = run?.hydrodynamic_2d_summary?.ponded_area_in_field_ha ?? null
 
   // Pérdida de suelo USLE estimada en t/ha
-  const soilLossAvg = toolkit?.erosion_usle
-    ? toolkit.erosion_usle.mean_soil_loss_t_ha
-    : Math.max(1.2, Number((runoffCoeff * 8.4).toFixed(1)))
+  const soilLossAvg = toolkit?.erosion_usle?.mean_soil_loss_t_ha ?? null
 
   const extInflowM3 = run?.spatial_summary?.external_runoff_inflow_m3 ?? 0
   const fieldGeneratedM3 = run?.spatial_summary?.field_runoff_generated_m3 ?? 0
 
   const runoffCaption = extInflowM3 > 0
     ? `${Math.round(fieldGeneratedM3).toLocaleString('es-AR')} m³ lote + ${Math.round(extInflowM3).toLocaleString('es-AR')} m³ cuenca vecina`
-    : run ? `${Math.round(fieldGeneratedM3).toLocaleString('es-AR')} m³ agua` : 'Volumen total'
+    : run ? `${Math.round(fieldGeneratedM3).toLocaleString('es-AR')} m³ agua` : 'Sin simulación'
 
   // Opciones de capas en el visor 3D
   const layerOptions: OptionListItem[] = [
@@ -81,7 +78,7 @@ export function ResultStep({
       id: 'waterlogging',
       title: 'Dónde se encharca',
       subtitle: 'Lámina de agua acumulada en bajos y microrelieves',
-      meta: `${floodedHa.toFixed(1)} ha`,
+      meta: floodedHa !== null ? `${floodedHa.toFixed(1)} ha` : 'Sin dato',
       icon: 'droplet',
       selected: activeOverlay === 'waterlogging',
     },
@@ -89,7 +86,7 @@ export function ResultStep({
       id: 'satellite_water',
       title: 'Por dónde escurre',
       subtitle: 'Líneas y cañadones de concentración de flujo',
-      meta: `${runoffPct}% escurre`,
+      meta: runoffPct !== null ? `${runoffPct}% escurre` : 'Sin dato',
       icon: 'compass',
       selected: activeOverlay === 'satellite_water',
     },
@@ -97,7 +94,7 @@ export function ResultStep({
       id: 'erosion',
       title: 'Pérdida de suelo y cárcavas',
       subtitle: 'Riesgo de erosión hídrica superficial (USLE)',
-      meta: `${soilLossAvg.toFixed(1)} t/ha`,
+      meta: soilLossAvg !== null ? `${soilLossAvg.toFixed(1)} t/ha` : 'Sin dato',
       icon: 'alert-circle',
       selected: activeOverlay === 'erosion',
     },
@@ -162,7 +159,7 @@ export function ResultStep({
           {showConfidenceDetails && (
             <div className="confidence-panel">
               <div className="confidence-panel-header">
-                Fundamento técnico del cálculo ({confScore}%):
+                Fundamento técnico del cálculo ({confScore !== null ? `${confScore}%` : 'Sin dato'}):
               </div>
               <ul className="confidence-reasons-list">
                 {(confidence?.reasons ?? [
@@ -186,27 +183,24 @@ export function ResultStep({
       {/* 3 Métricas destacadas */}
       <div className="result-metrics-grid">
         <Metric
-          value={floodedHa.toFixed(1)}
-          unit="ha"
-          range={`${Math.max(0.1, floodedHa * 0.85).toFixed(1)} – ${(floodedHa * 1.15).toFixed(1)} ha`}
+          value={floodedHa !== null ? floodedHa.toFixed(1) : 'Sin dato'}
+          unit={floodedHa !== null ? 'ha' : undefined}
           label="Superficie anegable"
-          caption="Bajos y cubetas de retención"
+          caption={floodedHa !== null ? 'Bajos y cubetas de retención' : 'Sin simulación 2D'}
         />
 
         <Metric
-          value={runoffPct}
-          unit="%"
-          range={`${Math.max(5, runoffPct - 8)} – ${Math.min(95, runoffPct + 8)} %`}
+          value={runoffPct !== null ? runoffPct : 'Sin dato'}
+          unit={runoffPct !== null ? '%' : undefined}
           label="Escurre fuera del lote"
           caption={runoffCaption}
         />
 
         <Metric
-          value={soilLossAvg.toFixed(1)}
-          unit="t/ha"
-          range={`${(soilLossAvg * 0.8).toFixed(1)} – ${(soilLossAvg * 1.25).toFixed(1)} t/ha`}
+          value={soilLossAvg !== null ? soilLossAvg.toFixed(1) : 'Sin dato'}
+          unit={soilLossAvg !== null ? 't/ha' : undefined}
           label="Pérdida de suelo"
-          caption="Erosión estimada por USLE"
+          caption={soilLossAvg !== null ? 'Erosión estimada por USLE' : 'Sin estimación de erosión USLE'}
         />
       </div>
 
@@ -414,13 +408,13 @@ export function ResultStep({
           <div className="result-tech-table">
             <div className="tech-row">
               <span>Curva Número (CN):</span>
-              <strong>{run?.cn_result.cn_effective ?? 75}</strong>
+              <strong>{run?.cn_result?.cn_effective ?? 'Sin dato'}</strong>
             </div>
             <div className="tech-row">
               <span>Lámina de escorrentía directa Q:</span>
-              <strong>{run?.cn_result.runoff_q_mm.toFixed(1) ?? '0.0'} mm</strong>
+              <strong>{run?.cn_result?.runoff_q_mm !== undefined && run?.cn_result?.runoff_q_mm !== null ? `${run.cn_result.runoff_q_mm.toFixed(1)} mm` : 'Sin dato'}</strong>
             </div>
-            {run?.spatial_summary.peak_discharge_m3_s !== undefined && run.spatial_summary.peak_discharge_m3_s !== null && (
+            {run?.spatial_summary?.peak_discharge_m3_s !== undefined && run?.spatial_summary?.peak_discharge_m3_s !== null && (
               <div className="tech-row">
                 <span>Caudal pico estimado:</span>
                 <strong>{run.spatial_summary.peak_discharge_m3_s.toFixed(2)} m³/s</strong>
@@ -434,7 +428,7 @@ export function ResultStep({
             )}
             <div className="tech-row">
               <span>Humedad Antecedente (AMC):</span>
-              <strong>{run?.cn_result.antecedent_moisture?.toUpperCase() ?? 'MEDIUM'}</strong>
+              <strong>{run?.cn_result?.antecedent_moisture?.toUpperCase() ?? 'Sin dato'}</strong>
             </div>
             <div className="tech-row">
               <span>Resolución DEM:</span>
