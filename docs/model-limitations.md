@@ -68,11 +68,13 @@ Este documento detalla el alcance científico, las hipótesis operativas, las fu
 - **Criterio de diseño:** Intervalo vertical (VI) y espaciamiento horizontal (HI) según directrices de conservación de suelos INTA / USDA-NRCS ($VI \approx 0.30 \cdot (S/3 + 2)$).
 - **Hipótesis de cálculo:** Supone lomos de terraza correctamente compactados y mantenidos a cota uniforme, sin roturas ni desbordes localizados.
 
-### 4.5 Herramienta 5: Calculadora de Siembra y Densidad INTA
+### 4.5 Herramienta 5: Calculadora de Siembra y Fertilización (Funciones de Rotaterra)
+- **Delimitación de alcance:** La calculadora de dosis de semilla, densidad y fertilización N-P-S corresponde al dominio productivo y económico de **Rotaterra** (funciones de Rotaterra). Se encuentra excluida de la interfaz de usuario del Complemento a RotaTerra.
 - **Parámetros:** Tablas agronómicas de recomendación de densidades y coeficientes de logro según ambiente topográfico (loma, media loma, bajo) del INTA Manfredi / Pergamino.
 - **Ajuste requerido:** El poder germinativo (PG) y el peso de mil granos (PMG) deben ajustarse con el marbete del lote comercial de semilla a sembrar.
 
-### 4.6 Herramienta 6: Comparador de Rotaciones Trienales
+### 4.6 Herramienta 6: Comparador de Rotaciones Trienales (Funciones de Rotaterra)
+- **Delimitación de alcance:** La comparación económica y de márgenes de rotaciones de cultivos pertenece al sistema central **Rotaterra** (funciones de Rotaterra / alcance de Rotaterra). Queda fuera de la interfaz del Complemento a RotaTerra, el cual se restringe a procesos físicos de escurrimiento, suelo y erosión.
 - **Enfoque:** Evaluación multianual del impacto de secuencias de cultivos (coberturas invernales, gramíneas de verano, leguminosas) sobre el número de curva ponderado ($CN$) y la tasa de pérdida de suelo anualizada.
 - **Limitación:** Es una herramienta comparativa de escenarios de manejo; no modela dinámica microbiológica ni ciclado biogeoquímico de nutrientes a largo plazo.
 
