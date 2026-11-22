@@ -28,6 +28,7 @@ from typing import Literal
 
 import numpy as np
 
+from geoprocessing import supuestos
 from geoprocessing.crs import WGS84, to_crs
 from geoprocessing.dem.terrain import Dem
 from geoprocessing.hydrology.flow import D8_TABLE
@@ -423,7 +424,7 @@ def run_2d_diffusive_wave_simulation(
     antecedent_moisture: AntecedentMoisture,
     lambda_ratio: float,
     manning_n: float = 0.10,
-    ponding_threshold_m: float = 0.05,
+    ponding_threshold_m: float = supuestos.UMBRAL_ENCHARCAMIENTO_MOTOR_M.valor,
     observations: list[dict] | None = None,
     recession_minutes: int = 30,
     z_bed: np.ndarray | None = None,

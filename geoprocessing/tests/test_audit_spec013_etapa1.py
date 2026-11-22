@@ -58,3 +58,50 @@ def test_terrain_mesh_expone_ponding_threshold_m_del_motor(monkeypatch: pytest.M
     mesh_data = terrain.terrain_mesh("field-test-spec013", max_size=120)
     assert "ponding_threshold_m" in mesh_data, "terrain_mesh debe incluir 'ponding_threshold_m'"
     assert mesh_data["ponding_threshold_m"] == 0.05
+
+
+def test_umbral_encharcamiento_unica_fuente_solver_zonacion_api(monkeypatch: pytest.MonkeyPatch):
+    """Verifica que el supuesto, el solver 2D, la zonificación y la API compartan la misma fuente única."""
+    import inspect
+
+    from geoprocessing.agronomy import zonation
+    from geoprocessing.hydrology import shallow_water_2d
+
+    umbral_supuesto = supuestos.UMBRAL_ENCHARCAMIENTO_MOTOR_M.valor
+
+    # 1. Default del solver 2D
+    sig_solver = inspect.signature(shallow_water_2d.run_2d_diffusive_wave_simulation)
+    default_solver = sig_solver.parameters["ponding_threshold_m"].default
+    assert default_solver == umbral_supuesto, (
+        f"Default del solver ({default_solver}) difiere del supuesto ({umbral_supuesto})"
+    )
+
+    # 2. Default de zonificación
+    sig_zonation = inspect.signature(zonation.classify_hydro_agronomic_zones)
+    default_zonation = sig_zonation.parameters["ponding_threshold_m"].default
+    assert default_zonation == umbral_supuesto, (
+        f"Default de zonificación ({default_zonation}) difiere del supuesto ({umbral_supuesto})"
+    )
+
+    # 3. Retorno de la API sin corrida activa
+    fake_dem = MagicMock()
+    fake_dem.z = np.zeros((10, 10), dtype=np.float32)
+    fake_dem.transform = [10.0, 0, 0, 0, -10.0, 0]
+    fake_mask = np.ones((10, 10), dtype=bool)
+    fake_field = {
+        "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]},
+        "utm_epsg": 32719,
+    }
+    monkeypatch.setattr(terrain, "_contexto", lambda fid: ({}, fake_field, fake_dem, fake_mask))
+    monkeypatch.setattr(terrain, "field_rings_utm", lambda geom: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]])
+    monkeypatch.setattr(
+        terrain,
+        "mesh",
+        lambda dem, m, rings, max_size, extra_grids=None: {"rows": 10, "cols": 10, "z": [0.0] * 100, "boundary": []},
+    )
+    monkeypatch.setattr(hydrology, "optional_hydrology_grids", lambda fid: None)
+    monkeypatch.setattr(hydrology, "optional_active_runoff", lambda fid: None)
+
+    mesh_data = terrain.terrain_mesh("field-sin-corrida", max_size=120)
+    assert mesh_data["ponding_threshold_m"] == umbral_supuesto
+

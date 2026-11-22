@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from geoprocessing import PROCESSING_VERSION
+from geoprocessing import PROCESSING_VERSION, supuestos
 from geoprocessing.dem import sources
 from geoprocessing.dem.prepare import prepare_dem
 from geoprocessing.dem.quality import build_quality_report, field_mask
@@ -186,8 +186,12 @@ def terrain_mesh(field_id: str, max_size: int) -> dict:
     if active_run:
         run_doc, _ = active_run
         h2d = run_doc.get("hydrodynamic_2d_summary") or {}
-        if "ponding_threshold_m" in h2d:
+        if "ponding_threshold_m" in h2d and h2d["ponding_threshold_m"] is not None:
             res["ponding_threshold_m"] = float(h2d["ponding_threshold_m"])
+        else:
+            res["ponding_threshold_m"] = float(supuestos.UMBRAL_ENCHARCAMIENTO_MOTOR_M.valor)
+    else:
+        res["ponding_threshold_m"] = float(supuestos.UMBRAL_ENCHARCAMIENTO_MOTOR_M.valor)
     return res
 
 

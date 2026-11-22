@@ -646,7 +646,7 @@ export function TerrainDiorama3D({
     }
 
     // 3.5 Spec 013 (Etapa 1): Malla de agua 4x desacoplada y corte en umbral físico del motor
-    const pondingThresholdM = mesh.ponding_threshold_m ?? 0.05
+    const pondingThresholdM = mesh.ponding_threshold_m
     const waterDepthArr = new Float32Array(rows * cols)
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -673,7 +673,11 @@ export function TerrainDiorama3D({
       subdivision: 4,
     })
 
-    if ((waterGeom.getAttribute('position')?.count ?? 0) > 0) {
+    if (
+      pondingThresholdM !== undefined &&
+      pondingThresholdM !== null &&
+      (waterGeom.getAttribute('position')?.count ?? 0) > 0
+    ) {
       waterShaderMat = createWaterShaderMaterial({
         pondingThresholdM,
         rainIntensityFactor,

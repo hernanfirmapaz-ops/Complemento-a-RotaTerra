@@ -4,6 +4,14 @@ import * as THREE from 'three'
  * Spec 013 - Etapa 1: Malla propia de agua 4x y bordes suaves con corte en umbral físico.
  */
 
+/**
+ * Constantes visuales de presentación (Spec 013):
+ * Escalan la lámina sobre la exageración vertical del terreno y evitan z-fighting
+ * con el relieve subyacente. No alteran el valor físico de profundidad h.
+ */
+export const WATER_SURFACE_ELEVATION_EXAGGERATION_SCALE = 0.35
+export const WATER_SURFACE_Z_BIAS = 0.04
+
 export interface CreateWaterGeometryOptions {
   positions: Float32Array | number[]
   waterDepthArr: Float32Array | number[]
@@ -62,7 +70,7 @@ export function createWaterGeometry4x({
   cols,
   exaggeration,
   subdivision = 4,
-  zBias = 0.04,
+  zBias = WATER_SURFACE_Z_BIAS,
 }: CreateWaterGeometryOptions): THREE.BufferGeometry {
   const geom = new THREE.BufferGeometry()
   const N = Math.max(1, Math.round(subdivision))
@@ -131,8 +139,11 @@ export function createWaterGeometry4x({
             const zTerr = interpolateBilinear(p00z, p10z, p01z, p11z, pt.u, pt.v)
             const h = interpolateBilinear(d00, d10, d01, d11, pt.u, pt.v)
 
-            // Elevación libre del espejo de agua: eta = z_terr + h * (exaggeration / 2.0) * 0.35 + zBias
-            const eta = zTerr + Math.max(0.0, h) * (exaggeration / 2.0) * 0.35 + zBias
+            // Elevación libre del espejo de agua: constante visual para evitar oclusión/z-fighting
+            const eta =
+              zTerr +
+              Math.max(0.0, h) * (exaggeration / 2.0) * WATER_SURFACE_ELEVATION_EXAGGERATION_SCALE +
+              zBias
 
             waterPositions.push(x, y, eta)
             waterDepths.push(h)

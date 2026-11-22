@@ -5,9 +5,15 @@ import {
   computeWaterOpacityFactor,
   createWaterGeometry4x,
   createWaterShaderMaterial,
+  WATER_SURFACE_ELEVATION_EXAGGERATION_SCALE,
+  WATER_SURFACE_Z_BIAS,
 } from '../WaterSurfaceMesh'
 
 describe('Spec 013 - Etapa 1: Malla de agua y bordes suaves', () => {
+  it('declara formalmente las constantes visuales de elevación y z-bias para evitar oclusión', () => {
+    expect(WATER_SURFACE_ELEVATION_EXAGGERATION_SCALE).toBe(0.35)
+    expect(WATER_SURFACE_Z_BIAS).toBe(0.04)
+  })
   it('interpola bilinealmente según Spec 013: h(u,v) = (1-u)(1-v)h00 + u(1-v)h10 + (1-u)vh01 + uvh11', () => {
     const h00 = 0.0
     const h10 = 0.20
