@@ -237,3 +237,88 @@ def test_supuestos_usle_and_carcavas_declarados():
     assert SUPUESTO_CARCAVAS_UMBRAL_PERDIDA_T_HA.valor == 1.5
 
 
+def test_unknown_cover_code_discards_usle_without_default():
+    """Auditoría 21/11 / Regla de datos: código de cobertura desconocido descarta USLE sin factor 0.12 por omisión."""
+    assert estimate_mean_soil_loss_usle(precipitation_mm=50.0, k_factor=0.03, cover_code="cobertura_inexistente") is None
+
+    mfd = np.full((5, 5), 500.0, dtype=np.float32)
+    slope = np.full((5, 5), 2.0, dtype=np.float32)
+    spi = np.full((5, 5), 1.0, dtype=np.float32)
+    mascara = np.ones((5, 5), dtype=bool)
+
+    grid, summary = compute_usle_erosion_and_gullies(
+        mfd_area_m2=mfd,
+        slope_pct=slope,
+        spi=spi,
+        mascara_lote=mascara,
+        pixel_size_m=30.0,
+        precipitation_mm=50.0,
+        runoff_q_mm=10.0,
+        k_factor=0.03,
+        cover_code="cobertura_desconocida_xyz",
+    )
+    assert np.isnan(grid).all()
+    assert summary["calidad"] == "descartada"
+    assert summary["c_factor"] is None
+    assert "Código de cobertura desconocido" in summary["motivo_descarte"]
+
+
+def test_nota_k_only_added_when_texture_method():
+    """Auditoría 21/11: nota_k sobre arena muy fina solo se agrega si K fue calculado por textura."""
+    mfd = np.full((5, 5), 500.0, dtype=np.float32)
+    slope = np.full((5, 5), 2.0, dtype=np.float32)
+    spi = np.full((5, 5), 1.0, dtype=np.float32)
+    mascara = np.ones((5, 5), dtype=bool)
+
+    # 1. Con k_factor explícito -> NO debe haber nota_k
+    _, res_explicit = compute_usle_erosion_and_gullies(
+        mfd_area_m2=mfd,
+        slope_pct=slope,
+        spi=spi,
+        mascara_lote=mascara,
+        pixel_size_m=30.0,
+        precipitation_mm=50.0,
+        runoff_q_mm=10.0,
+        k_factor=0.035,
+    )
+    assert "nota_k" not in res_explicit
+
+    # 2. Con textura -> SÍ debe haber nota_k
+    _, res_texture = compute_usle_erosion_and_gullies(
+        mfd_area_m2=mfd,
+        slope_pct=slope,
+        spi=spi,
+        mascara_lote=mascara,
+        pixel_size_m=30.0,
+        precipitation_mm=50.0,
+        runoff_q_mm=10.0,
+        sand_pct=50.0,
+        silt_pct=30.0,
+        clay_pct=20.0,
+    )
+    assert "SoilGrids no separa arena muy fina" in res_texture["nota_k"]
+
+
+def test_empty_field_mask_returns_none_for_spatial_metrics():
+    """Auditoría 21/11: si la máscara del lote no tiene celdas válidas, las métricas espaciales son None, no 0.0."""
+    mfd = np.full((5, 5), 500.0, dtype=np.float32)
+    slope = np.full((5, 5), 2.0, dtype=np.float32)
+    spi = np.full((5, 5), 1.0, dtype=np.float32)
+    mascara_vacia = np.zeros((5, 5), dtype=bool)
+
+    _, summary = compute_usle_erosion_and_gullies(
+        mfd_area_m2=mfd,
+        slope_pct=slope,
+        spi=spi,
+        mascara_lote=mascara_vacia,
+        pixel_size_m=30.0,
+        precipitation_mm=50.0,
+        runoff_q_mm=10.0,
+        k_factor=0.03,
+    )
+    assert summary["ls_mean_in_field"] is None
+    assert summary["ls_max_in_field"] is None
+    assert summary["spi_p95_in_field"] is None
+
+
+

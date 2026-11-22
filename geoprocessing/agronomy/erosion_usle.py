@@ -27,19 +27,11 @@ from geoprocessing.supuestos import (
     SUPUESTO_MATERIA_ORGANICA_PCT,
     SUPUESTO_USLE_ESTRUCTURA_CODIGO,
     SUPUESTO_USLE_PERMEABILIDAD_CODIGO,
+    SUPUESTOS_USLE_C_FACTOR,
 )
 
-# Factor C (cobertura y manejo, adimensional 0..1) por sistema productivo
-COVER_C_FACTOR: dict[str, float] = {
-    "soja_maiz_sd_buena": 0.09,
-    "soja_maiz_convencional": 0.34,
-    "trigo_cereal_invierno_sd": 0.06,
-    "cultivo_cobertura_vicia_centeno": 0.03,
-    "pastura_pradera_buena": 0.015,
-    "pastura_sobrepastoreada": 0.18,
-    "barbecho_con_rastrojo": 0.14,
-    "barbecho_suelo_desnudo": 0.55,
-}
+# Factor C (cobertura y manejo, adimensional 0..1) por sistema productivo según supuestos declarados
+COVER_C_FACTOR: dict[str, float] = {k: float(s.valor) for k, s in SUPUESTOS_USLE_C_FACTOR.items()}
 
 
 def estimate_soil_erodibility_k(
@@ -52,7 +44,7 @@ def estimate_soil_erodibility_k(
 ) -> float | None:
     """Calcula el factor de erodabilidad del suelo K en unidades SI [t·ha·h / (ha·MJ·mm)].
 
-    Formulación estándar de Wischmeier & Smith (1978, USDA Agriculture Handbook 537, pág. 13, Ecuación 1):
+    Formulación estándar del nomograma de Wischmeier & Smith (1978, USDA Agriculture Handbook 537):
         100 K = 2.1 * 10^-4 * M^1.14 * (12 - a) + 3.25 * (b - 2) + 2.5 * (c - 3)
     donde:
         M = silt * (100 - clay).
@@ -66,7 +58,7 @@ def estimate_soil_erodibility_k(
 
     Cita bibliográfica:
     - Wischmeier, W. H., & Smith, D. D. (1978). Predicting rainfall erosion losses: a guide to conservation planning.
-      USDA Agriculture Handbook No. 537, Washington, D.C., pág. 13, Ecuación (1).
+      USDA Agriculture Handbook No. 537, Washington, D.C.
     - Conversión a SI (Foster et al., 1981, Trans. ASAE 24(5): 1255–1262): K_SI = K_US * 0.1317.
     """
     if sand_pct is None or silt_pct is None or clay_pct is None:
@@ -186,7 +178,9 @@ def estimate_mean_soil_loss_usle(
     if k_eff is None:
         return None
 
-    c_factor = COVER_C_FACTOR.get(cover_code, 0.12)
+    c_factor = COVER_C_FACTOR.get(cover_code)
+    if c_factor is None:
+        return None
     r_storm = estimate_storm_erosivity_r(precipitation_mm, max_intensity_mm_h)
     return float(r_storm * k_eff * float(ls_mean) * c_factor * float(p_factor))
 
@@ -239,7 +233,7 @@ def compute_usle_erosion_and_gullies(
         k_eff = None
         k_method = "sin_datos_textura"
 
-    c_factor = COVER_C_FACTOR.get(cover_code, 0.12)
+    c_factor = COVER_C_FACTOR.get(cover_code)
     p_factor = 1.0
     if contour_farming:
         p_factor *= 0.65
@@ -254,16 +248,25 @@ def compute_usle_erosion_and_gullies(
     ls_field = ls_grid[in_field]
     spi_field = spi[in_field & np.isfinite(spi)]
 
-    if k_eff is None:
+    ls_mean_val = round(float(ls_field.mean()), 3) if ls_field.size else None
+    ls_max_val = round(float(ls_field.max()), 3) if ls_field.size else None
+    spi_p95_val = round(float(np.percentile(spi_field, 95)), 3) if spi_field.size else None
+
+    if k_eff is None or c_factor is None:
         empty_loss = np.full_like(ls_grid, np.nan, dtype="float32")
+        motivo = (
+            f"Código de cobertura desconocido '{cover_code}'. Sin factor C para USLE."
+            if c_factor is None
+            else "Sin datos de textura de suelo (% arena, limo, arcilla) para calcular factor K de Wischmeier"
+        )
         summary = {
             "r_storm_mj_mm_ha_h": r_storm,
-            "k_factor": None,
+            "k_factor": round(float(k_eff), 6) if k_eff is not None else None,
             "k_calculation_method": k_method,
             "c_factor": c_factor,
             "p_factor": round(p_factor, 3),
-            "ls_mean_in_field": round(float(ls_field.mean()), 3) if ls_field.size else 0.0,
-            "ls_max_in_field": round(float(ls_field.max()), 3) if ls_field.size else 0.0,
+            "ls_mean_in_field": ls_mean_val,
+            "ls_max_in_field": ls_max_val,
             "effective_slope_length_cap_m": round(max_len, 1),
             "mean_soil_loss_t_ha": None,
             "max_soil_loss_t_ha": None,
@@ -272,8 +275,8 @@ def compute_usle_erosion_and_gullies(
             "gully_risk_area_ha": 0.0,
             "erosion_severity": "descartada",
             "calidad": "descartada",
-            "motivo_descarte": "Sin datos de textura de suelo (% arena, limo, arcilla) para calcular factor K de Wischmeier",
-            "spi_p95_in_field": round(float(np.percentile(spi_field, 95)), 3) if spi_field.size else 0.0,
+            "motivo_descarte": motivo,
+            "spi_p95_in_field": spi_p95_val,
         }
         return empty_loss, summary
 
@@ -309,11 +312,10 @@ def compute_usle_erosion_and_gullies(
         "r_storm_mj_mm_ha_h": r_storm,
         "k_factor": round(float(k_eff), 6),
         "k_calculation_method": k_method,
-        "nota_k": "K posiblemente subestimado: SoilGrids no separa arena muy fina",
         "c_factor": c_factor,
         "p_factor": round(p_factor, 3),
-        "ls_mean_in_field": round(float(ls_field.mean()), 3) if ls_field.size else 0.0,
-        "ls_max_in_field": round(float(ls_field.max()), 3) if ls_field.size else 0.0,
+        "ls_mean_in_field": ls_mean_val,
+        "ls_max_in_field": ls_max_val,
         "effective_slope_length_cap_m": round(max_len, 1),
         "mean_soil_loss_t_ha": round(mean_loss, 3),
         "max_soil_loss_t_ha": round(max_loss, 3),
@@ -322,8 +324,10 @@ def compute_usle_erosion_and_gullies(
         "gully_risk_area_ha": round(gully_area_ha, 3),
         "erosion_severity": severity,
         "calidad": "confiable",
-        "spi_p95_in_field": round(float(np.percentile(spi_field, 95)), 3) if spi_field.size else 0.0,
+        "spi_p95_in_field": spi_p95_val,
     }
+    if k_method == "wischmeier_texture":
+        summary["nota_k"] = "K posiblemente subestimado: SoilGrids no separa arena muy fina"
     return soil_loss_t_ha, summary
 
 

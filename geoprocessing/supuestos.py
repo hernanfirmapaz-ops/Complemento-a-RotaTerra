@@ -99,3 +99,64 @@ SUPUESTO_CARCAVAS_UMBRAL_PERDIDA_T_HA = Supuesto(
     fuente_referencia="Supuesto empírico agronómico conservador; editable por el usuario.",
 )
 
+# Factores C de cobertura y manejo (Wischmeier & Smith 1978, USDA AH 537, Capítulo 3, Tablas 5 y 5-C):
+SUPUESTOS_USLE_C_FACTOR: dict[str, Supuesto] = {
+    "soja_maiz_sd_buena": Supuesto(
+        clave="usle_c_soja_maiz_sd_buena",
+        valor=0.09,
+        unidad="adimensional [0 a 1]",
+        motivo="Siembra directa continua con más de 30% de cobertura de rastrojo en superficie.",
+        fuente_referencia="USDA AH 537 Tabla 5-C (Wischmeier & Smith 1978); adaptaciones INTA Castelar / Pergamino para SD.",
+    ),
+    "soja_maiz_convencional": Supuesto(
+        clave="usle_c_soja_maiz_convencional",
+        valor=0.34,
+        unidad="adimensional [0 a 1]",
+        motivo="Labranza convencional o reducida con escasa cobertura residual (<15%).",
+        fuente_referencia="USDA AH 537 Tabla 5 (Wischmeier & Smith 1978, pág. 21).",
+    ),
+    "trigo_cereal_invierno_sd": Supuesto(
+        clave="usle_c_trigo_cereal_invierno_sd",
+        valor=0.06,
+        unidad="adimensional [0 a 1]",
+        motivo="Cereal de grano fino en siembra directa con alta densidad de tallos y rápida cobertura de canopeo.",
+        fuente_referencia="USDA AH 537 Tabla 5 (Wischmeier & Smith 1978, pág. 23).",
+    ),
+    "cultivo_cobertura_vicia_centeno": Supuesto(
+        clave="usle_c_cultivo_cobertura_vicia_centeno",
+        valor=0.03,
+        unidad="adimensional [0 a 1]",
+        motivo="Cultivo de servicios multiespecie (gramínea + leguminosa) con canopeo denso cerrado (>80% cobertura).",
+        fuente_referencia="USDA AH 537 Tabla 5-C (Wischmeier & Smith 1978); Guías técnicas INTA.",
+    ),
+    "pastura_pradera_buena": Supuesto(
+        clave="usle_c_pastura_pradera_buena",
+        valor=0.015,
+        unidad="adimensional [0 a 1]",
+        motivo="Pastura perenne bien manejada con cobertura vegetal continua (>90%).",
+        fuente_referencia="USDA AH 537 Tabla 5-C (Wischmeier & Smith 1978).",
+    ),
+    "pastura_sobrepastoreada": Supuesto(
+        clave="usle_c_pastura_sobrepastoreada",
+        valor=0.18,
+        unidad="adimensional [0 a 1]",
+        motivo="Pastura degradada o con sobrepastoreo y parches de suelo desnudo.",
+        fuente_referencia="USDA AH 537 Tabla 5 (Wischmeier & Smith 1978).",
+    ),
+    "barbecho_con_rastrojo": Supuesto(
+        clave="usle_c_barbecho_con_rastrojo",
+        valor=0.14,
+        unidad="adimensional [0 a 1]",
+        motivo="Barbecho químico con rastrojo intacto del cultivo anterior.",
+        fuente_referencia="USDA AH 537 Tabla 5 (Wischmeier & Smith 1978).",
+    ),
+    "barbecho_suelo_desnudo": Supuesto(
+        clave="usle_c_barbecho_suelo_desnudo",
+        valor=0.55,
+        unidad="adimensional [0 a 1]",
+        motivo="Suelo laboreado o pulverizado sin cobertura protectora ni rugosidad residual.",
+        fuente_referencia="USDA AH 537 Tabla 5 (Wischmeier & Smith 1978, pág. 20).",
+    ),
+}
+
+
