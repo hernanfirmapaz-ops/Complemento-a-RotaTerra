@@ -17,6 +17,16 @@ export const SPLASH_DURATION_SEC = 0.30 // ~300 ms de desvanecimiento
 export const SPLASH_SEGMENTS_COUNT = 10
 
 /**
+ * Constantes visuales de simulación de lluvia (Spec 013 - Etapa 5):
+ * Calibradas para realismo visual sin sobrecargar el visor 3D ni obstruir el relieve.
+ */
+export const RAIN_INTENSITY_MIN_NORMALIZED = 0.1
+export const RAIN_INTENSITY_MAX_NORMALIZED = 2.0
+export const RAIN_DROPLET_BASE_OPACITY = 0.85
+export const RAIN_DROP_BASE_SPEED = 1.35
+export const RAIN_DROP_SPEED_VARIATION = 0.85
+
+/**
  * Verifica si la lluvia debe apagarse automáticamente.
  */
 export function isRainAutoShutoff(intensityFactor: number, isPlaying: boolean): boolean {
@@ -31,8 +41,14 @@ export function computeActiveDropCount(
   maxParticles = RAIN_MAX_PARTICLES,
 ): number {
   if (intensityFactor <= 0.001) return 0
-  const normalized = Math.max(0.1, Math.min(2.0, intensityFactor))
-  return Math.min(maxParticles, Math.round(maxParticles * (normalized / 2.0)))
+  const normalized = Math.max(
+    RAIN_INTENSITY_MIN_NORMALIZED,
+    Math.min(RAIN_INTENSITY_MAX_NORMALIZED, intensityFactor),
+  )
+  return Math.min(
+    maxParticles,
+    Math.round(maxParticles * (normalized / RAIN_INTENSITY_MAX_NORMALIZED)),
+  )
 }
 
 /**
@@ -192,7 +208,7 @@ export class RainSimulationSystem {
       size: 2.8, // Tamaño adaptativo de 2 a 4 px
       sizeAttenuation: true,
       transparent: true,
-      opacity: 0.85,
+      opacity: RAIN_DROPLET_BASE_OPACITY,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     })
@@ -230,7 +246,8 @@ export class RainSimulationSystem {
     this.rainPosZ[k] = initHigh
       ? gz + 5 + Math.random() * 45
       : gz + 35 + Math.random() * 20
-    this.rainSpeed[k] = 1.35 + Math.random() * 0.85
+    this.rainSpeed[k] =
+      RAIN_DROP_BASE_SPEED + Math.random() * RAIN_DROP_SPEED_VARIATION
   }
 
   private triggerSplash(sx: number, sy: number, sz: number): void {

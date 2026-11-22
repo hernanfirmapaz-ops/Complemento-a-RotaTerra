@@ -9,9 +9,22 @@ import {
   RainSimulationSystem,
   RAIN_MAX_PARTICLES,
   SPLASH_DURATION_SEC,
+  RAIN_INTENSITY_MIN_NORMALIZED,
+  RAIN_INTENSITY_MAX_NORMALIZED,
+  RAIN_DROPLET_BASE_OPACITY,
+  RAIN_DROP_BASE_SPEED,
+  RAIN_DROP_SPEED_VARIATION,
 } from '../RainSimulation'
 
 describe('Spec 013 - Etapa 5: Lluvia ligera y realista (Sprites 2-4 px, Salpicaduras y Apagado)', () => {
+  it('expone constantes visuales calibradas con nombre para lluvia y salpicaduras', () => {
+    expect(RAIN_INTENSITY_MIN_NORMALIZED).toBe(0.1)
+    expect(RAIN_INTENSITY_MAX_NORMALIZED).toBe(2.0)
+    expect(RAIN_DROPLET_BASE_OPACITY).toBe(0.85)
+    expect(RAIN_DROP_BASE_SPEED).toBe(1.35)
+    expect(RAIN_DROP_SPEED_VARIATION).toBe(0.85)
+  })
+
   it('determina el apagado automático cuando se detiene el evento o la intensidad cae a cero', () => {
     expect(isRainAutoShutoff(0.0, true)).toBe(true)
     expect(isRainAutoShutoff(0.0005, true)).toBe(true)
