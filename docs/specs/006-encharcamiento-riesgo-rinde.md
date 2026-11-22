@@ -28,21 +28,21 @@ Donde:
 1. **$K_{\text{sat, efectivo}}$ (Conductividad hidráulica saturada de fondo):**
    - Obtenida a partir de la textura USDA real reportada por SoilGrids 2.0 (Spec 004) según la tabla original de **Rawls, Brakensiek & Saxton (1982)** (*Estimation of soil water properties*, Trans. ASAE, Vol. 25, No. 5, pp. 1316–1320, Table 2, pág. 1318).
    - Conversión de unidades estándar: $1\text{ cm/h} = 10\text{ mm/h} = 240\text{ mm/día}$.
-   - Los valores de media y desvío estándar están publicados en la **página 1318, Table 2** de Rawls et al. (1982):
+   - Los valores de media geométrica de conductividad hidráulica saturada están publicados en la **página 1318, Table 2** de Rawls et al. (1982) (*Estimation of Soil Water Properties*, Trans. ASAE, Vol. 25, No. 5, pp. 1316–1320, DOI: 10.13031/2013.33720). Se eliminó la columna de desvío estándar por no estar reportada en dicha unidad/columna en la Tabla 2 original:
 
-   | Textura USDA (Clase) | $K_{sat}$ media (cm/h) | $K_{sat}$ efectiva (mm/día) | Desvío estándar reportado (cm/h) [pág. 1318] |
-   |---|---|---|---|
-   | Arenosa (*Sand*) | 21,00 | **5040** | 10,20 |
-   | Arenosa franca (*Loamy sand*) | 6,11 | **1466** | 3,12 |
-   | Franco arenosa (*Sandy loam*, ej. Villa Mercedes) | 2,59 | **622** | 1,47 |
-   | Franca (*Loam*) | 1,32 | **317** | 0,72 |
-   | Franco limosa (*Silt loam*) | 0,68 | **163** | 0,39 |
-   | Franco arcillo arenosa (*Sandy clay loam*) | 0,43 | **103** | 0,25 |
-   | Franco arcillosa (*Clay loam*) | 0,23 | **55** | 0,16 |
-   | Franco arcillo limosa (*Silty clay loam*) | 0,15 | **36** | 0,11 |
-   | Arcillo arenosa (*Sandy clay*) | 0,12 | **29** | 0,09 |
-   | Arcillo limosa (*Silty clay*) | 0,09 | **22** | 0,07 |
-   | Arcillosa (*Clay*) | 0,06 | **14** | 0,05 |
+   | Textura USDA (Clase) | $K_{sat}$ media (cm/h) | $K_{sat}$ efectiva (mm/día) |
+   |---|---|---|
+   | Arenosa (*Sand*) | 21,00 | **5040** |
+   | Arenosa franca (*Loamy sand*) | 6,11 | **1466** |
+   | Franco arenosa (*Sandy loam*, ej. Villa Mercedes) | 2,59 | **622** |
+   | Franca (*Loam*) | 1,32 | **317** |
+   | Franco limosa (*Silt loam*) | 0,68 | **163** |
+   | Franco arcillo arenosa (*Sandy clay loam*) | 0,43 | **103** |
+   | Franco arcillosa (*Clay loam*) | 0,23 | **55** |
+   | Franco arcillo limosa (*Silty clay loam*) | 0,15 | **36** |
+   | Arcillo arenosa (*Sandy clay*) | 0,12 | **29** |
+   | Arcillo limosa (*Silty clay*) | 0,09 | **22** |
+   | Arcillosa (*Clay*) | 0,06 | **14** |
 
    - **Regla estricta de ausencia de datos de suelo:** Si no hay textura de SoilGrids ni de análisis de suelo, el valor de $K_{sat}$ es `null` (calidad `"descartada"`, nota `"Sin textura de suelo disponible; cálculo de vaciado suspendido"`). **Se prohíbe el uso de valores de respaldo por omisión silenciosos.**
    - **Condicionamiento de campo:** Si el bajo conecta con napa freática superficial a menos de 0,5 m, la infiltración neta cae hacia cero ($K_{sat} \to 0$) y la evacuación ocurre casi exclusivamente por evapotranspiración ($ET_0$).
@@ -73,25 +73,17 @@ El exceso de agua desplaza el oxígeno del espacio poroso del suelo (anoxia o hi
 
 ### 3.2 Tabla verificada de mermas de rinde en función de días de encharcamiento ($h > 1\text{ cm}$)
 
-Cada dato corresponde exactamente al valor medido y publicado en la tabla o página indicada:
+Conforme a la **Regla de datos del proyecto** (*"Ningún número sin fuente consultada en el documento original"*), cada fila incluye obligatoriamente DOI o enlace verificable que abre el documento, tabla o página exacta, y una frase textual corta del original que contiene el dato numérico. **Toda fila que no pudo ser abierta y leída directamente en la publicación original ha sido eliminada.**
 
-| Cultivo | Días con agua superficial ($h > 1\text{ cm}$) | Fenología / Etapa | Merma de rinde reportada | Fuente documental verificada (documento + tabla/página / enlace) |
+| Cultivo | Días con agua superficial ($h > 1\text{ cm}$) | Fenología / Etapa | Merma de rinde reportada | Fuente documental verificada en el original (documento + tabla/página / DOI / cita textual) |
 |---|---|---|---|---|
-| **Soja** (*Glycine max*) | 2 a 4 días | Vegetativo temprano (V2–V4) | **7 – 26 %** | Scott et al. (1989), *Agronomy Journal* 81(4):631–637, Table 2 (pág. 633). 2 días de anegamiento causó 7% (Forrest) a 18% (Bedford); 4 días causó 18% a 26%. |
-| | 3 a 5 días | Vegetativo | **10 – 25 %** | Baigorria et al. (2017), INTA EEA Marcos Juárez, Información para Extensión N° 162, pág. 3 (https://repositorio.inta.gob.ar/handle/20.500.12123/2418). |
-| | 4 días | Reproductivo / Floración (R1–R3) | **50 – 56 %** | Oosterhuis et al. (1990), *Crop Science* 30(4):855–860, Table 2 (pág. 858). Merma reproductiva de 50% (Essex) a 56% (Forrest). |
-| | 7 a 8 días | Reproductivo / Llenado de grano (R5) | **20 – 39 %** | Rhine et al. (2010), *Irrigation Science* 28(2):135–142, Table 3 (pág. 139). Merma de 20% a 39% según cultivar evaluado en suelo franco limoso. |
-| **Maíz** (*Zea mays*) | 2 a 4 días | Emergencia / Plántula (V2–V4) | **18 – 32 %** | Fausey & McDonald (1985), *Transactions of the ASAE* 28(4):1199–1202, Table 2 (pág. 1201). Pérdida de rodal y reducción de stand post-inmersión. |
-| | 3 a 4 días | Vegetativo temprano (V2–V4) | **25 – 45 %** | Ferraris & Couretot (2017), INTA EEA Pergamino, pág. 4 (https://repositorio.inta.gob.ar/handle/20.500.12123/2931). |
-| | 4 días | Vegetativo avanzado (V6–V8) | **23 – 34 %** | Mukhtar et al. (1990), *Transactions of the ASAE* 33(2):407–413, Table 3 (pág. 411). Reducción de biomasa y rinde final de grano. |
-| | 5 días | Floración / Antesis (VT–R1) | **42 – 68 %** | Zaidi et al. (2004), *Crop Science* 44(2):519–528, Table 3 (pág. 523). Rango entre genotipos tolerantes (42%) y susceptibles (68%). |
-| **Trigo** (*Triticum aestivum*) | 6 días | Macollaje (Zadoks 21–25) | **16 – 51 %** | Collaku & Harrison (2002), *Crop Science* 42(2):444–450, Table 3 (pág. 447). 16% en cultivar tolerante (Terral 101) a 51% en susceptible (Pioneer 2684). |
-| | Por día de saturación | Macollaje | **2 – 3 % por día** | Striker (2012), *IDIA XXI* (INTA), Año XII, N° 12, pág. 66 (https://repositorio.inta.gob.ar/handle/20.500.12123/1542). |
-| | 7 días | Encañazón a espigazón (Zadoks 33–55) | **35 – 54 %** | De San Celedonio et al. (2014), *Plant and Soil* 378:265–277, Table 2 (pág. 271) y Fig. 3. Reducción en espiguillas fértiles y número de granos. |
-| **Girasol** (*Helianthus annuus*) | 3 días | Vegetativo temprano (V4–V8) | **12 – 28 %** | Grassini et al. (2007), *Field Crops Research* 101(3):352–365, Table 3 (pág. 358). Reducción de área foliar y biomasa por asfixia de raíz. |
-| | 3 a 5 días | Botón floral a antesis (R1–R4) | **38 – 65 %** | Hall et al. (2010), *Field Crops Research* 116(1-2):70–81, Table 2 (pág. 75). Aborto masivo de flores tubulosas y falla en cuajado de aquenios. |
+| **Trigo** (*Triticum aestivum*) y **Cebada** (*Hordeum vulgare*) | 15 a 20 días | Aparición de Hoja 7 a antesis (período crítico previo a floración) | **34 – 92 %** (trigo, experimentos E1 y E2)<br>**40 – 79 %** (cebada, experimentos E1 y E2) | De San Celedonio, R. P., Abeledo, L. G., & Miralles, D. J. (2014). *"Identifying the critical period for waterlogging on yield and its components in wheat and barley"*, *Plant and Soil*, 378(1-2):265–277. DOI: [10.1007/s11104-014-2028-6](https://doi.org/10.1007/s11104-014-2028-6). Texto completo en repositorio institucional FAUBA: [2014desanceledonio.pdf](http://ri.agro.uba.ar/files/download/articulo/2014desanceledonio.pdf) y CONICET Digital: [handle 11336/4210](http://hdl.handle.net/11336/4210). **Cita textual:** *"The greatest yield penalties occurred when waterlogging was applied from Leaf 7 appearance on the main stem to anthesis (from 34 to 92 % of losses in wheat, and from 40 to 79 % in barley for E1 and E2 respectively)"* (pág. 265 / Abstract). |
+| **Soja** (*Glycine max*) | Hasta 8 días (192 h) | Reproductivo / Llenado de grano (R5) | **20 – 39 %** (cultivares en R5) | Rhine, M. D., Stevens, G., Shannon, G., Wrather, A., & Sleper, D. (2010). *"Yield and nutritional responses to waterlogging of soybean cultivars"*, *Irrigation Science*, 28(2):135–142. DOI: [10.1007/s00271-009-0168-x](https://doi.org/10.1007/s00271-009-0168-x). **Cita textual:** *"Soybean yields from cultivars flooded at R5 were reduced by 20–39% compared to non-flooded checks."* (pág. 135 / Abstract). Ensayos con anegamiento continuo de hasta 192 h (8 días). |
+| **Girasol** (*Helianthus annuus*) | 3 días | Etapa vegetativa | **26 %** | Sandoval, M. N., Cirilo, A. G., Paytas, M. J., Zuil, S., & Izquierdo, N. G. (2024). *"Critical Periods for Waterlogging Effects on Yield and Grain Components in Sunflower (Helianthus annuus), Soybean (Glycine max) and Sorghum (Sorghum bicolor): A Comparative Study"*, *Journal of Agronomy and Crop Science*, 210(5): e12765. DOI: [10.1111/jac.12765](https://doi.org/10.1111/jac.12765). Repositorio INTA: [handle 20.500.12123/19493](http://hdl.handle.net/20.500.12123/19493). **Cita textual:** *"Sunflower expressed the most negative impact of waterlogging during the vegetative stages (26, 78 and 98% of yield losses with 3, 7 and 10 days, respectively)"* (Abstract). Ensayos en EEA INTA Reconquista con 3 días de anegamiento. |
+| **Girasol** (*Helianthus annuus*) | 7 días | Etapa vegetativa | **78 %** | Sandoval, M. N., Cirilo, A. G., Paytas, M. J., Zuil, S., & Izquierdo, N. G. (2024). *"Critical Periods for Waterlogging Effects on Yield and Grain Components in Sunflower (Helianthus annuus), Soybean (Glycine max) and Sorghum (Sorghum bicolor): A Comparative Study"*, *Journal of Agronomy and Crop Science*, 210(5): e12765. DOI: [10.1111/jac.12765](https://doi.org/10.1111/jac.12765). Repositorio INTA: [handle 20.500.12123/19493](http://hdl.handle.net/20.500.12123/19493). **Cita textual:** *"Sunflower expressed the most negative impact of waterlogging during the vegetative stages (26, 78 and 98% of yield losses with 3, 7 and 10 days, respectively)"* (Abstract). Ensayos en EEA INTA Reconquista con 7 días de anegamiento. |
+| **Girasol** (*Helianthus annuus*) | 10 días | Etapa vegetativa | **98 %** | Sandoval, M. N., Cirilo, A. G., Paytas, M. J., Zuil, S., & Izquierdo, N. G. (2024). *"Critical Periods for Waterlogging Effects on Yield and Grain Components in Sunflower (Helianthus annuus), Soybean (Glycine max) and Sorghum (Sorghum bicolor): A Comparative Study"*, *Journal of Agronomy and Crop Science*, 210(5): e12765. DOI: [10.1111/jac.12765](https://doi.org/10.1111/jac.12765). Repositorio INTA: [handle 20.500.12123/19493](http://hdl.handle.net/20.500.12123/19493). **Cita textual:** *"Sunflower expressed the most negative impact of waterlogging during the vegetative stages (26, 78 and 98% of yield losses with 3, 7 and 10 days, respectively)"* (Abstract). Ensayos en EEA INTA Reconquista con 10 días de anegamiento. |
 
-*(Cualquier otra combinación de días o fenología sin ensayo medido devuelve `null` + "Sin ensayo agronómico publicado para esa condición").*
+*(Cualquier otra combinación de cultivo, días o fenología sin ensayo medido y verificado en la publicación original devuelve `null` + calidad `'descartada'` con nota `'Sin ensayo agronómico verificado en original para esta condición'`. Por ejemplo, maíz no cuenta actualmente con filas verificadas en el original y queda descartado hasta disponer de publicación accesible con cita textual).*
 
 ### 3.3 Reglas de aplicación agronómica en el software
 
@@ -123,7 +115,7 @@ Cada valor con su `fuente`, `calidad` y `nota` (cultivo, etapa y referencia bibl
    - [ ] Test unitario que valida que el vaciado por infiltración y $ET_0$ consume exactamente el volumen almacenado ($h_{\text{final}} \to 0$).
    - [ ] Cálculo de días determinístico y sin división por cero cuando la infiltración es muy baja.
 2. **Estimación agronómica:**
-   - [ ] Tests de rango de merma para Soja, Maíz, Trigo y Girasol sin números mágicos hardcodeados sin cita bibliográfica.
+   - [ ] Tests de rango de merma para cultivos con ensayo verificado en el original (Trigo, Soja, Girasol) y retorno de `null` + `'descartada'` para cultivos sin ensayo verificado (Maíz), sin números mágicos hardcodeados.
    - [ ] Rango devuelto siempre como tupla `(min_pct, max_pct)`.
 3. **Interfaz:**
    - [ ] Capa de visualización "Días de anegamiento" en el visor con paleta discreta (1 día, 2 días, 3-4 días, $\ge 5$ días).

@@ -26,6 +26,8 @@ from geoprocessing.supuestos import (
     SUPUESTO_I30_TOPE_MAX_MM_H,
     SUPUESTO_MATERIA_ORGANICA_PCT,
     SUPUESTO_USLE_ESTRUCTURA_CODIGO,
+    SUPUESTO_USLE_P_CONTOUR_DEFECTO,
+    SUPUESTO_USLE_P_TERRAZAS,
     SUPUESTO_USLE_PERMEABILIDAD_CODIGO,
     SUPUESTOS_USLE_C_FACTOR,
 )
@@ -185,6 +187,51 @@ def estimate_mean_soil_loss_usle(
     return float(r_storm * k_eff * float(ls_mean) * c_factor * float(p_factor))
 
 
+def estimate_usle_p_factor(
+    slope_pct: float | None = None,
+    contour_farming: bool = False,
+    terraces_active: bool = False,
+) -> float:
+    """Calcula el factor P de prácticas de conservación (USLE).
+
+    Cita bibliográfica:
+    - Cultivo en contorno: USDA Agriculture Handbook 537 (Wischmeier & Smith 1978, pág. 35, Tabla 14),
+      función de la pendiente:
+      1.1 a 2.0 % -> P = 0.60
+      2.1 a 7.0 % -> P = 0.50
+      7.1 a 12.0 % -> P = 0.60
+      12.1 a 18.0 % -> P = 0.80
+      18.1 a 24.0 % -> P = 0.90
+      pendientes llanas <= 1.0 % -> P = 1.0 (sin efecto de contorno).
+    - Terrazas: USDA AH 537 (pág. 39, Tabla 15), factor reductor complementario declarado
+      en supuestos.py (0.50).
+    """
+    p = 1.0
+    if contour_farming:
+        if slope_pct is None:
+            p_contour = float(SUPUESTO_USLE_P_CONTOUR_DEFECTO.valor)
+        elif slope_pct <= 1.0:
+            p_contour = 1.0
+        elif slope_pct <= 2.0:
+            p_contour = 0.60
+        elif slope_pct <= 7.0:
+            p_contour = 0.50
+        elif slope_pct <= 12.0:
+            p_contour = 0.60
+        elif slope_pct <= 18.0:
+            p_contour = 0.80
+        elif slope_pct <= 24.0:
+            p_contour = 0.90
+        else:
+            p_contour = 1.0
+        p *= p_contour
+
+    if terraces_active:
+        p *= float(SUPUESTO_USLE_P_TERRAZAS.valor)
+
+    return float(p)
+
+
 def compute_usle_erosion_and_gullies(
     mfd_area_m2: np.ndarray,
     slope_pct: np.ndarray,
@@ -234,11 +281,6 @@ def compute_usle_erosion_and_gullies(
         k_method = "sin_datos_textura"
 
     c_factor = COVER_C_FACTOR.get(cover_code)
-    p_factor = 1.0
-    if contour_farming:
-        p_factor *= 0.65
-    if terraces_active:
-        p_factor *= 0.50
 
     r_storm = estimate_storm_erosivity_r(precipitation_mm, max_intensity_mm_h)
 
@@ -247,6 +289,10 @@ def compute_usle_erosion_and_gullies(
     cell_area_ha = (float(pixel_size_m) ** 2) / 10_000.0
     ls_field = ls_grid[in_field]
     spi_field = spi[in_field & np.isfinite(spi)]
+    slope_field = slope_pct[in_field & np.isfinite(slope_pct)]
+    mean_slope = float(slope_field.mean()) if slope_field.size else None
+
+    p_factor = estimate_usle_p_factor(mean_slope, contour_farming, terraces_active)
 
     ls_mean_val = round(float(ls_field.mean()), 3) if ls_field.size else None
     ls_max_val = round(float(ls_field.max()), 3) if ls_field.size else None

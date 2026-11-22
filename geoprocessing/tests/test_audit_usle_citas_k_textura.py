@@ -15,6 +15,7 @@ from geoprocessing.agronomy.erosion_usle import (
     estimate_mean_soil_loss_usle,
     estimate_soil_erodibility_k,
     estimate_storm_erosivity_r,
+    estimate_usle_p_factor,
 )
 from geoprocessing.supuestos import (
     SUPUESTO_CARCAVAS_UMBRAL_PERDIDA_T_HA,
@@ -22,7 +23,9 @@ from geoprocessing.supuestos import (
     SUPUESTO_I30_RATIO_PRECIPITACION,
     SUPUESTO_I30_TOPE_MAX_MM_H,
     SUPUESTO_USLE_ESTRUCTURA_CODIGO,
+    SUPUESTO_USLE_P_CONTOUR_DEFECTO,
     SUPUESTO_USLE_PERMEABILIDAD_CODIGO,
+    SUPUESTOS_USLE_C_FACTOR,
 )
 
 
@@ -319,6 +322,34 @@ def test_empty_field_mask_returns_none_for_spatial_metrics():
     assert summary["ls_mean_in_field"] is None
     assert summary["ls_max_in_field"] is None
     assert summary["spi_p95_in_field"] is None
+
+
+def test_p_factor_contour_by_slope_and_terraces():
+    """Auditoría 21/11 (Revisión Claude 3): factor P de contorno varía según pendiente (AH 537 Tabla 14)."""
+    # Sin prácticas
+    assert estimate_usle_p_factor(5.0, contour_farming=False, terraces_active=False) == 1.0
+
+    # Contorno según pendientes de AH 537 Tabla 14 (pág. 35)
+    assert estimate_usle_p_factor(0.8, contour_farming=True) == 1.0  # plana <= 1.0 %
+    assert estimate_usle_p_factor(1.5, contour_farming=True) == pytest.approx(0.60)  # 1.1 a 2.0 %
+    assert estimate_usle_p_factor(4.5, contour_farming=True) == pytest.approx(0.50)  # 2.1 a 7.0 %
+    assert estimate_usle_p_factor(9.0, contour_farming=True) == pytest.approx(0.60)  # 7.1 a 12.0 %
+    assert estimate_usle_p_factor(15.0, contour_farming=True) == pytest.approx(0.80)  # 12.1 a 18.0 %
+    assert estimate_usle_p_factor(22.0, contour_farming=True) == pytest.approx(0.90)  # 18.1 a 24.0 %
+    assert estimate_usle_p_factor(None, contour_farming=True) == pytest.approx(float(SUPUESTO_USLE_P_CONTOUR_DEFECTO.valor))
+
+    # Terrazas aplicadas (multiplica por SUPUESTO_USLE_P_TERRAZAS = 0.50)
+    assert estimate_usle_p_factor(4.5, contour_farming=True, terraces_active=True) == pytest.approx(0.50 * 0.50)
+    assert estimate_usle_p_factor(5.0, contour_farming=False, terraces_active=True) == pytest.approx(0.50)
+
+
+def test_c_factor_citations_honest_and_no_vague_inta():
+    """Auditoría 21/11 (Revisión Claude 3): citas de C honestas, sin atribuir valores a INTA sin documento."""
+    for code, supuesto in SUPUESTOS_USLE_C_FACTOR.items():
+        assert "INTA Castelar" not in supuesto.fuente_referencia
+        assert "Guías técnicas INTA" not in supuesto.fuente_referencia
+        assert "orden de magnitud" in supuesto.fuente_referencia.lower() or "tabla 5" in supuesto.fuente_referencia.lower()
+
 
 
 
