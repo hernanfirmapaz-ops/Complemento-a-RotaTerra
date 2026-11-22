@@ -164,7 +164,7 @@ export function ResultStep({
               <ul className="confidence-reasons-list">
                 {(confidence?.reasons ?? [
                   'Relieve satelital Copernicus 30 m (precisión vertical ±2 m)',
-                  'Suelo inferido según cartografía regional INTA',
+                  'Suelo por omisión, sin confirmar',
                   'Tormenta de diseño regional basada en curva IDF transpuesta',
                 ]).map((reason, idx) => (
                   <li key={idx}>{reason}</li>
@@ -172,7 +172,7 @@ export function ResultStep({
               </ul>
               <div className="confidence-notes-row">
                 <div><strong>Relieve:</strong> {confidence?.relief_note ?? 'Copernicus GLO-30 (30 m)'}</div>
-                <div><strong>Suelo:</strong> {confidence?.soil_note ?? 'Carta INTA regional'}</div>
+                <div><strong>Suelo:</strong> {confidence?.soil_note ?? 'Suelo por omisión, sin confirmar'}</div>
                 <div><strong>Lluvia:</strong> {confidence?.rain_note ?? 'Diseño regional IDF INA'}</div>
               </div>
             </div>

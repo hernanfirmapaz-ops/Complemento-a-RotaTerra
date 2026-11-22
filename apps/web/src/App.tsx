@@ -433,7 +433,7 @@ export function App() {
           ponding_threshold_m: 0.05,
           recession_minutes: 30,
         })
-        setBusy('Paso 4/4: Generando diagnóstico agronómico INTA / NASA...')
+        setBusy('Paso 4/4: Generando herramientas agro-hidrológicas (USLE, NASA POWER, NDVI)...')
         await runAgronomicToolkit(fld.id, {
           soil_group: soilGroupForRun,
           cover_code: quickCover,
