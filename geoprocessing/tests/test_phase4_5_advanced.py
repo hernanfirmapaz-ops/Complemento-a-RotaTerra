@@ -192,7 +192,7 @@ def test_eight_complementary_tools_erosion_terraces_seeding_rotation_and_climate
             })
         src = "NASA POWER (Respaldo determinístico de test)"
 
-    wb = compute_monthly_water_balance(daily, src, "B")
+    wb = compute_monthly_water_balance(daily, src, "B", latitude_deg=-33.3)
     assert len(wb["months"]) == 12
     wl = evaluate_real_date_waterlogging_risk(daily, src, "B", "soja_maiz_sd_buena", 100.0, 15.0, 1500.0)
     assert wl["evaluated_days"] >= 365

@@ -888,6 +888,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         source_label=climate_source,
         soil_group=params.soil_group,
         cover_code=params.cover_code,
+        latitude_deg=lat_c,
     )
 
     low_zone_cells = int((mascara & (zone_grid == 4)).sum())
@@ -900,6 +901,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         field_area_ha=field["area_ha"],
         low_zone_area_ha=float(low_zone_ha),
         depression_volume_m3=hydro["summary"]["total_depression_volume_in_field_m3"],
+        latitude_deg=lat_c,
     )
 
     frost_risk = evaluate_frost_risk_and_sowing_dates(
