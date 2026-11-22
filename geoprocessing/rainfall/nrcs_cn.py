@@ -273,6 +273,9 @@ def _get_run_mean_soil_loss(run: dict) -> tuple[float | None, str | None]:
         soil_group=soil_group,
         cover_code=cover_code,
         ls_mean=float(ls_mean),
+        sand_pct=fc.get("sand_pct") or run.get("sand_pct"),
+        silt_pct=fc.get("silt_pct") or run.get("silt_pct"),
+        clay_pct=fc.get("clay_pct") or run.get("clay_pct"),
     )
     return round(loss, 3), None
 

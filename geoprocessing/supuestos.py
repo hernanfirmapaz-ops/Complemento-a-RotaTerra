@@ -40,3 +40,22 @@ SUPUESTO_NDVI_UMBRAL_ALTO_VIGOR = Supuesto(
     motivo="Umbral agronómico de corte superior para canopeo desarrollado y biomasa activa alta.",
     fuente_referencia="Supuesto empírico regional agronómico",
 )
+
+
+# --- Erosión Hídrica USLE / RUSLE ---
+SUPUESTO_I30_RATIO_PRECIPITACION = Supuesto(
+    clave="i30_ratio_precipitacion",
+    valor=0.65,
+    unidad="1/h",
+    motivo="Relación empírica supuesta para estimar la intensidad máxima en 30 minutos (i30 mm/h) como 0.65 * P (acotada a máx 75 mm/h) cuando no se dispone de pluviograma o estación meteorológica.",
+    fuente_referencia="Supuesto empírico declarado (la cita histórica a Lombardi Neto correlacionaba EI30 con índice de Fournier p^2/P, no i30 con P). Editable por el usuario.",
+)
+
+SUPUESTO_MATERIA_ORGANICA_PCT = Supuesto(
+    clave="materia_organica_pct",
+    valor=2.5,
+    unidad="%",
+    motivo="Contenido medio representativo de materia orgánica en horizonte superficial (0-30 cm) para suelos agrícolas pampeanos cuando no se dispone de análisis de laboratorio o SoilGrids soc.",
+    fuente_referencia="Valor típico regional agronómico pampeano / INTA (Wischmeier & Smith 1978); editable por el usuario.",
+)
+

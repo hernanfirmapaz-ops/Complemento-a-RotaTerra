@@ -19,8 +19,13 @@ import math
 import numpy as np
 
 from geoprocessing.dem.terrain import Dem, contours_geojson
+from geoprocessing.supuestos import (
+    SUPUESTO_I30_RATIO_PRECIPITACION,
+    SUPUESTO_MATERIA_ORGANICA_PCT,
+)
 
-# Erodabilidad del suelo K (t·ha·h / (ha·MJ·mm)) orientativa por Grupo Hidrológico (tablas INTA / USDA)
+# Erodabilidad del suelo K orientativa de respaldo por Grupo Hidrológico (tablas USDA / Rawls et al. 1982)
+# cuando no se dispone de porcentajes de arena, limo y arcilla (SoilGrids 2.0).
 SOIL_K_BY_GROUP: dict[str, float] = {
     "A": 0.018,  # arenosos / francos gruesos (baja susceptibilidad al desprendimiento, alta infiltración)
     "B": 0.032,  # francos / franco-limosos pampeanos y subhúmedos
@@ -39,6 +44,53 @@ COVER_C_FACTOR: dict[str, float] = {
     "barbecho_con_rastrojo": 0.14,
     "barbecho_suelo_desnudo": 0.55,
 }
+
+
+def estimate_soil_erodibility_k(
+    sand_pct: float,
+    silt_pct: float,
+    clay_pct: float,
+    organic_matter_pct: float | None = None,
+    structure_code: int = 2,
+    permeability_code: int = 3,
+) -> float:
+    """Calcula el factor de erodabilidad del suelo K en unidades SI [t·ha·h / (ha·MJ·mm)].
+
+    Formulación estándar de Wischmeier & Smith (1978, pág. 12, Ecuación 1):
+        100 K = 2.1 * 10^-4 * M^1.14 * (12 - a) + 3.25 * (b - 2) + 2.5 * (c - 3)
+    donde:
+        M = silt * (100 - clay). (Fracción arena muy fina vfs no discriminada en SoilGrids).
+        a = porcentaje de materia orgánica en horizonte superficial (% MO, acotado a [0.5, 4.0]).
+        b = código de estructura del suelo (1 a 4; por defecto 2: fino granular).
+        c = código de permeabilidad del perfil (1 a 6; por defecto 3: moderada).
+
+    Cita bibliográfica:
+    - Wischmeier, W. H., & Smith, D. D. (1978). Predicting rainfall erosion losses: a guide to conservation planning.
+      USDA Agriculture Handbook No. 537, Washington, D.C., pág. 12, Ecuación (1).
+    - Conversión a SI (Foster et al., 1981, Trans. ASAE 24(5): 1255–1262): K_SI = K_US * 0.1317.
+    """
+    total = float(sand_pct + silt_pct + clay_pct)
+    if total <= 0:
+        return 0.026
+
+    silt = float(silt_pct) * 100.0 / total
+    clay = float(clay_pct) * 100.0 / total
+
+    om = (
+        float(organic_matter_pct)
+        if organic_matter_pct is not None and organic_matter_pct >= 0
+        else float(SUPUESTO_MATERIA_ORGANICA_PCT.valor)
+    )
+    a = float(np.clip(om, 0.5, 4.0))
+
+    m = max(0.0, silt * (100.0 - clay))
+    b = float(structure_code)
+    c = float(permeability_code)
+
+    k100 = 2.1e-4 * (m**1.14) * (12.0 - a) + 3.25 * (b - 2.0) + 2.5 * (c - 3.0)
+    k_us = max(0.0, k100 / 100.0)
+    k_si = k_us * 0.1317
+    return round(float(k_si), 6)
 
 
 def compute_ls_factor_grid(
@@ -66,18 +118,21 @@ def compute_ls_factor_grid(
 
 
 def estimate_storm_erosivity_r(precipitation_mm: float, max_intensity_mm_h: float | None = None) -> float:
-    """Erosividad EI30 de una tormenta individual (MJ·mm / (ha·h)) según Wischmeier & Smith / Lombardi Neto.
+    """Erosividad EI30 de una tormenta individual (MJ·mm / (ha·h)) según Wischmeier & Smith (1978).
 
-    Nota de trazabilidad científica y supuestos conservadores (SDD §4.4 / Regla R4):
-    Si no se suministra la intensidad máxima en 30 minutos observada en estación de campo (`max_intensity_mm_h`),
-    se adopta como supuesto conservador documentado la relación empírica pampeana i30 ~ min(75.0, 0.65 * P)
-    (Lombardi Neto et al. 1980; Bertoni & Lombardi Neto 1990; INTA Castelar).
+    Si no se dispone de intensidad máxima en 30 minutos medida en pluviógrafo (`max_intensity_mm_h`),
+    se adopta el supuesto conservador declarado (SUPUESTO_I30_RATIO_PRECIPITACION):
+    i30 = min(75.0, SUPUESTO_I30_RATIO_PRECIPITACION.valor * P).
     """
     p = max(0.0, float(precipitation_mm))
     if p < 5.0:
         return 0.5 * p
-    i30 = float(max_intensity_mm_h) if max_intensity_mm_h and max_intensity_mm_h > 0 else min(75.0, 0.65 * p)
-    # Energía cinética unitaria aproximada e ~ 0.29 * (1 - 0.72 * exp(-0.05 * i30)) [MJ / (ha·mm)]
+    i30 = (
+        float(max_intensity_mm_h)
+        if max_intensity_mm_h and max_intensity_mm_h > 0
+        else min(75.0, float(SUPUESTO_I30_RATIO_PRECIPITACION.valor) * p)
+    )
+    # Energía cinética unitaria aproximada e ~ 0.29 * (1 - 0.72 * exp(-0.05 * i30)) [MJ / (ha·mm)] (Wischmeier & Smith 1978)
     e_unit = 0.29 * (1.0 - 0.72 * math.exp(-0.05 * i30))
     ei30 = (e_unit * p) * i30
     return round(float(ei30), 2)
@@ -85,25 +140,40 @@ def estimate_storm_erosivity_r(precipitation_mm: float, max_intensity_mm_h: floa
 
 def estimate_mean_soil_loss_usle(
     precipitation_mm: float,
-    runoff_q_mm: float,
-    soil_group: str,
-    cover_code: str,
-    ls_mean: float,
+    runoff_q_mm: float = 0.0,
+    soil_group: str = "B",
+    cover_code: str = "soja_maiz_sd_buena",
+    ls_mean: float = 1.0,
     p_factor: float = 1.0,
     max_intensity_mm_h: float | None = None,
+    sand_pct: float | None = None,
+    silt_pct: float | None = None,
+    clay_pct: float | None = None,
+    organic_matter_pct: float | None = None,
+    k_factor: float | None = None,
 ) -> float:
-    """Calcula la pérdida media de suelo de evento (t/ha) usando la formulación USLE/RUSLE estándar.
+    """Calcula la pérdida media de suelo de evento (t/ha) in situ usando la formulación USLE/RUSLE estándar:
 
-    A = R * K * LS * C * P * SDR
-    Donde SDR es el ratio de entrega de sedimentos (delivery_ratio) basado en escorrentía superficial
-    (Williams & Berndt 1977; Wischmeier & Smith 1978).
+    A = R * K * LS * C * P  [t / ha]
+    (Wischmeier & Smith 1978; Renard et al. 1997).
+    No se aplica razón de entrega de sedimentos (SDR) sobre la pérdida en el lugar (auditoría 21/11/2026, punto 4).
     """
-    k_factor = SOIL_K_BY_GROUP.get(soil_group, 0.032)
+    if k_factor is None:
+        if sand_pct is not None and silt_pct is not None and clay_pct is not None:
+            k_eff = estimate_soil_erodibility_k(
+                sand_pct=sand_pct,
+                silt_pct=silt_pct,
+                clay_pct=clay_pct,
+                organic_matter_pct=organic_matter_pct,
+            )
+        else:
+            k_eff = SOIL_K_BY_GROUP.get(soil_group, 0.032)
+    else:
+        k_eff = float(k_factor)
+
     c_factor = COVER_C_FACTOR.get(cover_code, 0.12)
     r_storm = estimate_storm_erosivity_r(precipitation_mm, max_intensity_mm_h)
-    p = float(precipitation_mm)
-    delivery_ratio = min(1.0, 0.15 + 0.85 * (runoff_q_mm / max(1.0, p))) if p > 0 else 0.0
-    return float(r_storm * k_factor * float(ls_mean) * c_factor * float(p_factor) * delivery_ratio)
+    return float(r_storm * k_eff * float(ls_mean) * c_factor * float(p_factor))
 
 
 def compute_usle_erosion_and_gullies(
@@ -120,6 +190,11 @@ def compute_usle_erosion_and_gullies(
     terraces_active: bool = False,
     terrace_horizontal_spacing_m: float | None = None,
     max_intensity_mm_h: float | None = None,
+    sand_pct: float | None = None,
+    silt_pct: float | None = None,
+    clay_pct: float | None = None,
+    organic_matter_pct: float | None = None,
+    k_factor: float | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Calcula la pérdida potencial de suelo por tormenta (t/ha) y localiza focos de cárcavas.
 
@@ -133,7 +208,22 @@ def compute_usle_erosion_and_gullies(
     )
     ls_grid = compute_ls_factor_grid(mfd_area_m2, slope_pct, pixel_size_m, max_slope_length_m=max_len)
 
-    k_factor = SOIL_K_BY_GROUP.get(soil_group, 0.032)
+    if k_factor is None:
+        if sand_pct is not None and silt_pct is not None and clay_pct is not None:
+            k_eff = estimate_soil_erodibility_k(
+                sand_pct=sand_pct,
+                silt_pct=silt_pct,
+                clay_pct=clay_pct,
+                organic_matter_pct=organic_matter_pct,
+            )
+            k_method = "wischmeier_texture"
+        else:
+            k_eff = SOIL_K_BY_GROUP.get(soil_group, 0.032)
+            k_method = "hydrologic_group_fallback"
+    else:
+        k_eff = float(k_factor)
+        k_method = "explicit"
+
     c_factor = COVER_C_FACTOR.get(cover_code, 0.12)
     p_factor = 1.0
     if contour_farming:
@@ -142,15 +232,11 @@ def compute_usle_erosion_and_gullies(
         p_factor *= 0.50
 
     r_storm = estimate_storm_erosivity_r(precipitation_mm, max_intensity_mm_h)
-    # Ratio de entrega de sedimentos (Sediment Delivery Ratio, SDR / delivery_ratio):
-    # Enfoque empírico basado en escorrentía superficial efectiva (Williams & Berndt 1977, USDA SCS-TP-149;
-    # Wischmeier & Smith 1978). Si Q == 0, el transporte de sedimentos fuera del lote es nulo.
-    delivery_ratio = min(1.0, 0.15 + 0.85 * (runoff_q_mm / max(1.0, precipitation_mm))) if precipitation_mm > 0 else 0.0
 
     valid = np.isfinite(ls_grid)
     soil_loss_t_ha = np.where(
         valid,
-        r_storm * k_factor * ls_grid * c_factor * p_factor * delivery_ratio,
+        r_storm * k_eff * ls_grid * c_factor * p_factor,
         np.nan,
     ).astype("float32")
 
@@ -160,7 +246,7 @@ def compute_usle_erosion_and_gullies(
     ls_field = ls_grid[in_field]
     spi_field = spi[in_field & np.isfinite(spi)]
 
-    # Focos de formación de cárcavas: celdas donde SPI >= 2.5 y pérdida >= 2.0 t/ha en el evento
+    # Focos de formación de cárcavas: celdas donde SPI >= 2.5 y pérdida >= 1.5 t/ha en el evento
     gully_mask = in_field & np.isfinite(spi) & (spi >= 2.5) & (soil_loss_t_ha >= 1.5)
     gully_cells = int(gully_mask.sum())
     gully_area_ha = gully_cells * cell_area_ha
@@ -180,7 +266,8 @@ def compute_usle_erosion_and_gullies(
 
     summary = {
         "r_storm_mj_mm_ha_h": r_storm,
-        "k_factor": k_factor,
+        "k_factor": round(float(k_eff), 6),
+        "k_calculation_method": k_method,
         "c_factor": c_factor,
         "p_factor": round(p_factor, 3),
         "ls_mean_in_field": round(float(ls_field.mean()), 3) if ls_field.size else 0.0,
@@ -208,6 +295,11 @@ def design_and_simulate_contour_terraces(
     soil_group: str = "B",
     cover_code: str = "soja_maiz_sd_buena",
     terrace_channel_capacity_m3_per_m: float = 0.35,
+    sand_pct: float | None = None,
+    silt_pct: float | None = None,
+    clay_pct: float | None = None,
+    organic_matter_pct: float | None = None,
+    k_factor: float | None = None,
 ) -> dict:
     """Herramienta 4: Traza curvas a nivel / terrazas dentro del lote y simula cómo frenan el agua y la erosión.
 
@@ -252,6 +344,11 @@ def design_and_simulate_contour_terraces(
         cover_code=cover_code,
         contour_farming=False,
         terraces_active=False,
+        sand_pct=sand_pct,
+        silt_pct=silt_pct,
+        clay_pct=clay_pct,
+        organic_matter_pct=organic_matter_pct,
+        k_factor=k_factor,
     )
 
     # Capacidad de intercepción hidráulica de las terrazas
@@ -276,6 +373,11 @@ def design_and_simulate_contour_terraces(
         contour_farming=True,
         terraces_active=True,
         terrace_horizontal_spacing_m=hi_m,
+        sand_pct=sand_pct,
+        silt_pct=silt_pct,
+        clay_pct=clay_pct,
+        organic_matter_pct=organic_matter_pct,
+        k_factor=k_factor,
     )
 
     runoff_before_m3 = (runoff_q_mm / 1000.0) * field_area_m2
