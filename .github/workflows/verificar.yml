@@ -77,7 +77,7 @@ jobs:
           sleep 4
       - name: Capturar primera pantalla y verificar bundles
         run: python scripts/verificar_capturas.py --url http://127.0.0.1:8000 --output-dir dist-capturas
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: capturas-primera-pantalla
           path: dist-capturas/
