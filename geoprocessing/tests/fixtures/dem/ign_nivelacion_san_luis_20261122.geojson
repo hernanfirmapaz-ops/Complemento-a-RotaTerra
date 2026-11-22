@@ -1,0 +1,2341 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "fecha_descarga": "2026-11-22",
+    "fuente_mojones": "Instituto Geográfico Nacional (IGN Argentina) - WFS GetFeature",
+    "fuente_dem": "Copernicus GLO-30 DSM (AWS Open Data COG)",
+    "tesela_dem": "Copernicus_DSM_COG_10_S34_00_W066_00_DEM",
+    "bbox": "-66,-34,-65,-33",
+    "metricas": {
+      "alta_precision": {
+        "n": 44,
+        "sesgo_mediana_m": 0.5,
+        "nmad_m": 1.08,
+        "rmse_m": 1.59,
+        "le90_m": 2.42
+      },
+      "precision": {
+        "n": 32,
+        "sesgo_mediana_m": 0.3,
+        "nmad_m": 1.93,
+        "rmse_m": 3.83,
+        "le90_m": 2.97
+      },
+      "combinada_alta_precision": {
+        "n": 76,
+        "sesgo_mediana_m": 0.45,
+        "nmad_m": 1.15,
+        "rmse_m": 2.77,
+        "le90_m": 2.61
+      },
+      "topografica": {
+        "n": 45,
+        "sesgo_mediana_m": 0.35,
+        "nmad_m": 3.75,
+        "rmse_m": 9.4,
+        "le90_m": 16.2
+      }
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.27141667,
+          -33.76280556
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF8N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 458.675,
+        "cota_copernicus_m": 458.473,
+        "error_copernicus_m": -0.202,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.09255556,
+          -33.87763889
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF16N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 393.226,
+        "cota_copernicus_m": 392.556,
+        "error_copernicus_m": -0.67,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.02833333,
+          -33.87408333
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF18N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 380.864,
+        "cota_copernicus_m": 383.512,
+        "error_copernicus_m": 2.648,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.29472222,
+          -33.74330556
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF7N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 469.026,
+        "cota_copernicus_m": 468.729,
+        "error_copernicus_m": -0.297,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.24752778,
+          -33.781
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF9N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 446.023,
+        "cota_copernicus_m": 446.725,
+        "error_copernicus_m": 0.702,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.12369444,
+          -33.87936111
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF15N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 399.214,
+        "cota_copernicus_m": 400.37,
+        "error_copernicus_m": 1.156,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.20259938,
+          -33.81743908
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF11N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 429.866,
+        "cota_copernicus_m": 430.355,
+        "error_copernicus_m": 0.489,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.17944444,
+          -33.85644444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF13N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 416.176,
+        "cota_copernicus_m": 417.866,
+        "error_copernicus_m": 1.69,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.06091667,
+          -33.87580556
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF17N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 387.882,
+        "cota_copernicus_m": 389.633,
+        "error_copernicus_m": 1.751,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.15383333,
+          -33.87105556
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF14N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 407.231,
+        "cota_copernicus_m": 406.991,
+        "error_copernicus_m": -0.24,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.31786111,
+          -33.72447222
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF6N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 477.352,
+        "cota_copernicus_m": 477.872,
+        "error_copernicus_m": 0.52,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.45672222,
+          -33.59811111
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3N(193)",
+        "red": "alta_precision",
+        "cota_ign_m": 534.369,
+        "cota_copernicus_m": 539.672,
+        "error_copernicus_m": 5.303,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.61790325,
+          -33.59244383
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF7N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 589.736,
+        "cota_copernicus_m": 590.149,
+        "error_copernicus_m": 0.413,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.4425,
+          -33.67077778
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 508.433,
+        "cota_copernicus_m": 509.039,
+        "error_copernicus_m": 0.606,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.45847222,
+          -33.71122222
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 508.886,
+        "cota_copernicus_m": 510.109,
+        "error_copernicus_m": 1.223,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.37575,
+          -33.97986111
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF14N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 441.039,
+        "cota_copernicus_m": 440.949,
+        "error_copernicus_m": -0.09,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.64566694,
+          -33.57617083
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF8N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 602.711,
+        "cota_copernicus_m": 603.084,
+        "error_copernicus_m": 0.373,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.73106222,
+          -33.53181833
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF11N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 636.425,
+        "cota_copernicus_m": 634.718,
+        "error_copernicus_m": -1.707,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.41969444,
+          -33.65561111
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 503.313,
+        "cota_copernicus_m": 505.876,
+        "error_copernicus_m": 2.563,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.38841667,
+          -33.92866667
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF12N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 454.345,
+        "cota_copernicus_m": 454.251,
+        "error_copernicus_m": -0.094,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.42688889,
+          -33.77058333
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 488.663,
+        "cota_copernicus_m": 489.405,
+        "error_copernicus_m": 0.742,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.44941667,
+          -33.64783333
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1N(193)",
+        "red": "alta_precision",
+        "cota_ign_m": 512.864,
+        "cota_copernicus_m": 517.074,
+        "error_copernicus_m": 4.21,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.37877778,
+          -33.95444444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF13N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 448.507,
+        "cota_copernicus_m": 448.339,
+        "error_copernicus_m": -0.168,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.50055389,
+          -33.63611889
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 551.566,
+        "cota_copernicus_m": 552.376,
+        "error_copernicus_m": 0.81,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.43877778,
+          -33.72466667
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 500.854,
+        "cota_copernicus_m": 500.228,
+        "error_copernicus_m": -0.626,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.46211111,
+          -33.67469444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "NODAL 120",
+        "red": "alta_precision",
+        "cota_ign_m": 514.773,
+        "cota_copernicus_m": 516.847,
+        "error_copernicus_m": 2.074,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.36319444,
+          -33.68633333
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 494.657,
+        "cota_copernicus_m": 494.233,
+        "error_copernicus_m": -0.424,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.59021796,
+          -33.60618327
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF6N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 578.396,
+        "cota_copernicus_m": 579.238,
+        "error_copernicus_m": 0.842,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.4745,
+          -33.55441667
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5N(193)",
+        "red": "alta_precision",
+        "cota_ign_m": 602.833,
+        "cota_copernicus_m": 598.906,
+        "error_copernicus_m": -3.927,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.41838889,
+          -33.84061111
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF8N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 476.256,
+        "cota_copernicus_m": 476.294,
+        "error_copernicus_m": 0.038,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.39124141,
+          -33.66850966
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 497.65,
+        "cota_copernicus_m": 497.536,
+        "error_copernicus_m": -0.114,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.44505556,
+          -33.62286111
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2N(193)",
+        "red": "alta_precision",
+        "cota_ign_m": 509.387,
+        "cota_copernicus_m": 510.31,
+        "error_copernicus_m": 0.923,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.46544444,
+          -33.57788889
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4N(193)",
+        "red": "alta_precision",
+        "cota_ign_m": 562.112,
+        "cota_copernicus_m": 561.218,
+        "error_copernicus_m": -0.894,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.56004456,
+          -33.61637833
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 572.798,
+        "cota_copernicus_m": 573.5,
+        "error_copernicus_m": 0.702,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.41302778,
+          -33.81325
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF7N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 479.83,
+        "cota_copernicus_m": 480.137,
+        "error_copernicus_m": 0.307,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.46796455,
+          -33.64369066
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 522.678,
+        "cota_copernicus_m": 523.417,
+        "error_copernicus_m": 0.739,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.40769444,
+          -33.78488889
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF6N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 482.422,
+        "cota_copernicus_m": 482.089,
+        "error_copernicus_m": -0.333,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.67311083,
+          -33.56135444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF9N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 616.093,
+        "cota_copernicus_m": 617.823,
+        "error_copernicus_m": 1.73,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.70223417,
+          -33.5472675
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF10N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 625.767,
+        "cota_copernicus_m": 627.6,
+        "error_copernicus_m": 1.833,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.34202778,
+          -33.7045
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5N(194)",
+        "red": "alta_precision",
+        "cota_ign_m": 484.17,
+        "cota_copernicus_m": 483.714,
+        "error_copernicus_m": -0.456,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.53068421,
+          -33.62735781
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 568.547,
+        "cota_copernicus_m": 568.659,
+        "error_copernicus_m": 0.112,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.44519444,
+          -33.74922222
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 500.718,
+        "cota_copernicus_m": 502.569,
+        "error_copernicus_m": 1.851,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.39972222,
+          -33.87683333
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF10N(207)",
+        "red": "alta_precision",
+        "cota_ign_m": 469.015,
+        "cota_copernicus_m": 468.375,
+        "error_copernicus_m": -0.64,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.46200792,
+          -33.6559049
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1N(201)",
+        "red": "alta_precision",
+        "cota_ign_m": 516.714,
+        "cota_copernicus_m": 518.323,
+        "error_copernicus_m": 1.609,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.23140801,
+          -33.60554062
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF6n(84)C",
+        "red": "precision",
+        "cota_ign_m": 533.508,
+        "cota_copernicus_m": 535.531,
+        "error_copernicus_m": 2.023,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.27142474,
+          -33.6155436
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5n(84)C",
+        "red": "precision",
+        "cota_ign_m": 527.964,
+        "cota_copernicus_m": 528.033,
+        "error_copernicus_m": 0.069,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.14286843,
+          -33.60054247
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF8n(84)C",
+        "red": "precision",
+        "cota_ign_m": 510.537,
+        "cota_copernicus_m": 513.07,
+        "error_copernicus_m": 2.533,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.05734548,
+          -33.58756206
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF10n(84)C",
+        "red": "precision",
+        "cota_ign_m": 500.657,
+        "cota_copernicus_m": 495.998,
+        "error_copernicus_m": -4.659,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.09906351,
+          -33.59430743
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF9n(84)C",
+        "red": "precision",
+        "cota_ign_m": 507.954,
+        "cota_copernicus_m": 508.171,
+        "error_copernicus_m": 0.217,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.18551451,
+          -33.60588763
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF7n(84)C",
+        "red": "precision",
+        "cota_ign_m": 556.611,
+        "cota_copernicus_m": 554.135,
+        "error_copernicus_m": -2.476,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.02080209,
+          -33.56830545
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF11n(84)C",
+        "red": "precision",
+        "cota_ign_m": 507.476,
+        "cota_copernicus_m": 507.3,
+        "error_copernicus_m": -0.176,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.31265784,
+          -33.62430842
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4n(84)C",
+        "red": "precision",
+        "cota_ign_m": 517.95,
+        "cota_copernicus_m": 517.776,
+        "error_copernicus_m": -0.174,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.50361755,
+          -33.67949317
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(72)A",
+        "red": "precision",
+        "cota_ign_m": 530.967,
+        "cota_copernicus_m": 529.659,
+        "error_copernicus_m": -1.308,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.72104563,
+          -33.78132162
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF10n(72)A",
+        "red": "precision",
+        "cota_ign_m": 561.572,
+        "cota_copernicus_m": 561.835,
+        "error_copernicus_m": 0.263,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.52293625,
+          -33.74832685
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4n(72)A",
+        "red": "precision",
+        "cota_ign_m": 517.225,
+        "cota_copernicus_m": 517.762,
+        "error_copernicus_m": 0.537,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.78982718,
+          -33.91588345
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF48n(72)B",
+        "red": "precision",
+        "cota_ign_m": 567.209,
+        "cota_copernicus_m": 564.674,
+        "error_copernicus_m": -2.535,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.75766454,
+          -33.86476041
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF50n(72)B",
+        "red": "precision",
+        "cota_ign_m": 565.776,
+        "cota_copernicus_m": 554.228,
+        "error_copernicus_m": -11.548,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.75616206,
+          -33.83044108
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF51n(72)B",
+        "red": "precision",
+        "cota_ign_m": 567.674,
+        "cota_copernicus_m": 567.509,
+        "error_copernicus_m": -0.165,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.81058068,
+          -33.93739747
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF47n(72)B",
+        "red": "precision",
+        "cota_ign_m": 563.065,
+        "cota_copernicus_m": 563.087,
+        "error_copernicus_m": 0.022,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.43756197,
+          -33.65431906
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(84)C",
+        "red": "precision",
+        "cota_ign_m": 506.822,
+        "cota_copernicus_m": 507.46,
+        "error_copernicus_m": 0.638,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.53259077,
+          -33.78241194
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5n(72)A",
+        "red": "precision",
+        "cota_ign_m": 507.852,
+        "cota_copernicus_m": 509.603,
+        "error_copernicus_m": 1.751,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.73807103,
+          -33.80400571
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF52n(72)B",
+        "red": "precision",
+        "cota_ign_m": 562.319,
+        "cota_copernicus_m": 561.182,
+        "error_copernicus_m": -1.137,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.86560391,
+          -33.98378512
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF45n(72)B",
+        "red": "precision",
+        "cota_ign_m": 570.039,
+        "cota_copernicus_m": 571.874,
+        "error_copernicus_m": 1.835,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.80451183,
+          -33.77148591
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF12n(72)A",
+        "red": "precision",
+        "cota_ign_m": 589.011,
+        "cota_copernicus_m": 589.9,
+        "error_copernicus_m": 0.889,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.5949021,
+          -33.79781848
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF7n(72)A",
+        "red": "precision",
+        "cota_ign_m": 524.12,
+        "cota_copernicus_m": 524.819,
+        "error_copernicus_m": 0.699,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.63646872,
+          -33.79254652
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF8n(72)A",
+        "red": "precision",
+        "cota_ign_m": 541.128,
+        "cota_copernicus_m": 542.815,
+        "error_copernicus_m": 1.687,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.76286279,
+          -33.77671106
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF11n(72)A",
+        "red": "precision",
+        "cota_ign_m": 569.522,
+        "cota_copernicus_m": 571.767,
+        "error_copernicus_m": 2.245,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.75916488,
+          -33.89716792
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF49n(72)B",
+        "red": "precision",
+        "cota_ign_m": 557.049,
+        "cota_copernicus_m": 556.517,
+        "error_copernicus_m": -0.532,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.39496569,
+          -33.6437469
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(84)C",
+        "red": "precision",
+        "cota_ign_m": 500.179,
+        "cota_copernicus_m": 500.664,
+        "error_copernicus_m": 0.485,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.3544768,
+          -33.63420681
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3n(84)C",
+        "red": "precision",
+        "cota_ign_m": 512.936,
+        "cota_copernicus_m": 511.255,
+        "error_copernicus_m": -1.681,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.67948552,
+          -33.78717962
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF9n(72)A",
+        "red": "precision",
+        "cota_ign_m": 549.532,
+        "cota_copernicus_m": 549.87,
+        "error_copernicus_m": 0.338,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.51362703,
+          -33.71450003
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3n(72)A",
+        "red": "precision",
+        "cota_ign_m": 524.526,
+        "cota_copernicus_m": 526.475,
+        "error_copernicus_m": 1.949,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.83298397,
+          -33.96479467
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF46n(72)B",
+        "red": "precision",
+        "cota_ign_m": 565.308,
+        "cota_copernicus_m": 564.39,
+        "error_copernicus_m": -0.918,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.55137717,
+          -33.80272965
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF6n(72)A",
+        "red": "precision",
+        "cota_ign_m": 506.031,
+        "cota_copernicus_m": 507.138,
+        "error_copernicus_m": 1.107,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.4798616,
+          -33.70087441
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(72)A",
+        "red": "precision",
+        "cota_ign_m": 516.118,
+        "cota_copernicus_m": 519.134,
+        "error_copernicus_m": 3.016,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.90771819,
+          -33.9936226
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF44n(72)B",
+        "red": "precision",
+        "cota_ign_m": 561.66,
+        "cota_copernicus_m": 577.607,
+        "error_copernicus_m": 15.947,
+        "excluida": false,
+        "motivo_exclusion": null
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.13955556,
+          -33.938
+        ]
+      },
+      "properties": {
+        "nomenclatura": "P.Az. 3F-III-1101",
+        "red": "topografica",
+        "cota_ign_m": 391.25,
+        "cota_copernicus_m": 396.373,
+        "error_copernicus_m": 5.123,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.07975,
+          -33.69147222
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4n(84)u",
+        "red": "topografica",
+        "cota_ign_m": 444.177,
+        "cota_copernicus_m": 431.314,
+        "error_copernicus_m": -12.863,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.03641667,
+          -33.47952778
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF6n(84)ñ",
+        "red": "topografica",
+        "cota_ign_m": 579.225,
+        "cota_copernicus_m": 589.64,
+        "error_copernicus_m": 10.415,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.12261111,
+          -33.76669444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(84)u",
+        "red": "topografica",
+        "cota_ign_m": 434.507,
+        "cota_copernicus_m": 424.381,
+        "error_copernicus_m": -10.126,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.07722222,
+          -33.63911111
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5n(84)u",
+        "red": "topografica",
+        "cota_ign_m": 469.998,
+        "cota_copernicus_m": 453.744,
+        "error_copernicus_m": -16.254,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.08105556,
+          -33.73258333
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3n(84)u",
+        "red": "topografica",
+        "cota_ign_m": 424.45,
+        "cota_copernicus_m": 421.512,
+        "error_copernicus_m": -2.938,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.24241667,
+          -33.94116667
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(73)b",
+        "red": "topografica",
+        "cota_ign_m": 411.683,
+        "cota_copernicus_m": 410.965,
+        "error_copernicus_m": -0.718,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.27625,
+          -33.57333333
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(84)ll",
+        "red": "topografica",
+        "cota_ign_m": 552.145,
+        "cota_copernicus_m": 548.466,
+        "error_copernicus_m": -3.679,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.27227778,
+          -33.51136111
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(84)ll",
+        "red": "topografica",
+        "cota_ign_m": 579.359,
+        "cota_copernicus_m": 579.859,
+        "error_copernicus_m": 0.5,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.00652778,
+          -33.73944444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4n(84)t",
+        "red": "topografica",
+        "cota_ign_m": 400.04,
+        "cota_copernicus_m": 407.402,
+        "error_copernicus_m": 7.362,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.04105556,
+          -33.80155556
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF6n(84)t",
+        "red": "topografica",
+        "cota_ign_m": 398.671,
+        "cota_copernicus_m": 400.663,
+        "error_copernicus_m": 1.992,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.20405556,
+          -33.69655556
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(84)v",
+        "red": "topografica",
+        "cota_ign_m": 522.303,
+        "cota_copernicus_m": 495.971,
+        "error_copernicus_m": -26.332,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.29544444,
+          -33.98419444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(73)b",
+        "red": "topografica",
+        "cota_ign_m": 421.126,
+        "cota_copernicus_m": 421.661,
+        "error_copernicus_m": 0.535,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.18244444,
+          -33.64375
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(84)v",
+        "red": "topografica",
+        "cota_ign_m": 535.225,
+        "cota_copernicus_m": 508.408,
+        "error_copernicus_m": -26.817,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.00113889,
+          -33.63966667
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(84)t",
+        "red": "topografica",
+        "cota_ign_m": 464.734,
+        "cota_copernicus_m": 468.614,
+        "error_copernicus_m": 3.88,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.26716667,
+          -33.84055556
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(73)a",
+        "red": "topografica",
+        "cota_ign_m": 437.933,
+        "cota_copernicus_m": 439.5,
+        "error_copernicus_m": 1.567,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.13938889,
+          -33.82441667
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(84)u",
+        "red": "topografica",
+        "cota_ign_m": 422.838,
+        "cota_copernicus_m": 416.046,
+        "error_copernicus_m": -6.792,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.29875,
+          -33.70283333
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5n(84)v",
+        "red": "topografica",
+        "cota_ign_m": 489.937,
+        "cota_copernicus_m": 490.037,
+        "error_copernicus_m": 0.1,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.03866667,
+          -33.83933333
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF7n(84)t",
+        "red": "topografica",
+        "cota_ign_m": 396.797,
+        "cota_copernicus_m": 395.357,
+        "error_copernicus_m": -1.44,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.25383333,
+          -33.72138889
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4n(84)v",
+        "red": "topografica",
+        "cota_ign_m": 483.497,
+        "cota_copernicus_m": 486.959,
+        "error_copernicus_m": 3.462,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.01505556,
+          -33.51394444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF7n(84)ñ",
+        "red": "topografica",
+        "cota_ign_m": 543.512,
+        "cota_copernicus_m": 559.643,
+        "error_copernicus_m": 16.131,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.00569444,
+          -33.68002778
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3n(84)t",
+        "red": "topografica",
+        "cota_ign_m": 435.226,
+        "cota_copernicus_m": 434.056,
+        "error_copernicus_m": -1.17,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.00227778,
+          -33.78819444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5n(84)t",
+        "red": "topografica",
+        "cota_ign_m": 390.98,
+        "cota_copernicus_m": 394.593,
+        "error_copernicus_m": 3.613,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.26205556,
+          -33.69341667
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3n(84)v",
+        "red": "topografica",
+        "cota_ign_m": 499.661,
+        "cota_copernicus_m": 501.578,
+        "error_copernicus_m": 1.917,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.014,
+          -33.53944444
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF8n(84)ñ",
+        "red": "topografica",
+        "cota_ign_m": 506.011,
+        "cota_copernicus_m": 522.824,
+        "error_copernicus_m": 16.813,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.69502613,
+          -33.67136746
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF4n(72)f",
+        "red": "topografica",
+        "cota_ign_m": 576.975,
+        "cota_copernicus_m": 578.107,
+        "error_copernicus_m": 1.132,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.79040693,
+          -33.69431217
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF6n(72)f",
+        "red": "topografica",
+        "cota_ign_m": 585.362,
+        "cota_copernicus_m": 585.71,
+        "error_copernicus_m": 0.348,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.65524654,
+          -33.8345849
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(72)l",
+        "red": "topografica",
+        "cota_ign_m": 537.075,
+        "cota_copernicus_m": 538.297,
+        "error_copernicus_m": 1.222,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.5519,
+          -33.5702
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF10n(85)a",
+        "red": "topografica",
+        "cota_ign_m": 587.004,
+        "cota_copernicus_m": 615.878,
+        "error_copernicus_m": 28.874,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.38553176,
+          -33.52204903
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(84)m",
+        "red": "topografica",
+        "cota_ign_m": 591.236,
+        "cota_copernicus_m": 590.479,
+        "error_copernicus_m": -0.757,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.57951488,
+          -33.67616754
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(72)f",
+        "red": "topografica",
+        "cota_ign_m": 554.869,
+        "cota_copernicus_m": 557.746,
+        "error_copernicus_m": 2.877,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.33108333,
+          -33.84591667
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(73)a",
+        "red": "topografica",
+        "cota_ign_m": 456.949,
+        "cota_copernicus_m": 449.757,
+        "error_copernicus_m": -7.192,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.55722136,
+          -33.64886281
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(72)f",
+        "red": "topografica",
+        "cota_ign_m": 556.8,
+        "cota_copernicus_m": 555.744,
+        "error_copernicus_m": -1.056,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.75288388,
+          -33.66834666
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF5n(72)f",
+        "red": "topografica",
+        "cota_ign_m": 584.22,
+        "cota_copernicus_m": 584.46,
+        "error_copernicus_m": 0.24,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.70051775,
+          -33.63108031
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3n(72)g",
+        "red": "topografica",
+        "cota_ign_m": 589.499,
+        "cota_copernicus_m": 589.657,
+        "error_copernicus_m": 0.158,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.80122594,
+          -33.73385103
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF7n(72)f",
+        "red": "topografica",
+        "cota_ign_m": 586.223,
+        "cota_copernicus_m": 585.824,
+        "error_copernicus_m": -0.399,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.47784412,
+          -33.81245809
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(72)j",
+        "red": "topografica",
+        "cota_ign_m": 491.702,
+        "cota_copernicus_m": 492.464,
+        "error_copernicus_m": 0.762,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.70624161,
+          -33.73995336
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(72)g",
+        "red": "topografica",
+        "cota_ign_m": 564.491,
+        "cota_copernicus_m": 564.714,
+        "error_copernicus_m": 0.223,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.5281841,
+          -33.86564998
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3n(72)k",
+        "red": "topografica",
+        "cota_ign_m": 508.4,
+        "cota_copernicus_m": 492.764,
+        "error_copernicus_m": -15.636,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.62693798,
+          -33.68441331
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF3n(72)f",
+        "red": "topografica",
+        "cota_ign_m": 566.614,
+        "cota_copernicus_m": 567.784,
+        "error_copernicus_m": 1.17,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.69056906,
+          -33.89065258
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(72)l",
+        "red": "topografica",
+        "cota_ign_m": 542.789,
+        "cota_copernicus_m": 539.676,
+        "error_copernicus_m": -3.113,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.4233068,
+          -33.54336678
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(84)m",
+        "red": "topografica",
+        "cota_ign_m": 570.687,
+        "cota_copernicus_m": 574.222,
+        "error_copernicus_m": 3.535,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.52903022,
+          -33.94145015
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(72)k",
+        "red": "topografica",
+        "cota_ign_m": 490.145,
+        "cota_copernicus_m": 490.622,
+        "error_copernicus_m": 0.477,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.70460508,
+          -33.70572335
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF2n(72)g",
+        "red": "topografica",
+        "cota_ign_m": 574.139,
+        "cota_copernicus_m": 576.312,
+        "error_copernicus_m": 2.173,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.438764,
+          -33.97943871
+        ]
+      },
+      "properties": {
+        "nomenclatura": "PF1n(72)k",
+        "red": "topografica",
+        "cota_ign_m": 459.959,
+        "cota_copernicus_m": 457.24,
+        "error_copernicus_m": -2.719,
+        "excluida": true,
+        "motivo_exclusion": "Red topografica secundaria con discrepancias >10 m frente a dos fuentes independientes (Copernicus y MDE-Ar). No apta para calibracion."
+      }
+    }
+  ]
+}

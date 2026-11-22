@@ -260,3 +260,41 @@ UMBRAL_ENCHARCAMIENTO_MOTOR_M = Supuesto(
     editable=True,
 )
 
+# --- Relieve Base y Calibración Geodésica con Mojones IGN (Spec 014) ---
+SUPUESTO_DEM_RADIO_BUSQUEDA_IGN_R1_KM = Supuesto(
+    clave="dem_radio_busqueda_ign_r1_km",
+    valor=25.0,
+    unidad="km",
+    motivo="Radio de búsqueda inicial de mojones de nivelación geométrica IGN alrededor del centroide del lote para calibración local de sesgo vertical.",
+    fuente_referencia="Criterio geodésico zonal (Spec 014); editable por el usuario.",
+    editable=True,
+)
+
+SUPUESTO_DEM_RADIO_BUSQUEDA_IGN_R2_KM = Supuesto(
+    clave="dem_radio_busqueda_ign_r2_km",
+    valor=50.0,
+    unidad="km",
+    motivo="Radio de búsqueda extendido de mojones de nivelación IGN si en R1 se encuentran menos del mínimo de mojones requeridos.",
+    fuente_referencia="Criterio geodésico zonal (Spec 014); editable por el usuario.",
+    editable=True,
+)
+
+SUPUESTO_DEM_MIN_MOJONES_IGN = Supuesto(
+    clave="dem_min_mojones_ign",
+    valor=3,
+    unidad="mojones",
+    motivo="Cantidad mínima de mojones de nivelación IGN dentro del radio de búsqueda para habilitar la estimación de sesgo local y calibración.",
+    fuente_referencia="Criterio estadístico robusto de muestra mínima (Spec 014); editable por el usuario.",
+    editable=True,
+)
+
+SUPUESTO_DEM_DIFERENCIA_DATUM_VERTICAL_M = Supuesto(
+    clave="dem_diferencia_datum_vertical_m",
+    valor=None,
+    unidad="m",
+    motivo="Diferencia teórica entre el cero oficial de nivelación nacional (Mar del Plata) y el geoide EGM2008. Al no disponerse de un modelo geoidal oficial milimétrico unificado de transformación en la región, no se fija un valor numérico a priori y la discrepancia se absorbe empíricamente en la mediana de residuos de calibración con mojones locales.",
+    fuente_referencia="Supuesto metodológico (Spec 014 / docs/metodologia.md); no inventar cifra sin modelo de transformación oficial.",
+    editable=False,
+)
+
+
