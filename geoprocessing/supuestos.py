@@ -59,3 +59,43 @@ SUPUESTO_MATERIA_ORGANICA_PCT = Supuesto(
     fuente_referencia="Valor típico regional agronómico pampeano / INTA (Wischmeier & Smith 1978); editable por el usuario.",
 )
 
+SUPUESTO_I30_TOPE_MAX_MM_H = Supuesto(
+    clave="i30_tope_max_mm_h",
+    valor=75.0,
+    unidad="mm/h",
+    motivo="Tope superior para la intensidad máxima en 30 minutos (i30) estimada a partir de precipitación acumulada de tormenta.",
+    fuente_referencia="Supuesto empírico conservador para clima templado/subhúmedo pampeano; editable por el usuario.",
+)
+
+SUPUESTO_USLE_ESTRUCTURA_CODIGO = Supuesto(
+    clave="usle_estructura_codigo",
+    valor=2,
+    unidad="código [1 a 4]",
+    motivo="Código de estructura del suelo para el nomograma de Wischmeier & Smith (1978, pág. 13): 1=muy fino granular, 2=fino granular, 3=mediano o grueso, 4=en bloques o masivo.",
+    fuente_referencia="USDA Agriculture Handbook 537 (Wischmeier & Smith 1978, pág. 13); editable por el usuario.",
+)
+
+SUPUESTO_USLE_PERMEABILIDAD_CODIGO = Supuesto(
+    clave="usle_permeabilidad_codigo",
+    valor=3,
+    unidad="código [1 a 6]",
+    motivo="Código de permeabilidad del perfil para el nomograma de Wischmeier & Smith (1978, pág. 13): 1=rápida, 2=moderada a rápida, 3=moderada, 4=moderada a lenta, 5=lenta, 6=muy lenta.",
+    fuente_referencia="USDA Agriculture Handbook 537 (Wischmeier & Smith 1978, pág. 13); editable por el usuario.",
+)
+
+SUPUESTO_CARCAVAS_UMBRAL_SPI = Supuesto(
+    clave="carcavas_umbral_spi",
+    valor=2.5,
+    unidad="adimensional",
+    motivo="Umbral de corte del Índice de Poder de Corriente (Stream Power Index, SPI) para identificar celdas con alta convergencia de flujo y energía erosiva.",
+    fuente_referencia="Moore et al. (1991, Hydrological Processes 5:3–30); editable por el usuario.",
+)
+
+SUPUESTO_CARCAVAS_UMBRAL_PERDIDA_T_HA = Supuesto(
+    clave="carcavas_umbral_perdida_t_ha",
+    valor=1.5,
+    unidad="t/ha",
+    motivo="Pérdida de suelo local mínima en el evento necesaria para activar focos de desprendimiento y formación de cárcavas efímeras.",
+    fuente_referencia="Supuesto empírico agronómico conservador; editable por el usuario.",
+)
+

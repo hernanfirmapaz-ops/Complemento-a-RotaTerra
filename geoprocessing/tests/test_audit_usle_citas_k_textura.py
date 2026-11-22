@@ -17,12 +17,17 @@ from geoprocessing.agronomy.erosion_usle import (
     estimate_storm_erosivity_r,
 )
 from geoprocessing.supuestos import (
+    SUPUESTO_CARCAVAS_UMBRAL_PERDIDA_T_HA,
+    SUPUESTO_CARCAVAS_UMBRAL_SPI,
     SUPUESTO_I30_RATIO_PRECIPITACION,
+    SUPUESTO_I30_TOPE_MAX_MM_H,
+    SUPUESTO_USLE_ESTRUCTURA_CODIGO,
+    SUPUESTO_USLE_PERMEABILIDAD_CODIGO,
 )
 
 
 def test_k_factor_wischmeier_hand_calculated_values():
-    """Verifica el cálculo del factor K por nomograma de Wischmeier & Smith (1978, pág. 12)
+    """Verifica el cálculo del factor K por nomograma de Wischmeier & Smith (1978, pág. 13)
 
     con valores calculados a mano y conversión a unidades SI (Foster et al. 1981).
     100 K = 2.1 * 10^-4 * M^1.14 * (12 - a) + 3.25 * (b - 2) + 2.5 * (c - 3)
@@ -138,7 +143,7 @@ def test_storm_erosivity_r_hand_calculated_and_supuesto():
 
     # Sin i30 suministrado: debe usar el supuesto declarado i30 = min(75, SUPUESTO * P)
     r_estimado = estimate_storm_erosivity_r(50.0, max_intensity_mm_h=None)
-    i30_esperado = min(75.0, SUPUESTO_I30_RATIO_PRECIPITACION.valor * 50.0)
+    i30_esperado = min(float(SUPUESTO_I30_TOPE_MAX_MM_H.valor), SUPUESTO_I30_RATIO_PRECIPITACION.valor * 50.0)
     e_unit_esp = 0.29 * (1.0 - 0.72 * math.exp(-0.05 * i30_esperado))
     r_esperado = round((e_unit_esp * 50.0) * i30_esperado, 2)
     assert r_estimado == pytest.approx(r_esperado, abs=0.1)
@@ -181,3 +186,54 @@ def test_compute_usle_with_soilgrids_texture_grid():
     # La pérdida con suelo franco limoso debe ser mayor debido a mayor K
     assert res_franco_limosa["k_factor"] > res_franca["k_factor"]
     assert res_franco_limosa["mean_soil_loss_t_ha"] > res_franca["mean_soil_loss_t_ha"]
+    assert res_franca["calidad"] == "confiable"
+    assert "SoilGrids no separa arena muy fina" in res_franca["nota_k"]
+
+
+def test_k_factor_missing_or_zero_texture_returns_none():
+    """Verifica que sin textura o con suma cero devuelva None en vez de inventar 0.026."""
+    assert estimate_soil_erodibility_k(0, 0, 0) is None
+    assert estimate_soil_erodibility_k(None, None, None) is None
+    assert estimate_soil_erodibility_k(sand_pct=None, silt_pct=40.0, clay_pct=20.0) is None
+    assert estimate_soil_erodibility_k(sand_pct=-10.0, silt_pct=0.0, clay_pct=0.0) is None
+
+
+def test_usle_without_texture_discards_and_returns_nan():
+    """Verifica que sin textura USLE descarte el cálculo en vez de inventar 0.032."""
+    assert estimate_mean_soil_loss_usle(precipitation_mm=50.0, sand_pct=None) is None
+
+    mfd = np.full((5, 5), 500.0, dtype=np.float32)
+    slope = np.full((5, 5), 2.0, dtype=np.float32)
+    spi = np.full((5, 5), 1.0, dtype=np.float32)
+    mascara = np.ones((5, 5), dtype=bool)
+
+    grid, summary = compute_usle_erosion_and_gullies(
+        mfd_area_m2=mfd,
+        slope_pct=slope,
+        spi=spi,
+        mascara_lote=mascara,
+        pixel_size_m=30.0,
+        precipitation_mm=50.0,
+        runoff_q_mm=10.0,
+        sand_pct=None,
+        silt_pct=None,
+        clay_pct=None,
+    )
+
+    assert np.isnan(grid).all()
+    assert summary["calidad"] == "descartada"
+    assert summary["mean_soil_loss_t_ha"] is None
+    assert summary["total_field_soil_loss_tons"] is None
+    assert summary["k_factor"] is None
+    assert "Sin datos de textura de suelo" in summary["motivo_descarte"]
+
+
+def test_supuestos_usle_and_carcavas_declarados():
+    """Verifica que los supuestos de USLE y cárcavas estén formalmente declarados y editables."""
+    assert SUPUESTO_USLE_ESTRUCTURA_CODIGO.valor == 2
+    assert SUPUESTO_USLE_PERMEABILIDAD_CODIGO.valor == 3
+    assert SUPUESTO_I30_TOPE_MAX_MM_H.valor == 75.0
+    assert SUPUESTO_CARCAVAS_UMBRAL_SPI.valor == 2.5
+    assert SUPUESTO_CARCAVAS_UMBRAL_PERDIDA_T_HA.valor == 1.5
+
+

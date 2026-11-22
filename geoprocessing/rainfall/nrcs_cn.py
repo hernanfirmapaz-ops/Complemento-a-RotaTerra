@@ -21,7 +21,6 @@ import numpy as np
 
 from geoprocessing.agronomy.erosion_usle import (
     COVER_C_FACTOR,
-    SOIL_K_BY_GROUP,
     estimate_mean_soil_loss_usle,
 )
 
@@ -239,17 +238,17 @@ def _get_run_mean_soil_loss(run: dict) -> tuple[float | None, str | None]:
     """Obtiene o calcula la pérdida media de suelo USLE (t/ha) para una corrida."""
     ero = run.get("erosion_summary") or {}
     if "mean_soil_loss_t_ha" in ero:
-        return float(ero["mean_soil_loss_t_ha"]), None
+        val = ero["mean_soil_loss_t_ha"]
+        if val is not None:
+            return float(val), None
+        return None, ero.get("motivo_descarte") or "USLE descartada: sin datos de textura de suelo"
     if "mean_soil_loss_t_ha" in run:
-        return float(run["mean_soil_loss_t_ha"]), None
+        val = run["mean_soil_loss_t_ha"]
+        if val is not None:
+            return float(val), None
+        return None, "Sin datos de pérdida de suelo"
 
     fc = run.get("field_conditions") or {}
-    soil_group = fc.get("soil_group") or run.get("soil_group")
-    if not soil_group:
-        return None, "Sin grupo hidrológico de suelo (factor K)"
-    if soil_group not in SOIL_K_BY_GROUP:
-        return None, f"Grupo hidrológico '{soil_group}' no reconocido para factor K USLE"
-
     cover_code = fc.get("cover_code") or run.get("cover_code")
     if not cover_code:
         return None, "Sin cobertura declarada (factor C)"
@@ -267,16 +266,25 @@ def _get_run_mean_soil_loss(run: dict) -> tuple[float | None, str | None]:
     cn = run.get("cn_result") or {}
     p = float(cn.get("precipitation_mm", 0.0))
     q = float(cn.get("runoff_q_mm", 0.0))
+    sand_pct = fc.get("sand_pct") or run.get("sand_pct")
+    silt_pct = fc.get("silt_pct") or run.get("silt_pct")
+    clay_pct = fc.get("clay_pct") or run.get("clay_pct")
+    k_factor = fc.get("k_factor") or run.get("k_factor")
+    organic_matter_pct = fc.get("organic_matter_pct") or run.get("organic_matter_pct")
+
     loss = estimate_mean_soil_loss_usle(
         precipitation_mm=p,
         runoff_q_mm=q,
-        soil_group=soil_group,
         cover_code=cover_code,
         ls_mean=float(ls_mean),
-        sand_pct=fc.get("sand_pct") or run.get("sand_pct"),
-        silt_pct=fc.get("silt_pct") or run.get("silt_pct"),
-        clay_pct=fc.get("clay_pct") or run.get("clay_pct"),
+        sand_pct=sand_pct,
+        silt_pct=silt_pct,
+        clay_pct=clay_pct,
+        organic_matter_pct=organic_matter_pct,
+        k_factor=k_factor,
     )
+    if loss is None:
+        return None, "Sin datos de textura de suelo (% arena, limo, arcilla) para calcular factor K de Wischmeier"
     return round(loss, 3), None
 
 
@@ -318,8 +326,7 @@ def compare_runoff_scenarios(run_a: dict, run_b: dict) -> dict:
     if loss_a is not None and loss_b is not None:
         d_soil: float | None = round(loss_b - loss_a, 2)
         notes.append(
-            "Pérdida de suelo USLE: supuesto pendiente de verificación (auditoría punto 4): "
-            "usa K por grupo y razón de entrega 0,15 + 0,85·Q/P sin fuente verificada"
+            "Pérdida de suelo USLE: formulación estándar (Wischmeier & Smith 1978, Foster et al. 1981; auditoría punto 4)"
         )
     else:
         d_soil = None

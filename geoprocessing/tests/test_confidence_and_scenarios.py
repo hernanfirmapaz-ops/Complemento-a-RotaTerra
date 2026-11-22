@@ -104,7 +104,13 @@ def test_compare_scenarios_deltas_and_summary():
             "high_concentration_area_ha": 1.2,
         },
         "hydrodynamic_2d_summary": {"ponded_area_in_field_ha": 2.1},
-        "field_conditions": {"soil_group": "B", "cover_code": "soja_maiz_sd_buena"},
+        "field_conditions": {
+            "soil_group": "B",
+            "cover_code": "soja_maiz_sd_buena",
+            "sand_pct": 40.0,
+            "silt_pct": 40.0,
+            "clay_pct": 20.0,
+        },
         "ls_mean_in_field": 1.5,
     }
 
@@ -124,7 +130,13 @@ def test_compare_scenarios_deltas_and_summary():
             "high_concentration_area_ha": 3.8,
         },
         "hydrodynamic_2d_summary": {"ponded_area_in_field_ha": 4.9},
-        "field_conditions": {"soil_group": "B", "cover_code": "soja_maiz_convencional"},
+        "field_conditions": {
+            "soil_group": "B",
+            "cover_code": "soja_maiz_convencional",
+            "sand_pct": 40.0,
+            "silt_pct": 40.0,
+            "clay_pct": 20.0,
+        },
         "ls_mean_in_field": 1.5,
     }
 
@@ -185,6 +197,9 @@ def test_compare_scenarios_soil_loss_matches_usle():
         runoff_q_mm=cn_a.runoff_q_mm,
         soil_group="B",
         cover_code="soja_maiz_sd_buena",
+        sand_pct=40.0,
+        silt_pct=40.0,
+        clay_pct=20.0,
     )
     _, ero_b = compute_usle_erosion_and_gullies(
         mfd_area_m2=mfd_area,
@@ -196,6 +211,9 @@ def test_compare_scenarios_soil_loss_matches_usle():
         runoff_q_mm=cn_b.runoff_q_mm,
         soil_group="B",
         cover_code="soja_maiz_convencional",
+        sand_pct=40.0,
+        silt_pct=40.0,
+        clay_pct=20.0,
     )
 
     run_a = {
@@ -368,6 +386,12 @@ def test_api_scenarios_compare_and_presets(api_client: TestClient, tmp_path: Pat
             },
         )
     assert r_dem.status_code == 200, r_dem.text
+
+    # Perfil de suelo para USLE con textura (Wischmeier)
+    (store.field_dir(field_id) / "soil.json").write_text(
+        json.dumps({"sand_pct": 40.0, "silt_pct": 40.0, "clay_pct": 20.0, "quality": "confiable"}),
+        encoding="utf-8",
+    )
 
     # 3. Simular presets estándar (Conservador, Medio, Crítico)
     r_presets = api_client.post(f"/api/v1/fields/{field_id}/scenarios/simulate-presets")

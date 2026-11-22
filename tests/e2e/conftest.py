@@ -371,4 +371,17 @@ def field_with_sloped_dem(api_client: TestClient, tmp_path: Path) -> tuple[str, 
             },
         )
     assert r_ter.status_code == 200, r_ter.text
+
+    # Perfil de suelo de referencia para USLE
+    (store.field_dir(field_id) / "soil.json").write_text(
+        json.dumps({
+            "soil_group": "B",
+            "texture_class": "franco",
+            "sand_pct": 40.0,
+            "silt_pct": 40.0,
+            "clay_pct": 20.0,
+            "quality": "confiable",
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     return field_id, field

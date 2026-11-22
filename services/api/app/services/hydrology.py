@@ -874,6 +874,9 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         spi=spi_grid,
         mascara_lote=mascara,
         pixel_size_m=dem.pixel,
+        sand_pct=sand_p,
+        silt_pct=silt_p,
+        clay_pct=clay_p,
     )
 
     # 2, 3 y 8. Clima diario NASA POWER -> Balance hídrico mensual, Riesgo de anegamiento real y Heladas

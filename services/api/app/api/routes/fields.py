@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -62,15 +63,43 @@ def cargar_lote_de_prueba(preset: str = "llanura"):
     if preset == "serrano":
         ruta = SAMPLE_DIR / "san_luis_piedemonte_492.geojson"
         default_title = "Lote Piedemonte El Trapiche #492 (San Luis)"
+        s_data = {
+            "soil_group": "C",
+            "texture_class": "franco arenoso",
+            "sand_pct": 52.0,
+            "silt_pct": 30.0,
+            "clay_pct": 18.0,
+            "soil_source": "sample_reference",
+            "source_label": "Perfil de referencia lote El Trapiche #492",
+            "quality": "confiable",
+        }
     else:
         ruta = SAMPLE_DIR / "san_luis_parcela_205.geojson"
         default_title = "Parcela Rural 205 (San Luis)"
+        s_data = {
+            "soil_group": "B",
+            "texture_class": "franco",
+            "sand_pct": 58.0,
+            "silt_pct": 26.0,
+            "clay_pct": 16.0,
+            "soil_source": "sample_reference",
+            "source_label": "Perfil de referencia Parcela Rural 205",
+            "quality": "confiable",
+        }
     if not ruta.exists():
         raise HTTPException(status_code=404, detail="No se encontró el archivo de lote de prueba en tests/fixtures/lotes.")
     for existente in store.list_fields():
         if existente.get("source_file") == ruta.name:
+            fid = existente["id"]
+            ruta_s = store.field_dir(fid) / "soil.json"
+            if not ruta_s.exists():
+                ruta_s.write_text(json.dumps(s_data, ensure_ascii=False, indent=2), encoding="utf-8")
             return {"fields": [existente]}
     creados = _guardar_lotes(ruta.read_bytes(), default_title, ruta.name)
+    for campo in creados:
+        fid = campo["id"]
+        ruta_s = store.field_dir(fid) / "soil.json"
+        ruta_s.write_text(json.dumps(s_data, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"fields": creados}
 
 
