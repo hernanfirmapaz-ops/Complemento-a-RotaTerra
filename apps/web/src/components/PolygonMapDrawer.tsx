@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Icon } from './ui/Icon'
 
@@ -280,7 +280,7 @@ export function PolygonMapDrawer({
       })
     })
 
-    map.on('click', (e) => {
+    map.on('click', (e: maplibregl.MapMouseEvent) => {
       const clicked: [number, number] = [
         Number(e.lngLat.lng.toFixed(6)),
         Number(e.lngLat.lat.toFixed(6)),
@@ -473,24 +473,6 @@ export function PolygonMapDrawer({
     }
   }
 
-  /** Crea un polígono base de ~160 ha centrado en la vista actual del mapa con 1 clic. */
-  const handleStampPolygonAtCenter = () => {
-    const map = mapRef.current
-    if (!map) return
-    const c = map.getCenter()
-    const dLon = 0.0072
-    const dLat = 0.0058
-    const stamped: [number, number][] = [
-      [Number((c.lng - dLon).toFixed(6)), Number((c.lat + dLat).toFixed(6))],
-      [Number((c.lng + dLon).toFixed(6)), Number((c.lat + dLat * 0.85).toFixed(6))],
-      [Number((c.lng + dLon * 0.92).toFixed(6)), Number((c.lat - dLat).toFixed(6))],
-      [Number((c.lng - dLon * 0.88).toFixed(6)), Number((c.lat - dLat * 0.9).toFixed(6))],
-    ]
-    setVertices(stamped)
-    setRectFirstCorner(null)
-    fitToVertices(stamped)
-    setSearchStatus('Lote centrado en la vista actual. Arrastrá los números para adaptarlo a tu alambre.')
-  }
 
   /** Elimina un vértice específico del polígono. */
   const handleDeleteVertex = (idxToDelete: number) => {
@@ -719,14 +701,6 @@ export function PolygonMapDrawer({
                 }}
               >
                 Rectángulo
-              </button>
-              <button
-                type="button"
-                className="drawer-tool-pill"
-                onClick={handleStampPolygonAtCenter}
-                title="Crea un lote de 4 esquinas en el centro del mapa para que lo ajustes arrastrando los vértices"
-              >
-                Marcar lote aquí y ajustar
               </button>
               {vertices.length >= 2 && (
                 <button

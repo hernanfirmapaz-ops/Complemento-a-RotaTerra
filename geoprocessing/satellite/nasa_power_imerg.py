@@ -24,7 +24,8 @@ from geoprocessing.supuestos import (
     SUPUESTO_AMC_REPOSO_HUMEDO_MM,
     SUPUESTO_AMC_REPOSO_SECO_MM,
     SUPUESTO_FAO56_KC_BARBECHO,
-    SUPUESTO_FAO56_LATITUD_DEFECTO,
+    SUPUESTO_MESES_ESTACION_REPOSO_NORTE,
+    SUPUESTO_MESES_ESTACION_REPOSO_SUR,
     SUPUESTO_NDVI_UMBRAL_ALTO_VIGOR,
     SUPUESTO_NDVI_UMBRAL_BAJO_VIGOR,
 )
@@ -298,18 +299,19 @@ def get_crop_kc_monthly(cover_code: str, month: int, latitude_deg: float = -33.3
 
 
 # ==============================================================================
-# 3. Condición de Humedad Antecedente (AMC) USDA-NRCS NEH Parte 630
+# 3. Condición de Humedad Antecedente (AMC) USDA-SCS NEH-4 Tabla 4.2
 # ==============================================================================
 
 def determine_nrcs_amc(
     prior_5d_mm: float,
     month: int | None = None,
     season: Literal["growing", "dormant"] | None = None,
-    latitude_deg: float = -33.3,
+    latitude_deg: float | None = None,
 ) -> AntecedentMoisture:
     """Determina la condición de humedad antecedente AMC (dry / medium / wet) según
 
-    USDA-NRCS National Engineering Handbook Part 630, Capítulo 10, Tabla 10-1 (pág. 10-2).
+    USDA-SCS (1972) National Engineering Handbook, Section 4: Hydrology (NEH-4),
+    Tabla 4.2 ("Seasonal rainfall limits for AMC classes", pág. 4.12).
 
     Diferencia estación de reposo (dormant) y de crecimiento (growing):
     - Estación de reposo (dormant):
@@ -323,12 +325,21 @@ def determine_nrcs_amc(
     """
     p = max(0.0, float(prior_5d_mm))
     st = season
-    if st is None and month is not None:
-        is_south = float(latitude_deg) < 0
-        if is_south:
-            st = "dormant" if month in (5, 6, 7, 8, 9) else "growing"
+    if st is None:
+        if month is not None:
+            if latitude_deg is None:
+                raise ValueError(
+                    "latitude_deg es obligatoria para clasificar la estación (dormant/growing) según el hemisferio."
+                )
+            is_south = float(latitude_deg) < 0
+            meses_reposo = (
+                set(SUPUESTO_MESES_ESTACION_REPOSO_SUR.valor)
+                if is_south
+                else set(SUPUESTO_MESES_ESTACION_REPOSO_NORTE.valor)
+            )
+            st = "dormant" if month in meses_reposo else "growing"
         else:
-            st = "dormant" if month in (11, 12, 1, 2, 3) else "growing"
+            st = "growing"
 
     if st == "dormant":
         dry_thresh = float(SUPUESTO_AMC_REPOSO_SECO_MM.valor)
@@ -352,9 +363,11 @@ def compute_monthly_water_balance(
     latitude_deg: float | None = None,
 ) -> dict:
     """Herramienta 2: Balance hídrico mensual del lote con ET0 y Kc de FAO-56 (Ecuaciones 21-28, 52 y Tabla 12)."""
+    if latitude_deg is None:
+        raise ValueError("latitude_deg es obligatoria para calcular la radiación extraterrestre FAO-56.")
+    lat = float(latitude_deg)
     awc_max = AVAILABLE_WATER_CAPACITY_MM.get(soil_group, 150.0)
     cn_ii, _ = lookup_cn_ii(cover_code, soil_group)
-    lat = float(latitude_deg if latitude_deg is not None else SUPUESTO_FAO56_LATITUD_DEFECTO.valor)
 
     if not daily_rows:
         return {
@@ -546,6 +559,7 @@ def evaluate_real_date_waterlogging_risk(
     field_area_ha: float,
     low_zone_area_ha: float,
     depression_volume_m3: float,
+    latitude_deg: float | None = None,
 ) -> dict:
     """Herramienta 3: Evalúa los eventos reales de tormenta más intensos y su volumen escurrido hacia bajos."""
     if not daily_rows:
@@ -572,17 +586,24 @@ def evaluate_real_date_waterlogging_risk(
         if any(p is None for p in prior_slice):
             continue
         p_5d_prior = sum(float(p) for p in prior_slice)
-        # Condición de humedad antecedente según USDA-NRCS NEH Parte 630 Tabla 10-1 (reposo vs. crecimiento):
+        # Condición de humedad antecedente según USDA-SCS NEH-4 Tabla 4.2 (reposo vs. crecimiento):
         mo = daily_rows[i].get("month")
         if mo is None and "date" in daily_rows[i]:
             try:
                 mo = int(str(daily_rows[i]["date"]).split("-")[1])
             except (ValueError, IndexError):
                 mo = None
-        amc = determine_nrcs_amc(
-            prior_5d_mm=p_5d_prior,
-            month=mo,
-        )
+        if latitude_deg is not None and mo is not None:
+            amc = determine_nrcs_amc(
+                prior_5d_mm=p_5d_prior,
+                month=mo,
+                latitude_deg=latitude_deg,
+            )
+        else:
+            amc = determine_nrcs_amc(
+                prior_5d_mm=p_5d_prior,
+                season="growing",
+            )
 
         cn_res = compute_nrcs_cn(p_day, cn_ii, amc, 0.2)
         runoff_m3 = (cn_res.runoff_q_mm / 1000.0) * (float(field_area_ha) * 10_000.0)

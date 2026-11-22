@@ -160,7 +160,7 @@ def test_monthly_water_balance_discards_incomplete_rows_without_invented_default
             # tmean_c, tmax_c, tmin_c faltantes
         }
     ]
-    wb = compute_monthly_water_balance(incomplete_days, "NASA POWER (test)", "B")
+    wb = compute_monthly_water_balance(incomplete_days, "NASA POWER (test)", "B", latitude_deg=-33.3)
 
     # El balance global y el mes deben descartarse por incompletos
     assert wb["status"] == "unavailable"
@@ -175,4 +175,29 @@ def test_monthly_water_balance_discards_incomplete_rows_without_invented_default
     assert month_0["crop_demand_etc_mm"] is None
     assert month_0["available_water_mm"] is None
     assert "temperatura faltante" in month_0["motivo"]
+
+
+def test_latitude_deg_mandatory_without_hidden_defaults():
+    """Auditoría 21/11 (Revisión Claude 3): latitude_deg es obligatoria, sin valores por defecto escondidos."""
+    with pytest.raises(ValueError) as exc:
+        compute_monthly_water_balance([], "NASA POWER", "B")
+    assert "latitude_deg" in str(exc.value)
+
+    with pytest.raises(ValueError) as exc_amc:
+        determine_nrcs_amc(prior_5d_mm=20.0, month=7)
+    assert "latitude_deg" in str(exc_amc.value)
+
+
+def test_supuestos_estacion_reposo_declarados():
+    """Auditoría 21/11 (Revisión Claude 3): meses de estación de reposo formalmente declarados en supuestos.py."""
+    from geoprocessing.supuestos import (
+        SUPUESTO_AMC_CRECIMIENTO_HUMEDO_MM,
+        SUPUESTO_AMC_REPOSO_SECO_MM,
+        SUPUESTO_MESES_ESTACION_REPOSO_NORTE,
+        SUPUESTO_MESES_ESTACION_REPOSO_SUR,
+    )
+    assert SUPUESTO_MESES_ESTACION_REPOSO_SUR.valor == (5, 6, 7, 8, 9)
+    assert SUPUESTO_MESES_ESTACION_REPOSO_NORTE.valor == (11, 12, 1, 2, 3)
+    assert "NEH-4" in SUPUESTO_AMC_REPOSO_SECO_MM.fuente_referencia
+    assert "Tabla 4.2" in SUPUESTO_AMC_CRECIMIENTO_HUMEDO_MM.fuente_referencia
 

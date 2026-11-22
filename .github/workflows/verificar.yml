@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
       - name: Caché del programa WhiteboxTools
         uses: actions/cache@v4
         with:
@@ -25,7 +25,7 @@ jobs:
             ${{ env.pythonLocation }}/lib/python3.12/site-packages/whitebox/whitebox_tools
             ${{ env.pythonLocation }}/lib/python3.12/site-packages/whitebox/img
             ${{ env.pythonLocation }}/lib/python3.12/site-packages/whitebox/plugins
-          key: whitebox-bin-v2-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          key: whitebox-bin-v2-${{ runner.os }}-${{ hashFiles('requirements.txt', 'requirements-dev.txt') }}
       - name: Instalar WhiteboxTools (descarga solo si no está en caché)
         run: python -c "import whitebox; whitebox.WhiteboxTools()"
       - name: Verificar que el ejecutable de WhiteboxTools existe
@@ -65,7 +65,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
       - run: playwright install --with-deps chromium
       - run: npm --prefix apps/web ci
       - run: npm --prefix apps/web run build

@@ -36,16 +36,11 @@ def mock_nasa_power_network(monkeypatch: pytest.MonkeyPatch):
     with open(NASA_FIXTURE_PATH, encoding="utf-8") as f:
         fixture_payload = json.load(f)
 
-    real_transport = httpx.HTTPTransport(verify=geonet.ssl_context())
-
     def handler(request: httpx.Request) -> httpx.Response:
         url_str = str(request.url)
         if "power.larc.nasa.gov" in url_str:
             return httpx.Response(200, json=fixture_payload)
-        try:
-            return real_transport.handle_request(request)
-        except Exception:
-            return httpx.Response(503)
+        return httpx.Response(503)
 
     mock_client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
     monkeypatch.setattr(geonet, "_cliente", mock_client)

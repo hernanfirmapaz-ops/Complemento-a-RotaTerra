@@ -32,8 +32,6 @@ export function AgronomicToolkitPanel({
     | 'balance'
     | 'anegamiento'
     | 'terrazas'
-    | 'siembra'
-    | 'rotaciones'
     | 'ndvi'
     | 'heladas'
   >('erosion')
@@ -51,12 +49,12 @@ export function AgronomicToolkitPanel({
   return (
     <section className="card">
       <h3>
-        Suite Complementaria RotaTerra (8 Herramientas Agro-Hidrológicas)
+        Herramientas Agro-Hidrológicas Complementarias
       </h3>
 
       <div className="two-cols">
         <label className="field-label">
-          Cultivo a sembrar (INTA)
+          Cultivo a sembrar
           <select
             value={cropCode}
             onChange={(e) => setCropCode(e.target.value)}
@@ -134,8 +132,8 @@ export function AgronomicToolkitPanel({
         disabled={!hasTerrain || busy}
       >
         {toolkit
-          ? 'Actualizar 8 herramientas (USLE, NASA POWER, INTA, NDVI)'
-          : 'Ejecutar 8 herramientas complementarias RotaTerra'}
+          ? 'Actualizar herramientas (USLE, NASA POWER, NDVI)'
+          : 'Ejecutar herramientas complementarias'}
       </button>
 
       {toolkit && (
@@ -147,10 +145,8 @@ export function AgronomicToolkitPanel({
                 ['balance', '2. Balance Hídrico'],
                 ['anegamiento', '3. Aneg. Fecha Real'],
                 ['terrazas', '4. Terrazas Nivel'],
-                ['siembra', '5. Siembra INTA'],
-                ['rotaciones', '6. Rotaciones 3a'],
-                ['ndvi', '7. Vigor NDVI'],
-                ['heladas', '8. Heladas'],
+                ['ndvi', '5. Vigor NDVI'],
+                ['heladas', '6. Heladas'],
               ] as const
             ).map(([k, label]) => (
               <button
@@ -366,115 +362,6 @@ export function AgronomicToolkitPanel({
                   {toolkit.contour_terraces.soil_loss_after_t_ha.toFixed(2)}{' '}
                   t/ha (-
                   {toolkit.contour_terraces.erosion_reduction_pct.toFixed(1)} %)
-                </dd>
-              </div>
-            </dl>
-          )}
-
-          {activeTab === 'siembra' && (
-            <dl className="kv-grid">
-              <div>
-                <dt>Cultivo / Ventana INTA</dt>
-                <dd>{toolkit.seeding_calculator_inta.crop_label}</dd>
-              </div>
-              <div>
-                <dt>Fecha recomendada</dt>
-                <dd>{toolkit.seeding_calculator_inta.sowing_window_inta}</dd>
-              </div>
-              <div>
-                <dt>Densidad objetivo</dt>
-                <dd>
-                  {toolkit.seeding_calculator_inta.target_plants_ha.toLocaleString()}{' '}
-                  pl/ha (
-                  {toolkit.seeding_calculator_inta.seeds_per_linear_m.toFixed(1)}{' '}
-                  sem/m)
-                </dd>
-              </div>
-              <div>
-                <dt>Semilla requerida</dt>
-                <dd>
-                  {toolkit.seeding_calculator_inta.seed_density_kg_ha.toFixed(1)}{' '}
-                  kg/ha (
-                  {toolkit.seeding_calculator_inta.commercial_bags_needed.toFixed(
-                    1,
-                  )}{' '}
-                  bolsas lote)
-                </dd>
-              </div>
-              <div>
-                <dt>Nutrientes (N - P2O5 - S)</dt>
-                <dd>
-                  {toolkit.seeding_calculator_inta.nutrients_required_kg_ha.N} -{' '}
-                  {
-                    toolkit.seeding_calculator_inta.nutrients_required_kg_ha
-                      .P2O5_equiv
-                  }{' '}
-                  - {toolkit.seeding_calculator_inta.nutrients_required_kg_ha.S}{' '}
-                  kg/ha
-                </dd>
-              </div>
-              <div>
-                <dt>Guía MAP / Urea / Yeso</dt>
-                <dd>
-                  MAP{' '}
-                  {toolkit.seeding_calculator_inta.commercial_fertilizer_guide_kg_ha.MAP_11_52_0_kg_ha.toFixed(
-                    0,
-                  )}{' '}
-                  · Urea{' '}
-                  {toolkit.seeding_calculator_inta.commercial_fertilizer_guide_kg_ha.Urea_46_0_0_kg_ha.toFixed(
-                    0,
-                  )}{' '}
-                  kg/ha
-                </dd>
-              </div>
-            </dl>
-          )}
-
-          {activeTab === 'rotaciones' && (
-            <dl className="kv-grid">
-              <div>
-                <dt>Escorrentía 3a (A vs B)</dt>
-                <dd>
-                  {toolkit.rotation_comparator_3yr.sequence_a.cumulative_runoff_3yr_mm.toFixed(
-                    0,
-                  )}{' '}
-                  vs.{' '}
-                  {toolkit.rotation_comparator_3yr.sequence_b.cumulative_runoff_3yr_mm.toFixed(
-                    0,
-                  )}{' '}
-                  mm
-                </dd>
-              </div>
-              <div>
-                <dt>Erosión 3a (A vs B)</dt>
-                <dd>
-                  {toolkit.rotation_comparator_3yr.sequence_a.cumulative_soil_loss_3yr_t_ha.toFixed(
-                    2,
-                  )}{' '}
-                  vs.{' '}
-                  {toolkit.rotation_comparator_3yr.sequence_b.cumulative_soil_loss_3yr_t_ha.toFixed(
-                    2,
-                  )}{' '}
-                  t/ha
-                </dd>
-              </div>
-              <div>
-                <dt>Suelo ahorrado en 3 años</dt>
-                <dd>
-                  {toolkit.rotation_comparator_3yr.delta_b_vs_a.soil_saved_by_b_tons.toFixed(
-                    1,
-                  )}{' '}
-                  toneladas en el lote
-                </dd>
-              </div>
-              <div>
-                <dt>Ganancia cobertura media</dt>
-                <dd>
-                  +
-                  {toolkit.rotation_comparator_3yr.delta_b_vs_a.cover_gain_pct.toFixed(
-                    0,
-                  )}{' '}
-                  % cobertura
                 </dd>
               </div>
             </dl>

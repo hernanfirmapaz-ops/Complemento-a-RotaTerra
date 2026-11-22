@@ -41,16 +41,7 @@ SUPUESTO_NDVI_UMBRAL_ALTO_VIGOR = Supuesto(
     fuente_referencia="Supuesto empírico regional agronómico",
 )
 
-
 # --- Balance Hídrico y Evapotranspiración FAO-56 ---
-SUPUESTO_FAO56_LATITUD_DEFECTO = Supuesto(
-    clave="fao56_latitud_defecto",
-    valor=-33.3,
-    unidad="grados decimales",
-    motivo="Latitud geográfica por omisión representativa de San Luis / región pampeana semiárida cuando no se dispone de geometría del lote.",
-    fuente_referencia="Ubicación geográfica de referencia del proyecto (San Luis, Argentina); editable por el usuario.",
-)
-
 SUPUESTO_FAO56_KC_BARBECHO = Supuesto(
     clave="fao56_kc_barbecho",
     valor=0.25,
@@ -59,14 +50,30 @@ SUPUESTO_FAO56_KC_BARBECHO = Supuesto(
     fuente_referencia="FAO-56 (Allen et al. 1998, Tabla 12, pág. 114); editable por el usuario.",
 )
 
+SUPUESTO_MESES_ESTACION_REPOSO_SUR = Supuesto(
+    clave="meses_estacion_reposo_sur",
+    valor=(5, 6, 7, 8, 9),
+    unidad="meses calendario [1..12]",
+    motivo="Meses de la estación de reposo / latencia (mayo a septiembre) en el hemisferio sur templado para clasificar la condición de humedad antecedente (AMC).",
+    fuente_referencia="Criterio agronómico estacional templado hemisferio sur adaptado a USDA-SCS (1972, NEH-4 Tabla 4.2, pág. 4.12); editable por el usuario.",
+)
 
-# --- Condición de Humedad Antecedente (AMC) USDA-NRCS NEH Parte 630 ---
+SUPUESTO_MESES_ESTACION_REPOSO_NORTE = Supuesto(
+    clave="meses_estacion_reposo_norte",
+    valor=(11, 12, 1, 2, 3),
+    unidad="meses calendario [1..12]",
+    motivo="Meses de la estación de reposo / latencia (noviembre a marzo) en el hemisferio norte templado para clasificar la condición de humedad antecedente (AMC).",
+    fuente_referencia="USDA-SCS (1972, NEH-4 Tabla 4.2, pág. 4.12); editable por el usuario.",
+)
+
+
+# --- Condición de Humedad Antecedente (AMC) USDA-SCS NEH-4 Tabla 4.2 ---
 SUPUESTO_AMC_REPOSO_SECO_MM = Supuesto(
     clave="amc_reposo_seco_mm",
     valor=12.7,
     unidad="mm",
     motivo="Umbral superior de lluvia acumulada en 5 días para condición seca (AMC I) en estación de reposo (dormant, < 0.5 pulg).",
-    fuente_referencia="USDA-NRCS National Engineering Handbook Part 630, Capítulo 10, Tabla 10-1 (pág. 10-2); editable por el usuario.",
+    fuente_referencia="USDA-SCS (1972) National Engineering Handbook, Section 4: Hydrology (NEH-4), Tabla 4.2 (pág. 4.12); editable por el usuario.",
 )
 
 SUPUESTO_AMC_REPOSO_HUMEDO_MM = Supuesto(
@@ -74,7 +81,7 @@ SUPUESTO_AMC_REPOSO_HUMEDO_MM = Supuesto(
     valor=27.9,
     unidad="mm",
     motivo="Umbral inferior de lluvia acumulada en 5 días para condición húmeda (AMC III) en estación de reposo (dormant, > 1.1 pulg).",
-    fuente_referencia="USDA-NRCS National Engineering Handbook Part 630, Capítulo 10, Tabla 10-1 (pág. 10-2); editable por el usuario.",
+    fuente_referencia="USDA-SCS (1972) National Engineering Handbook, Section 4: Hydrology (NEH-4), Tabla 4.2 (pág. 4.12); editable por el usuario.",
 )
 
 SUPUESTO_AMC_CRECIMIENTO_SECO_MM = Supuesto(
@@ -82,7 +89,7 @@ SUPUESTO_AMC_CRECIMIENTO_SECO_MM = Supuesto(
     valor=35.6,
     unidad="mm",
     motivo="Umbral superior de lluvia acumulada en 5 días para condición seca (AMC I) en estación de crecimiento (growing, < 1.4 pulg).",
-    fuente_referencia="USDA-NRCS National Engineering Handbook Part 630, Capítulo 10, Tabla 10-1 (pág. 10-2); editable por el usuario.",
+    fuente_referencia="USDA-SCS (1972) National Engineering Handbook, Section 4: Hydrology (NEH-4), Tabla 4.2 (pág. 4.12); editable por el usuario.",
 )
 
 SUPUESTO_AMC_CRECIMIENTO_HUMEDO_MM = Supuesto(
@@ -90,5 +97,22 @@ SUPUESTO_AMC_CRECIMIENTO_HUMEDO_MM = Supuesto(
     valor=53.3,
     unidad="mm",
     motivo="Umbral inferior de lluvia acumulada en 5 días para condición húmeda (AMC III) en estación de crecimiento (growing, > 2.1 pulg).",
-    fuente_referencia="USDA-NRCS National Engineering Handbook Part 630, Capítulo 10, Tabla 10-1 (pág. 10-2); editable por el usuario.",
+    fuente_referencia="USDA-SCS (1972) National Engineering Handbook, Section 4: Hydrology (NEH-4), Tabla 4.2 (pág. 4.12); editable por el usuario.",
+)
+
+# --- Límites de Seguridad y Procesamiento ---
+SUPUESTO_SUPERFICIE_MAXIMA_LOTE_HA = Supuesto(
+    clave="superficie_maxima_lote_ha",
+    valor=2000.0,
+    unidad="ha",
+    motivo="Límite máximo de superficie por lote (2.000 ha) para prevenir desbordes de memoria y tiempo de procesamiento. Configurable mediante ROTATERRA_MAX_FIELD_AREA_HA.",
+    fuente_referencia="Criterio de robustez de API (auditoría 21/11/2026, punto 9)",
+)
+
+SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB = Supuesto(
+    clave="limite_descomprimido_zip_mb",
+    valor=50.0,
+    unidad="MB",
+    motivo="Límite máximo de tamaño descomprimido (50 MB) para archivos ZIP/KMZ para prevenir ataques de descompresión (zip bombs). Configurable mediante ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB.",
+    fuente_referencia="Criterio de seguridad de API (auditoría 21/11/2026, punto 9)",
 )
