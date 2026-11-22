@@ -247,6 +247,11 @@ export function App() {
     setQuickCover(cov)
     setQuickSoilGroup(soil)
 
+    if (mm < 1.0) {
+      setError(`Lluvia insuficiente para generar escurrimiento (${mm} mm)`)
+      return
+    }
+
     setError(null)
     setBusy(`Simulando tormenta de ${mm} mm sobre el terreno 3D...`)
     try {
@@ -340,6 +345,11 @@ export function App() {
       setQuickRainMm(Math.round(res.event.total_mm))
       setQuickAmc(res.context.selected_day?.antecedent_moisture_amc ?? 'medium')
 
+      if (res.event.total_mm < 1.0) {
+        setError(`Lluvia insuficiente para generar escurrimiento (${res.event.total_mm} mm)`)
+        return
+      }
+
       await runHydrodynamic2DSolver(activeField.id, res.runoff_run.id, {
         ponding_threshold_m: 0.05,
         recession_minutes: 30,
@@ -347,7 +357,7 @@ export function App() {
       const tk = await runAgronomicToolkit(activeField.id, {
         soil_group: quickSoilGroup,
         cover_code: quickCover,
-        storm_precipitation_mm: Math.max(1.0, res.event.total_mm),
+        storm_precipitation_mm: res.event.total_mm,
         crop_code: 'maiz_temprano',
         environment_zone: 'media_loma',
       })
