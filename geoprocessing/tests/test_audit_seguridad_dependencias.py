@@ -234,3 +234,19 @@ def test_relieve_subido_excede_limite_rechaza_413(tmp_path, monkeypatch):
     )
     assert r_err.status_code == 413
     assert "supera el tamaño máximo" in r_err.json()["detail"]
+
+
+def test_dependabot_configuracion_ecosistemas_limites_y_frecuencia():
+    """Verifica que .github/dependabot.yml configure pip, npm y github-actions semanal y agrupado (Issue #57)."""
+    repo_root = Path(__file__).resolve().parents[2]
+    dep_file = repo_root / ".github" / "dependabot.yml"
+    assert dep_file.exists(), "Falta el archivo .github/dependabot.yml"
+    content = dep_file.read_text(encoding="utf-8")
+    assert "version: 2" in content
+    assert 'package-ecosystem: "pip"' in content or "package-ecosystem: pip" in content
+    assert 'package-ecosystem: "npm"' in content or "package-ecosystem: npm" in content
+    assert 'package-ecosystem: "github-actions"' in content or "package-ecosystem: github-actions" in content
+    assert 'interval: "weekly"' in content or "interval: weekly" in content
+    assert "open-pull-requests-limit: 3" in content
+    assert "groups:" in content
+

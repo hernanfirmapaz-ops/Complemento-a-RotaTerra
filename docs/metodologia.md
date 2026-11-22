@@ -120,9 +120,34 @@ Cada pedido usa estos encabezados, sin excepción:
 
 ## 8. Herramientas a sumar (tarea A5, rama `chore/calidad`)
 
-- [ ] `.github/pull_request_template.md` con el checklist de la sección 4
+- [x] `.github/pull_request_template.md` con el checklist de la sección 4
 - [ ] Protección de rama en `main` (la activa Hernán en GitHub: Settings → Branches)
 - [ ] `pre-commit` con Ruff (evita commits con errores de formato)
-- [ ] ESLint + Vitest en el frontend, sumados a la revisión automática
-- [ ] `docs/registro-errores.md`
-- [ ] Archivo único de supuestos (`geoprocessing/supuestos.py`) con valor, unidad y motivo de cada uno
+- [x] ESLint + Vitest en el frontend, sumados a la revisión automática
+- [x] `docs/registro-errores.md`
+- [x] Archivo único de supuestos (`geoprocessing/supuestos.py`) con valor, unidad y motivo de cada uno
+
+---
+
+## 9. Seguridad automática: Dependabot y CodeQL
+
+Para alertar proactivamente sobre vulnerabilidades en librerías y dependencias (como ocurrió con MapLibre GL) y analizar estáticamente el código:
+
+1. **Configuración manual en GitHub (Hernán):**
+   - Settings → *Code security* → activar *Dependabot alerts* y *Dependabot security updates*.
+   - Settings → *Code security* → *Code scanning* → *CodeQL analysis* → *Default*.
+
+2. **Automatización en el repositorio (`.github/dependabot.yml`):**
+   - **Ecosistemas cubiertos:**
+     - `pip` (directorio `/` para backend y geoprocesamiento).
+     - `npm` (directorio `/apps/web` para frontend).
+     - `github-actions` (directorio `/` para flujos de CI).
+   - **Frecuencia:** Semanal (`weekly`).
+   - **Agrupamiento:** Actualizaciones menores y parches agrupados en un solo PR por ecosistema (`minor`, `patch`) para evitar dispersión de PRs.
+   - **Límite de PRs:** Máximo 3 PRs abiertos simultáneamente por Dependabot.
+
+3. **Flujo de revisión y merge de PRs de Dependabot:**
+   - Cada PR de Dependabot corre la revisión automática de CI (`verificar.yml`).
+   - Pasa por la misma revisión obligatoria (Claude) bajo el checklist de la sección 4.
+   - **Solo Hernán** mergea los PRs una vez aprobados y con CI en verde.
+
