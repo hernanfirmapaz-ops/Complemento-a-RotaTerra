@@ -682,7 +682,7 @@ export function TerrainDiorama3D({
       waterShaderMat = createWaterShaderMaterial({
         pondingThresholdM,
         rainIntensityFactor,
-        waterColor: 0x0284c7,
+        enableFlowMap: true,
       })
       waterMesh = new THREE.Mesh(waterGeom, waterShaderMat)
       dioramaGroup.add(waterMesh)
