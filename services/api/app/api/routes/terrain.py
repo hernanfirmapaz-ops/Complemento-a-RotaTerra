@@ -69,20 +69,37 @@ async def procesar_terreno(
         if source_id == UPLOAD_ID:
             if file is None:
                 raise HTTPException(status_code=422, detail="Seleccioná un archivo GeoTIFF para subir.")
-            contenido = await file.read(MAX_DEM_BYTES + 1)
-            if len(contenido) > MAX_DEM_BYTES:
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"El GeoTIFF supera el tamaño máximo ({MAX_DEM_BYTES // (1024 * 1024)} MB).",
-                )
-            if len(contenido) < 8 or contenido[:2] not in (b"II", b"MM"):
+            tmp_dir = Path(tempfile.mkdtemp(prefix="rotaterra_dem_"))
+            temp_path = tmp_dir / _safe_filename(file.filename)
+            total_bytes = 0
+            header = b""
+            chunk_size = 1024 * 1024  # 1 MB por fragmento (evita 300 MB en RAM)
+            try:
+                with open(temp_path, "wb") as out_f:
+                    while chunk := await file.read(chunk_size):
+                        total_bytes += len(chunk)
+                        if total_bytes > MAX_DEM_BYTES:
+                            out_f.close()
+                            temp_path.unlink(missing_ok=True)
+                            raise HTTPException(
+                                status_code=413,
+                                detail=f"El GeoTIFF supera el tamaño máximo ({MAX_DEM_BYTES // (1024 * 1024)} MB).",
+                            )
+                        if len(header) < 8:
+                            header += chunk[: 8 - len(header)]
+                        out_f.write(chunk)
+            except HTTPException:
+                raise
+            except Exception as err:
+                temp_path.unlink(missing_ok=True)
+                raise HTTPException(status_code=500, detail=f"Error al escribir el archivo de relieve: {err}") from err
+
+            if total_bytes < 8 or header[:2] not in (b"II", b"MM"):
+                temp_path.unlink(missing_ok=True)
                 raise HTTPException(
                     status_code=422,
                     detail="El archivo subido no tiene cabecera TIFF válida (debe ser un GeoTIFF).",
                 )
-            tmp_dir = Path(tempfile.mkdtemp(prefix="rotaterra_dem_"))
-            temp_path = tmp_dir / _safe_filename(file.filename)
-            temp_path.write_bytes(contenido)
 
         meta = {
             "source_name": source_name,

@@ -1,2 +1,6 @@
-# Dependencias de desarrollo, benchmarking y pruebas científicas (NO requeridas en producción)
+-r requirements.txt
+pytest==9.2.0
+ruff==0.17.6
+playwright==1.65.2
+# Dependencias de benchmarking y pruebas científicas de desarrollo
 landlab>=2.11.0

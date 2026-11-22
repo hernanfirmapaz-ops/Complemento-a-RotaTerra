@@ -12,12 +12,18 @@ Reglas:
 from __future__ import annotations
 
 import json
+import os
+import zipfile
 from dataclasses import asdict, dataclass, field
 
 from shapely.geometry import MultiPolygon, mapping, shape
 from shapely.validation import explain_validity
 
 from geoprocessing.crs import WGS84, utm_epsg
+from geoprocessing.supuestos import (
+    SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB,
+    SUPUESTO_SUPERFICIE_MAXIMA_LOTE_HA,
+)
 
 ARGENTINA_BBOX = (-73.6, -55.5, -53.5, -21.5)  # oeste, sur, este, norte (aprox. continental)
 TOLERANCIA_SUPERFICIE = 0.05  # 5 % de diferencia con la superficie declarada dispara aviso
@@ -28,6 +34,61 @@ CLAVES_SUPERFICIE_M2 = ("superficie_registrada_m2", "area_m2", "superficie_m2")
 
 class FieldValidationError(ValueError):
     """El archivo o la geometría del lote no son válidos. El mensaje es legible para el usuario."""
+
+
+def _get_max_field_area_ha() -> float:
+    env_val = os.environ.get("ROTATERRA_MAX_FIELD_AREA_HA")
+    if env_val:
+        try:
+            return float(env_val)
+        except ValueError:
+            pass
+    return float(SUPUESTO_SUPERFICIE_MAXIMA_LOTE_HA.valor)
+
+
+def _get_max_uncompressed_zip_bytes() -> int:
+    env_val = os.environ.get("ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB")
+    if env_val:
+        try:
+            return int(float(env_val)) * 1024 * 1024
+        except ValueError:
+            pass
+    return int(SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB.valor * 1024 * 1024)
+
+
+def _validate_zip_archive(zf: zipfile.ZipFile) -> None:
+    max_bytes = _get_max_uncompressed_zip_bytes()
+    max_mb = max_bytes // (1024 * 1024)
+    total_uncompressed = 0
+    for info in zf.infolist():
+        # Detección de path traversal / zip slip
+        norm = info.filename.replace("\\", "/")
+        if norm.startswith("/") or ".." in norm.split("/"):
+            raise FieldValidationError(
+                f"El archivo ZIP contiene una ruta con posible escape de directorio ({info.filename}) no permitida por seguridad."
+            )
+        total_uncompressed += info.file_size
+        if total_uncompressed > max_bytes:
+            raise FieldValidationError(
+                f"El contenido descomprimido del archivo supera el límite de seguridad permitido "
+                f"({max_mb} MB). Operación rechazada para prevenir desbordes de memoria o ataques zip bomb."
+            )
+
+
+def _safe_read_zip_entry(zf: zipfile.ZipFile, name: str) -> bytes:
+    max_bytes = _get_max_uncompressed_zip_bytes()
+    with zf.open(name, "r") as f:
+        chunks = []
+        read_bytes = 0
+        while chunk := f.read(64 * 1024):
+            read_bytes += len(chunk)
+            if read_bytes > max_bytes:
+                max_mb = max_bytes // (1024 * 1024)
+                raise FieldValidationError(
+                    f"El contenido descomprimido de '{name}' supera el límite de seguridad ({max_mb} MB)."
+                )
+            chunks.append(chunk)
+        return b"".join(chunks)
 
 
 @dataclass
@@ -162,6 +223,14 @@ def _validar(geom: dict, props: dict, nombre_por_defecto: str) -> ImportedField:
             f"de la declarada ({declarada:.1f} ha).")
 
     nombre = next((str(props[k]) for k in CLAVES_NOMBRE if props.get(k)), nombre_por_defecto)
+    max_area_ha = _get_max_field_area_ha()
+    if area_ha > max_area_ha:
+        raise FieldValidationError(
+            f"La superficie del lote '{nombre}' ({area_ha:.1f} ha) supera el límite máximo permitido "
+            f"({max_area_ha:.0f} ha / 2.000 ha). Divida el lote en sectores menores o configure "
+            f"la variable de entorno ROTATERRA_MAX_FIELD_AREA_HA si necesita procesar áreas mayores."
+        )
+
     return ImportedField(
         name=nombre,
         geometry=mapping(g) | {"coordinates": _listas(mapping(g)["coordinates"])},
@@ -260,10 +329,11 @@ def parse_kmz(kmz_bytes: bytes, nombre_por_defecto: str = "Lote KMZ") -> list[Im
 
     try:
         with zipfile.ZipFile(io.BytesIO(kmz_bytes)) as zf:
+            _validate_zip_archive(zf)
             kml_name = next((n for n in zf.namelist() if n.lower().endswith(".kml")), None)
             if kml_name is None:
                 raise FieldValidationError("El archivo KMZ no contiene ningún documento .kml interno.")
-            return parse_kml(zf.read(kml_name), nombre_por_defecto)
+            return parse_kml(_safe_read_zip_entry(zf, kml_name), nombre_por_defecto)
     except zipfile.BadZipFile as err:
         raise FieldValidationError("El archivo KMZ está dañado o no es un ZIP válido.") from err
 
@@ -282,20 +352,21 @@ def parse_shapefile_zip(zip_bytes: bytes, nombre_por_defecto: str = "Lote SHP") 
     prj_wkt = None
     record_names: list[str] = []
     with zf:
+        _validate_zip_archive(zf)
         shp_name = next((n for n in zf.namelist() if n.lower().endswith(".shp")), None)
         if shp_name is None:
             raise FieldValidationError("El ZIP no contiene ningún archivo .shp.")
-        shp = zf.read(shp_name)
+        shp = _safe_read_zip_entry(zf, shp_name)
         prj_name = next((n for n in zf.namelist() if n.lower().endswith(".prj")), None)
         if prj_name:
             try:
-                prj_wkt = zf.read(prj_name).decode("utf-8", errors="ignore").strip()
+                prj_wkt = _safe_read_zip_entry(zf, prj_name).decode("utf-8", errors="ignore").strip()
             except Exception:
                 prj_wkt = None
         dbf_name_file = next((n for n in zf.namelist() if n.lower().endswith(".dbf")), None)
         if dbf_name_file:
             try:
-                dbf_bytes = zf.read(dbf_name_file)
+                dbf_bytes = _safe_read_zip_entry(zf, dbf_name_file)
                 if len(dbf_bytes) >= 32:
                     num_records, header_len, record_len = struct.unpack("<IHH", dbf_bytes[4:12])
                     for r_i in range(num_records):
@@ -387,6 +458,7 @@ def parse_field_file(
 
         try:
             with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+                _validate_zip_archive(zf)
                 names = [n.lower() for n in zf.namelist()]
                 if any(n.endswith(".kml") for n in names):
                     return parse_kmz(raw, nombre_por_defecto)

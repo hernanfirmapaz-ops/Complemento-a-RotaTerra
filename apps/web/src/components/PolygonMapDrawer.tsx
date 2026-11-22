@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Icon } from './ui/Icon'
 
@@ -280,7 +280,7 @@ export function PolygonMapDrawer({
       })
     })
 
-    map.on('click', (e) => {
+    map.on('click', (e: maplibregl.MapMouseEvent) => {
       const clicked: [number, number] = [
         Number(e.lngLat.lng.toFixed(6)),
         Number(e.lngLat.lat.toFixed(6)),
