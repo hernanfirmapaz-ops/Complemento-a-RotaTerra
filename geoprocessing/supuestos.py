@@ -41,6 +41,65 @@ SUPUESTO_NDVI_UMBRAL_ALTO_VIGOR = Supuesto(
     fuente_referencia="Supuesto empírico regional agronómico",
 )
 
+# --- Balance Hídrico y Evapotranspiración FAO-56 ---
+SUPUESTO_FAO56_KC_BARBECHO = Supuesto(
+    clave="fao56_kc_barbecho",
+    valor=0.25,
+    unidad="adimensional",
+    motivo="Coeficiente de cultivo Kc para suelo en descanso, rastrojo o barbecho invernal.",
+    fuente_referencia="FAO-56 (Allen et al. 1998, Tabla 12, pág. 114); editable por el usuario.",
+)
+
+SUPUESTO_MESES_ESTACION_REPOSO_SUR = Supuesto(
+    clave="meses_estacion_reposo_sur",
+    valor=(5, 6, 7, 8, 9),
+    unidad="meses calendario [1..12]",
+    motivo="Meses de la estación de reposo / latencia (mayo a septiembre) en el hemisferio sur templado para clasificar la condición de humedad antecedente (AMC).",
+    fuente_referencia="Criterio agronómico estacional templado hemisferio sur adaptado a USDA-SCS (1972, NEH-4 Tabla 4.2, pág. 4.12); editable por el usuario.",
+)
+
+SUPUESTO_MESES_ESTACION_REPOSO_NORTE = Supuesto(
+    clave="meses_estacion_reposo_norte",
+    valor=(11, 12, 1, 2, 3),
+    unidad="meses calendario [1..12]",
+    motivo="Meses de la estación de reposo / latencia (noviembre a marzo) en el hemisferio norte templado para clasificar la condición de humedad antecedente (AMC).",
+    fuente_referencia="USDA-SCS (1972, NEH-4 Tabla 4.2, pág. 4.12); editable por el usuario.",
+)
+
+
+# --- Condición de Humedad Antecedente (AMC) USDA-SCS NEH-4 Tabla 4.2 ---
+SUPUESTO_AMC_REPOSO_SECO_MM = Supuesto(
+    clave="amc_reposo_seco_mm",
+    valor=12.7,
+    unidad="mm",
+    motivo="Umbral superior de lluvia acumulada en 5 días para condición seca (AMC I) en estación de reposo (dormant, < 0.5 pulg).",
+    fuente_referencia="USDA-SCS (1972) National Engineering Handbook, Section 4: Hydrology (NEH-4), Tabla 4.2 (pág. 4.12); editable por el usuario.",
+)
+
+SUPUESTO_AMC_REPOSO_HUMEDO_MM = Supuesto(
+    clave="amc_reposo_humedo_mm",
+    valor=27.9,
+    unidad="mm",
+    motivo="Umbral inferior de lluvia acumulada en 5 días para condición húmeda (AMC III) en estación de reposo (dormant, > 1.1 pulg).",
+    fuente_referencia="USDA-SCS (1972) National Engineering Handbook, Section 4: Hydrology (NEH-4), Tabla 4.2 (pág. 4.12); editable por el usuario.",
+)
+
+SUPUESTO_AMC_CRECIMIENTO_SECO_MM = Supuesto(
+    clave="amc_crecimiento_seco_mm",
+    valor=35.6,
+    unidad="mm",
+    motivo="Umbral superior de lluvia acumulada en 5 días para condición seca (AMC I) en estación de crecimiento (growing, < 1.4 pulg).",
+    fuente_referencia="USDA-SCS (1972) National Engineering Handbook, Section 4: Hydrology (NEH-4), Tabla 4.2 (pág. 4.12); editable por el usuario.",
+)
+
+SUPUESTO_AMC_CRECIMIENTO_HUMEDO_MM = Supuesto(
+    clave="amc_crecimiento_humedo_mm",
+    valor=53.3,
+    unidad="mm",
+    motivo="Umbral inferior de lluvia acumulada en 5 días para condición húmeda (AMC III) en estación de crecimiento (growing, > 2.1 pulg).",
+    fuente_referencia="USDA-SCS (1972) National Engineering Handbook, Section 4: Hydrology (NEH-4), Tabla 4.2 (pág. 4.12); editable por el usuario.",
+)
+
 # --- Erosión Hídrica USLE / RUSLE ---
 SUPUESTO_I30_RATIO_PRECIPITACION = Supuesto(
     clave="i30_ratio_precipitacion",
