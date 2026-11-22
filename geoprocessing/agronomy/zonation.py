@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from geoprocessing import supuestos
+
 ZONE_CATALOG: dict[int, dict[str, str]] = {
     1: {
         "code": "loma_bien_drenada",
@@ -67,7 +69,7 @@ def classify_hydro_agronomic_zones(
     mascara_lote: np.ndarray,
     pixel_size_m: float,
     max_water_depth_m: np.ndarray | None = None,
-    ponding_threshold_m: float = 0.05,
+    ponding_threshold_m: float = supuestos.UMBRAL_ENCHARCAMIENTO_MOTOR_M.valor,
     soil_group: str = "B",
 ) -> tuple[np.ndarray, dict]:
     """Clasifica cada celda del lote en los 4 ambientes hidro-agronómicos y genera el resumen Fase 5."""

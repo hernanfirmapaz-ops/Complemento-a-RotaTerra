@@ -8,6 +8,7 @@ __pycache__/
 node_modules/
 apps/web/dist/
 dist-capturas/
+capturas/
 
 # Datos de corridas locales (no subir a Git)
 data/runs/

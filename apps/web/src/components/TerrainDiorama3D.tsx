@@ -4,6 +4,10 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { DailyRainfallContextOut, FieldOut, MeshOut } from '../types/api'
 import { Legend } from './ui/Legend'
 import { Icon } from './ui/Icon'
+import {
+  createWaterGeometry4x,
+  createWaterShaderMaterial,
+} from './WaterSurfaceMesh'
 
 export type AgronomistOverlayMode =
   | 'satellite_water'
@@ -641,100 +645,45 @@ export function TerrainDiorama3D({
       }
     }
 
-    // 3.5 Malla 3D de lámina de agua reflectante en bajos, cañadas y sectores de anegamiento
+    // 3.5 Spec 013 (Etapa 1): Malla de agua 4x desacoplada y corte en umbral físico del motor
+    const pondingThresholdM = mesh.ponding_threshold_m
     const waterDepthArr = new Float32Array(rows * cols)
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const idx = r * cols + c
-        const wd = mesh.water_depth_m?.[idx] ?? 0
-        const sd = mesh.sink_depth_m?.[idx] ?? 0
-        const mfd = mfdArr?.[idx] ?? 0
         let depth = 0
-        if (wd > 0.015) {
-          depth = Math.min(2.2, wd * 1.6)
-        } else if (sd > 0.03) {
-          depth = Math.min(1.8, sd * 1.1)
-        } else if (mfd > 3.5) {
-          depth = 0.18 + Math.min(1.2, (mfd - 3.5) * 0.07)
-        } else if (overlayMode === 'waterlogging' && mfd > 1.8) {
-          depth = 0.28 + Math.min(1.4, (mfd - 1.8) * 0.1)
+        if (mesh.water_depth_m) {
+          depth = mesh.water_depth_m[idx] ?? 0
+        } else if (overlayMode === 'waterlogging' && mesh.sink_depth_m) {
+          depth = mesh.sink_depth_m[idx] ?? 0
         }
         waterDepthArr[idx] = depth
       }
     }
 
-    const waterPositions: number[] = []
-    const waterIndices: number[] = []
-    const waterUVs: number[] = []
-    let waterVertCount = 0
-
-    for (let r = 0; r < rows - 1; r++) {
-      for (let c = 0; c < cols - 1; c++) {
-        const i00 = r * cols + c
-        const i10 = i00 + 1
-        const i01 = i00 + cols
-        const i11 = i01 + 1
-
-        const d00 = waterDepthArr[i00]
-        const d10 = waterDepthArr[i10]
-        const d01 = waterDepthArr[i01]
-        const d11 = waterDepthArr[i11]
-
-        if (d00 > 0.02 || d10 > 0.02 || d01 > 0.02 || d11 > 0.02) {
-          const zLift = 0.16
-          const p00z = positions[3 * i00 + 2] + Math.max(0.06, d00) * (exaggeration / 2.0) * 0.35 + zLift
-          const p10z = positions[3 * i10 + 2] + Math.max(0.06, d10) * (exaggeration / 2.0) * 0.35 + zLift
-          const p01z = positions[3 * i01 + 2] + Math.max(0.06, d01) * (exaggeration / 2.0) * 0.35 + zLift
-          const p11z = positions[3 * i11 + 2] + Math.max(0.06, d11) * (exaggeration / 2.0) * 0.35 + zLift
-
-          const startIdx = waterVertCount
-          waterPositions.push(
-            positions[3 * i00], positions[3 * i00 + 1], p00z,
-            positions[3 * i10], positions[3 * i10 + 1], p10z,
-            positions[3 * i01], positions[3 * i01 + 1], p01z,
-            positions[3 * i11], positions[3 * i11 + 1], p11z,
-          )
-          waterUVs.push(
-            c / (cols - 1), 1 - r / (rows - 1),
-            (c + 1) / (cols - 1), 1 - r / (rows - 1),
-            c / (cols - 1), 1 - (r + 1) / (rows - 1),
-            (c + 1) / (cols - 1), 1 - (r + 1) / (rows - 1),
-          )
-          waterIndices.push(
-            startIdx, startIdx + 2, startIdx + 1,
-            startIdx + 1, startIdx + 2, startIdx + 3,
-          )
-          waterVertCount += 4
-        }
-      }
-    }
-
     let waterMesh: THREE.Mesh | null = null
-    let waterBaseZ: Float32Array | null = null
-    if (waterPositions.length > 0) {
-      const waterGeom = new THREE.BufferGeometry()
-      waterGeom.setAttribute(
-        'position',
-        new THREE.Float32BufferAttribute(waterPositions, 3),
-      )
-      waterGeom.setAttribute('uv', new THREE.Float32BufferAttribute(waterUVs, 2))
-      waterGeom.setIndex(waterIndices)
-      waterGeom.computeVertexNormals()
+    let waterShaderMat: THREE.ShaderMaterial | null = null
 
-      waterBaseZ = new Float32Array(waterPositions.length / 3)
-      for (let i = 0; i < waterBaseZ.length; i++) {
-        waterBaseZ[i] = waterPositions[3 * i + 2]
-      }
+    const waterGeom = createWaterGeometry4x({
+      positions,
+      waterDepthArr,
+      rows,
+      cols,
+      exaggeration,
+      subdivision: 4,
+    })
 
-      const waterMat = new THREE.MeshStandardMaterial({
-        color: 0x0284c7, // Azul profundo reflectante
-        roughness: 0.10, // Reflejo especular espejo
-        metalness: 0.35,
-        transparent: true,
-        opacity: Math.min(0.88, 0.68 + 0.22 * rainIntensityFactor),
-        side: THREE.DoubleSide,
+    if (
+      pondingThresholdM !== undefined &&
+      pondingThresholdM !== null &&
+      (waterGeom.getAttribute('position')?.count ?? 0) > 0
+    ) {
+      waterShaderMat = createWaterShaderMaterial({
+        pondingThresholdM,
+        rainIntensityFactor,
+        waterColor: 0x0284c7,
       })
-      waterMesh = new THREE.Mesh(waterGeom, waterMat)
+      waterMesh = new THREE.Mesh(waterGeom, waterShaderMat)
       dioramaGroup.add(waterMesh)
     }
 
@@ -1040,8 +989,23 @@ export function TerrainDiorama3D({
     renderer.domElement.addEventListener('mouseup', onPointerUp)
 
     let animId: number | null = null
+    let lastFpsTime = performance.now()
+    let fpsFrameCount = 0
+
     const animate = () => {
       controls.update()
+
+      // Monitoreo de FPS en tiempo real (Spec 013: objetivo 60 FPS)
+      fpsFrameCount++
+      const now = performance.now()
+      if (now - lastFpsTime >= 500) {
+        const measuredFps = Math.round((fpsFrameCount * 1000) / (now - lastFpsTime))
+        fpsFrameCount = 0
+        lastFpsTime = now
+        if (typeof window !== 'undefined') {
+          (window as unknown as { __diorama_fps?: number }).__diorama_fps = measuredFps
+        }
+      }
 
       // 1. Pulso y brillo de corriente en las venas y arroyos
       if (streamMat) {
@@ -1052,24 +1016,9 @@ export function TerrainDiorama3D({
         )
       }
 
-      // 2. Ondulación dinámica de la lámina de agua reflectante en bajos y lagunas
-      if (waterMesh && waterBaseZ) {
-        const posAttr = waterMesh.geometry.getAttribute(
-          'position',
-        ) as THREE.BufferAttribute
-        const arr = posAttr.array as Float32Array
-        const time = Date.now() * 0.0035
-        const nVerts = waterBaseZ.length
-        for (let i = 0; i < nVerts; i++) {
-          const x = arr[3 * i]
-          const y = arr[3 * i + 1]
-          const wave =
-            Math.sin(x * 0.28 + time) * Math.cos(y * 0.24 - time * 0.8) * 0.12 +
-            Math.sin(x * 0.52 - time * 1.3 + y * 0.38) * 0.06
-          arr[3 * i + 2] = waterBaseZ[i] + wave
-        }
-        posAttr.needsUpdate = true
-        waterMesh.geometry.computeVertexNormals()
+      // 2. Ondulación dinámica calculada en GPU (Spec 013: 60 FPS estables)
+      if (waterShaderMat) {
+        waterShaderMat.uniforms.uTime.value = performance.now() * 0.001
       }
 
       // 3. Simulación de lluvia activa
@@ -1506,6 +1455,26 @@ export function TerrainDiorama3D({
 
       {/* Leyenda minimalista flotante en el visor (SDD-002 sección 6.5) */}
       <div className="diorama-legend-dock">
+        {/* Regla de transparencia técnica Spec 013 */}
+        <div
+          className="diorama-smoothing-badge"
+          style={{
+            fontSize: 10,
+            color: 'var(--ink-3, #94a3b8)',
+            backgroundColor: 'rgba(15, 23, 42, 0.78)',
+            backdropFilter: 'blur(4px)',
+            padding: '3px 8px',
+            borderRadius: 4,
+            marginBottom: 6,
+            display: 'inline-block',
+            maxWidth: 240,
+            lineHeight: 1.3,
+          }}
+          title="Regla de transparencia técnica Spec 013"
+        >
+          Bordes suavizados para visualización; resolución del cálculo:{' '}
+          {mesh?.pixel_size_m ? `${Math.round(mesh.pixel_size_m)} m` : '30 m'}
+        </div>
         {overlayMode === 'waterlogging' && (
           <Legend
             title="Lámina de agua"

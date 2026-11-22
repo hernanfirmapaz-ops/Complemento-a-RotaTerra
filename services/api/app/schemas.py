@@ -113,6 +113,7 @@ class MeshOut(BaseModel):
     cumulative_runoff_m3: list[float | None] | None = None
     water_depth_m: list[float | None] | None = None
     velocity_m_s: list[float | None] | None = None
+    ponding_threshold_m: float | None = None
     soil_loss_t_ha: list[float | None] | None = None
     ndvi: list[float | None] | None = None
     boundary: list[list[list[float | None]]]

@@ -107,6 +107,7 @@ export interface MeshOut {
   cumulative_runoff_m3?: (number | null)[] | null
   water_depth_m?: (number | null)[] | null
   velocity_m_s?: (number | null)[] | null
+  ponding_threshold_m?: number | null
   soil_loss_t_ha?: (number | null)[] | null
   ndvi?: (number | null)[] | null
   boundary: (number | null)[][][]
