@@ -7,7 +7,7 @@ la base local de desarrollo (`data/runs/`) con lotes sintéticos o corridas de p
 from __future__ import annotations
 
 import os
-from pathlib import Path
+
 import pytest
 
 

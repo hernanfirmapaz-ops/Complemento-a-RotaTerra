@@ -11,6 +11,16 @@ import {
 import { RainSimulationSystem } from './RainSimulation'
 import { formatAmcLabel } from '../utils/formatters'
 
+/** Constantes visuales para renderizado temporal de cauces MFD (Spec 013 - visuales únicamente) */
+export const VISUAL_STREAM_MIN_ACCUM_HA = 3.0
+export const VISUAL_STREAM_ELEVATION_OFFSET_M = 0.15
+export const VISUAL_STREAM_BASE_OPACITY = 0.18
+export const VISUAL_STREAM_RAIN_OPACITY_GAIN = 0.15
+export const VISUAL_STREAM_MAX_OPACITY = 0.35
+export const VISUAL_STREAM_PULSE_BASE = 0.22
+export const VISUAL_STREAM_PULSE_AMPLITUDE = 0.10
+export const VISUAL_STREAM_PULSE_SPEED = 0.003
+
 export type AgronomistOverlayMode =
   | 'satellite_water'
   | 'waterlogging'
@@ -710,7 +720,7 @@ export function TerrainDiorama3D({
         for (let c = 1; c < cols - 1; c++) {
           const idx = r * cols + c
           const areaHa = mfdArr[idx] ?? 0
-          if (areaHa < 3.0) continue
+          if (areaHa < VISUAL_STREAM_MIN_ACCUM_HA) continue
           const code = d8Code?.[idx] ?? 0
           const d = deltaMap[code]
           if (!d) continue
@@ -721,10 +731,10 @@ export function TerrainDiorama3D({
           streamSegs.push(
             positions[3 * idx],
             positions[3 * idx + 1],
-            positions[3 * idx + 2] + 0.15,
+            positions[3 * idx + 2] + VISUAL_STREAM_ELEVATION_OFFSET_M,
             positions[3 * nIdx],
             positions[3 * nIdx + 1],
-            positions[3 * nIdx + 2] + 0.15,
+            positions[3 * nIdx + 2] + VISUAL_STREAM_ELEVATION_OFFSET_M,
           )
         }
       }
@@ -738,7 +748,10 @@ export function TerrainDiorama3D({
         streamMat = new THREE.LineBasicMaterial({
           color: 0x38bdf8,
           transparent: true,
-          opacity: Math.min(0.35, 0.18 + 0.15 * rainIntensityFactor),
+          opacity: Math.min(
+            VISUAL_STREAM_MAX_OPACITY,
+            VISUAL_STREAM_BASE_OPACITY + VISUAL_STREAM_RAIN_OPACITY_GAIN * rainIntensityFactor,
+          ),
         })
         dioramaGroup.add(new THREE.LineSegments(sGeom, streamMat))
       }
@@ -950,9 +963,11 @@ export function TerrainDiorama3D({
 
       // 1. Pulso y brillo suave de corriente en cauces concentrados (atenuado)
       if (streamMat) {
-        const pulse = 0.22 + 0.10 * Math.sin(Date.now() * 0.003)
+        const pulse =
+          VISUAL_STREAM_PULSE_BASE +
+          VISUAL_STREAM_PULSE_AMPLITUDE * Math.sin(Date.now() * VISUAL_STREAM_PULSE_SPEED)
         streamMat.opacity = Math.min(
-          0.35,
+          VISUAL_STREAM_MAX_OPACITY,
           pulse * (0.8 + 0.2 * rainIntensityFactor),
         )
       }

@@ -148,9 +148,8 @@
 .ui-segmented-label {
   display: block;
   width: 100%;
-  white-space: normal;
+  white-space: nowrap;
   line-height: 1.2;
-  word-break: break-word;
 }
 
 .ui-segmented-btn:disabled {
@@ -651,6 +650,18 @@
   display: flex;
   align-items: center;
   gap: var(--s2);
+}
+
+.flow-topbar-actions .ui-segmented {
+  width: 130px;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+.flow-topbar-actions .ui-segmented-btn {
+  padding: 5px 10px;
+  min-width: 50px;
+  flex-direction: row;
 }
 
 .flow-main {

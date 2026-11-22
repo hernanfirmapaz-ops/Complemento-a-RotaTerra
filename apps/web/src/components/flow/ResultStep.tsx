@@ -19,7 +19,6 @@ interface ResultStepProps {
   onSelectOverlay: (overlay: AgronomistOverlayMode) => void
   onReplayRain: () => void
   onChangeLot: () => void
-  onOpenToolkit?: () => void
   onCompareRuns?: (runAId: string, runBId: string) => Promise<ScenarioComparisonOut | null>
   onActivateRun?: (runId: string) => void
   onSimulatePresets?: () => Promise<void>
