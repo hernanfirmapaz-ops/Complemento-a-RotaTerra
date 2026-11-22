@@ -40,3 +40,21 @@ SUPUESTO_NDVI_UMBRAL_ALTO_VIGOR = Supuesto(
     motivo="Umbral agronómico de corte superior para canopeo desarrollado y biomasa activa alta.",
     fuente_referencia="Supuesto empírico regional agronómico",
 )
+
+# --- Límites de Seguridad y Procesamiento ---
+SUPUESTO_SUPERFICIE_MAXIMA_LOTE_HA = Supuesto(
+    clave="superficie_maxima_lote_ha",
+    valor=2000.0,
+    unidad="ha",
+    motivo="Límite máximo de superficie por lote (2.000 ha) para prevenir desbordes de memoria y tiempo de procesamiento. Configurable mediante ROTATERRA_MAX_FIELD_AREA_HA.",
+    fuente_referencia="Criterio de robustez de API (auditoría 21/11/2026, punto 9)",
+)
+
+SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB = Supuesto(
+    clave="limite_descomprimido_zip_mb",
+    valor=50.0,
+    unidad="MB",
+    motivo="Límite máximo de tamaño descomprimido (50 MB) para archivos ZIP/KMZ para prevenir ataques de descompresión (zip bombs). Configurable mediante ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB.",
+    fuente_referencia="Criterio de seguridad de API (auditoría 21/11/2026, punto 9)",
+)
+
