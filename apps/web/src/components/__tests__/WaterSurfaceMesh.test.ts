@@ -7,6 +7,10 @@ import {
   createWaterShaderMaterial,
   WATER_SURFACE_ELEVATION_EXAGGERATION_SCALE,
   WATER_SURFACE_Z_BIAS,
+  WATER_VISUAL_SHALLOW_DEPTH_M,
+  WATER_VISUAL_DEEP_DEPTH_M,
+  computeFresnel,
+  getWaterDepthColor,
 } from '../WaterSurfaceMesh'
 
 describe('Spec 013 - Etapa 1: Malla de agua y bordes suaves', () => {
@@ -103,3 +107,52 @@ describe('Spec 013 - Etapa 1: Malla de agua y bordes suaves', () => {
     expect(mat.fragmentShader).toContain('smoothstep(uPondingThreshold, 1.5 * uPondingThreshold')
   })
 })
+
+describe('Spec 013 - Etapa 2: Aspecto de agua (Fresnel + Flow Map y parámetros visuales declarados)', () => {
+  it('declara los cortes de color como parámetros visuales explícitos, no como datos físicos', () => {
+    expect(WATER_VISUAL_SHALLOW_DEPTH_M).toBe(0.08)
+    expect(WATER_VISUAL_DEEP_DEPTH_M).toBe(0.25)
+  })
+
+  it('calcula la aproximación de Fresnel de Schlick (R0 = 0.02) y su derivación física', () => {
+    const n = 1.333
+    const r0Theor = Math.pow((1.0 - n) / (1.0 + n), 2)
+    expect(r0Theor).toBeCloseTo(0.02, 2)
+
+    // Vista perpendicular (cos theta = 1): R = 0.02 (máxima transparencia)
+    expect(computeFresnel(1.0)).toBeCloseTo(0.02)
+    // Vista rasante (cos theta = 0): R = 1.0 (máxima reflectividad del cielo)
+    expect(computeFresnel(0.0)).toBeCloseTo(1.0)
+    // Vista oblicua 60 grados (cos theta = 0.5): R = 0.02 + 0.98 * (0.5)^5 = 0.050625
+    expect(computeFresnel(0.5)).toBeCloseTo(0.050625)
+  })
+
+  it('determina los colores del gradiente batimétrico según los cortes somero/profundo', () => {
+    // Somero: RGB aproximado 82, 185, 195
+    const shallow = getWaterDepthColor(0.04)
+    expect(shallow.r).toBeCloseTo(82 / 255, 1)
+    expect(shallow.g).toBeCloseTo(185 / 255, 1)
+    expect(shallow.b).toBeCloseTo(195 / 255, 1)
+
+    // Profundo: RGB aproximado 15, 60, 120
+    const deep = getWaterDepthColor(0.35)
+    expect(deep.r).toBeCloseTo(15 / 255, 1)
+    expect(deep.g).toBeCloseTo(60 / 255, 1)
+    expect(deep.b).toBeCloseTo(120 / 255, 1)
+  })
+
+  it('configura el ShaderMaterial con soporte de Fresnel y Flow Map de dos fases', () => {
+    const mat = createWaterShaderMaterial({
+      pondingThresholdM: 0.05,
+      rainIntensityFactor: 1.0,
+      enableFlowMap: true,
+    })
+
+    expect(mat.vertexShader).toContain('vViewPosition')
+    expect(mat.fragmentShader).toContain('R0')
+    expect(mat.fragmentShader).toContain('flowWeight')
+    expect(mat.fragmentShader).toContain('uVisualShallowDepth')
+    expect(mat.fragmentShader).toContain('uVisualDeepDepth')
+  })
+})
+
