@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -65,6 +66,7 @@ async def procesar_terreno(
         )
 
     temp_path: Path | None = None
+    tmp_dir: Path | None = None
     try:
         if source_id == UPLOAD_ID:
             if file is None:
@@ -80,7 +82,7 @@ async def procesar_terreno(
                         total_bytes += len(chunk)
                         if total_bytes > MAX_DEM_BYTES:
                             out_f.close()
-                            temp_path.unlink(missing_ok=True)
+                            shutil.rmtree(tmp_dir, ignore_errors=True)
                             raise HTTPException(
                                 status_code=413,
                                 detail=f"El GeoTIFF supera el tamaño máximo ({MAX_DEM_BYTES // (1024 * 1024)} MB).",
@@ -89,13 +91,14 @@ async def procesar_terreno(
                             header += chunk[: 8 - len(header)]
                         out_f.write(chunk)
             except HTTPException:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
                 raise
             except Exception as err:
-                temp_path.unlink(missing_ok=True)
+                shutil.rmtree(tmp_dir, ignore_errors=True)
                 raise HTTPException(status_code=500, detail=f"Error al escribir el archivo de relieve: {err}") from err
 
             if total_bytes < 8 or header[:2] not in (b"II", b"MM"):
-                temp_path.unlink(missing_ok=True)
+                shutil.rmtree(tmp_dir, ignore_errors=True)
                 raise HTTPException(
                     status_code=422,
                     detail="El archivo subido no tiene cabecera TIFF válida (debe ser un GeoTIFF).",
@@ -118,9 +121,11 @@ async def procesar_terreno(
             raise HTTPException(status_code=503, detail="Sin conexión: no se pudo descargar el relieve") from error
         raise HTTPException(status_code=422, detail=err_msg) from error
     finally:
-        if temp_path is not None and temp_path.exists():
+        if tmp_dir is not None:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        elif temp_path is not None and temp_path.exists():
             try:
-                temp_path.unlink()
+                temp_path.unlink(missing_ok=True)
                 temp_path.parent.rmdir()
             except OSError:
                 pass

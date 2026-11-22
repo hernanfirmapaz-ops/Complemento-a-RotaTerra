@@ -39,8 +39,6 @@ def capturar():
 
         out_docs = Path("docs/capturas")
         out_docs.mkdir(parents=True, exist_ok=True)
-        out_artifact = Path("C:/Users/haf01/.gemini/antigravity/brain/227d06b1-473b-4034-8d15-d5666eebf39c/capturas_tarea_a5")
-        out_artifact.mkdir(parents=True, exist_ok=True)
 
         # 1. Asegurar lote de prueba en API
         try:
@@ -68,9 +66,7 @@ def capturar():
                 page.wait_for_timeout(2000)
 
                 cap1_docs = out_docs / "captura_dibujo_lote_maplibre6.png"
-                cap1_art = out_artifact / "captura_dibujo_lote_maplibre6.png"
                 page.screenshot(path=str(cap1_docs), full_page=False)
-                page.screenshot(path=str(cap1_art), full_page=False)
                 print(f"[OK] Captura 1 guardada: {cap1_docs}")
 
                 # Cerrar modal
@@ -93,9 +89,7 @@ def capturar():
                 page.wait_for_timeout(2000)
 
             cap2_docs = out_docs / "captura_vista_mapa_maplibre6.png"
-            cap2_art = out_artifact / "captura_vista_mapa_maplibre6.png"
             page.screenshot(path=str(cap2_docs), full_page=False)
-            page.screenshot(path=str(cap2_art), full_page=False)
             print(f"[OK] Captura 2 guardada: {cap2_docs}")
 
             context.close()

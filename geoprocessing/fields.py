@@ -12,6 +12,7 @@ Reglas:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import zipfile
 from dataclasses import asdict, dataclass, field
@@ -24,6 +25,8 @@ from geoprocessing.supuestos import (
     SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB,
     SUPUESTO_SUPERFICIE_MAXIMA_LOTE_HA,
 )
+
+logger = logging.getLogger(__name__)
 
 ARGENTINA_BBOX = (-73.6, -55.5, -53.5, -21.5)  # oeste, sur, este, norte (aprox. continental)
 TOLERANCIA_SUPERFICIE = 0.05  # 5 % de diferencia con la superficie declarada dispara aviso
@@ -40,9 +43,21 @@ def _get_max_field_area_ha() -> float:
     env_val = os.environ.get("ROTATERRA_MAX_FIELD_AREA_HA")
     if env_val:
         try:
-            return float(env_val)
+            val = float(env_val)
+            if val <= 0:
+                logger.warning(
+                    "ROTATERRA_MAX_FIELD_AREA_HA tiene un valor no positivo (%r). Se usa el supuesto por omisión (%s ha).",
+                    env_val,
+                    SUPUESTO_SUPERFICIE_MAXIMA_LOTE_HA.valor,
+                )
+                return float(SUPUESTO_SUPERFICIE_MAXIMA_LOTE_HA.valor)
+            return val
         except ValueError:
-            pass
+            logger.warning(
+                "Valor inválido en variable de entorno ROTATERRA_MAX_FIELD_AREA_HA (%r). Se usa el supuesto por omisión (%s ha).",
+                env_val,
+                SUPUESTO_SUPERFICIE_MAXIMA_LOTE_HA.valor,
+            )
     return float(SUPUESTO_SUPERFICIE_MAXIMA_LOTE_HA.valor)
 
 
@@ -50,9 +65,21 @@ def _get_max_uncompressed_zip_bytes() -> int:
     env_val = os.environ.get("ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB")
     if env_val:
         try:
-            return int(float(env_val)) * 1024 * 1024
+            val = float(env_val)
+            if val <= 0:
+                logger.warning(
+                    "ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB tiene un valor no positivo (%r). Se usa el supuesto por omisión (%s MB).",
+                    env_val,
+                    SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB.valor,
+                )
+                return int(SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB.valor * 1024 * 1024)
+            return int(val * 1024 * 1024)
         except ValueError:
-            pass
+            logger.warning(
+                "Valor inválido en variable de entorno ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB (%r). Se usa el supuesto por omisión (%s MB).",
+                env_val,
+                SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB.valor,
+            )
     return int(SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB.valor * 1024 * 1024)
 
 
@@ -227,7 +254,7 @@ def _validar(geom: dict, props: dict, nombre_por_defecto: str) -> ImportedField:
     if area_ha > max_area_ha:
         raise FieldValidationError(
             f"La superficie del lote '{nombre}' ({area_ha:.1f} ha) supera el límite máximo permitido "
-            f"({max_area_ha:.0f} ha / 2.000 ha). Divida el lote en sectores menores o configure "
+            f"({max_area_ha:.0f} ha). Divida el lote en sectores menores o configure "
             f"la variable de entorno ROTATERRA_MAX_FIELD_AREA_HA si necesita procesar áreas mayores."
         )
 

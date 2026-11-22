@@ -72,15 +72,36 @@ def test_supuestos_seguridad_declarados():
 
 
 def test_superficie_maxima_lote_rechaza_exceso_con_mensaje_claro():
-    """Un lote que supere el límite máximo (por defecto 2.000 ha) debe ser rechazado con mensaje claro."""
+    """Un lote que supere el límite máximo (por defecto 2.000 ha) debe ser rechazado con mensaje claro sin texto redundante."""
     # 2500 ha supera el límite de 2000 ha
     geojson_grande = _crear_geojson_rectangulo_ha(2500.0)
     with pytest.raises(FieldValidationError) as exc_info:
         parse_field_file(geojson_grande, filename="lote_enorme.geojson")
     msg = str(exc_info.value)
     assert "supera el límite" in msg.lower() or "límite máximo" in msg.lower()
-    assert "2000" in msg or "2.000" in msg
+    assert "2000 ha" in msg
+    assert "/ 2.000 ha" not in msg
     assert "ROTATERRA_MAX_FIELD_AREA_HA" in msg or "divida el lote" in msg.lower()
+
+
+def test_variables_entorno_invalidas_emiten_advertencia(monkeypatch, caplog):
+    """Variables de entorno inválidas emiten aviso en logger y usan el supuesto por defecto."""
+    import logging
+
+    from geoprocessing.fields import _get_max_field_area_ha, _get_max_uncompressed_zip_bytes
+
+    with caplog.at_level(logging.WARNING):
+        monkeypatch.setenv("ROTATERRA_MAX_FIELD_AREA_HA", "invalido")
+        area = _get_max_field_area_ha()
+        assert area == 2000.0
+        assert "ROTATERRA_MAX_FIELD_AREA_HA" in caplog.text
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        monkeypatch.setenv("ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB", "-10")
+        zip_bytes = _get_max_uncompressed_zip_bytes()
+        assert zip_bytes == 50 * 1024 * 1024
+        assert "ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB" in caplog.text
 
 
 def test_superficie_maxima_lote_configurable_por_entorno(monkeypatch):
@@ -150,15 +171,18 @@ def test_requirements_con_versiones_fijas_y_separacion_dev():
     # Herramientas de desarrollo deben estar en requirements-dev.txt con versión fija
     for dev_tool in herramientas_dev:
         assert any(dev_tool in line.lower() for line in dev_lines), f"{dev_tool} falta en requirements-dev.txt"
+    assert any("landlab==2.11.0" in line for line in dev_lines), "landlab debe estar fijado exactamente a 2.11.0 en requirements-dev.txt"
 
 
 def test_maplibre_en_package_json_es_version_6():
-    """Verifica que package.json use MapLibre 6.x."""
+    """Verifica que package.json use MapLibre 6.x con versión exacta fijada sin carets (^)."""
     repo_root = Path(__file__).resolve().parents[2]
     pkg_json_path = repo_root / "apps" / "web" / "package.json"
     data = json.loads(pkg_json_path.read_text(encoding="utf-8"))
     maplibre_ver = data.get("dependencies", {}).get("maplibre-gl", "")
-    assert maplibre_ver.startswith("6.") or maplibre_ver.startswith("^6."), f"MapLibre version {maplibre_ver} no es 6.x"
+    assert maplibre_ver == "6.19.0", f"MapLibre version {maplibre_ver} no es exactamente 6.19.0"
+    vite_ver = data.get("devDependencies", {}).get("vite", "")
+    assert vite_ver == "6.4.6", f"Vite version {vite_ver} no es exactamente 6.4.6"
 
 
 def test_relieve_subido_invalido_limpia_y_rechaza_422(tmp_path, monkeypatch):
