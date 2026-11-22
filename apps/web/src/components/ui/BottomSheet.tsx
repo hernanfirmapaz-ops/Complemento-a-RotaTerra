@@ -23,10 +23,8 @@ export function BottomSheet({
   const snap = controlledSnap ?? internalSnap
 
   const handleToggle = () => {
-    let next: BottomSheetSnap = 'half'
-    if (snap === 'collapsed') next = 'half'
-    else if (snap === 'half') next = 'full'
-    else next = 'collapsed'
+    const next: BottomSheetSnap =
+      snap === 'collapsed' ? 'half' : snap === 'half' ? 'full' : 'collapsed'
 
     setInternalSnap(next)
     onSnapChange?.(next)
