@@ -132,9 +132,9 @@ async function buildSatelliteCanvasTexture(
       const vegG = 84 + elevNorm * 22
       const vegB = 52 + elevNorm * 14
 
-      let rCol = (soilR * (1 - vegWeight) + vegR * vegWeight) * shade + noise
-      let gCol = (soilG * (1 - vegWeight) + vegG * vegWeight) * shade + noise
-      let bCol = (soilB * (1 - vegWeight) + vegB * vegWeight) * shade + noise * 0.8
+      const rCol = (soilR * (1 - vegWeight) + vegR * vegWeight) * shade + noise
+      const gCol = (soilG * (1 - vegWeight) + vegG * vegWeight) * shade + noise
+      const bCol = (soilB * (1 - vegWeight) + vegB * vegWeight) * shade + noise * 0.8
 
       const pIdx = (py * 1024 + px) * 4
       data[pIdx] = Math.min(255, Math.max(20, Math.round(rCol)))

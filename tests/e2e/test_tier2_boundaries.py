@@ -638,6 +638,11 @@ def test_e2e_t2_f8_02_target_yield_boundaries_422(field_with_sloped_dem: tuple[s
 def test_e2e_t2_f8_03_toolkit_on_flat_dem(api_client: TestClient, tmp_path: Path):
     f = _import_square(api_client)
     _upload_dem(api_client, f["id"], write_flat_dem(tmp_path / "flat_tk.tif", z_val=500.0))
+    from services.api.app.services import store
+    (store.field_dir(f["id"]) / "soil.json").write_text(
+        json.dumps({"sand_pct": 40.0, "silt_pct": 40.0, "clay_pct": 20.0, "quality": "confiable"}),
+        encoding="utf-8",
+    )
     api_client.post(f"/api/v1/fields/{f['id']}/hydrology/static", json={}).raise_for_status()
     r = api_client.post(f"/api/v1/fields/{f['id']}/hydrology/toolkit/run", json={})
     assert r.status_code == 200

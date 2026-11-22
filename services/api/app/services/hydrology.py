@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 
 import numpy as np
@@ -526,6 +527,19 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         rain_source_type=rain_type,
     )
 
+    # Textura del suelo si está disponible (SoilGrids 2.0 ya consultado) para cálculo de K por Wischmeier
+    sand_p, silt_p, clay_p = None, None, None
+    try:
+        ruta_suelo = store.field_dir(field_id) / "soil.json"
+        if ruta_suelo.exists():
+            s_info = json.loads(ruta_suelo.read_text(encoding="utf-8"))
+            if s_info and s_info.get("quality") != "descartada":
+                sand_p = s_info.get("sand_pct")
+                silt_p = s_info.get("silt_pct")
+                clay_p = s_info.get("clay_pct")
+    except Exception:
+        pass
+
     # Erosión hídrica USLE real para el evento y condiciones del lote
     spi_grid = grids.get("spi")
     if spi_grid is None:
@@ -540,6 +554,9 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         runoff_q_mm=cn_res.runoff_q_mm,
         soil_group=payload.soil_group,
         cover_code=payload.cover_code,
+        sand_pct=sand_p,
+        silt_pct=silt_p,
+        clay_pct=clay_p,
     )
 
     run_doc = {
@@ -791,6 +808,18 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
     cn_ii, _ = lookup_cn_ii(params.cover_code, params.soil_group)
     cn_storm = compute_nrcs_cn(params.storm_precipitation_mm, cn_ii, "medium", 0.2)
 
+    sand_p, silt_p, clay_p = None, None, None
+    try:
+        ruta_suelo = store.field_dir(field_id) / "soil.json"
+        if ruta_suelo.exists():
+            s_info = json.loads(ruta_suelo.read_text(encoding="utf-8"))
+            if s_info and s_info.get("quality") != "descartada":
+                sand_p = s_info.get("sand_pct")
+                silt_p = s_info.get("silt_pct")
+                clay_p = s_info.get("clay_pct")
+    except Exception:
+        pass
+
     # 1. Erosión USLE en escurrimiento y focos de cárcavas
     soil_loss_grid, erosion_summary = compute_usle_erosion_and_gullies(
         mfd_area_m2=grids["mfd_area_m2"],
@@ -802,6 +831,9 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         runoff_q_mm=cn_storm.runoff_q_mm,
         soil_group=params.soil_group,
         cover_code=params.cover_code,
+        sand_pct=sand_p,
+        silt_pct=silt_p,
+        clay_pct=clay_p,
     )
 
     # 4. Curvas de nivel y Terrazas (simulación antes vs. después)
@@ -815,6 +847,9 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         runoff_q_mm=cn_storm.runoff_q_mm,
         soil_group=params.soil_group,
         cover_code=params.cover_code,
+        sand_pct=sand_p,
+        silt_pct=silt_p,
+        clay_pct=clay_p,
     )
 
     # 5. Calculadora de Siembra y Fertilizante (Tablas INTA)
@@ -839,6 +874,9 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         spi=spi_grid,
         mascara_lote=mascara,
         pixel_size_m=dem.pixel,
+        sand_pct=sand_p,
+        silt_pct=silt_p,
+        clay_pct=clay_p,
     )
 
     # 2, 3 y 8. Clima diario NASA POWER -> Balance hídrico mensual, Riesgo de anegamiento real y Heladas

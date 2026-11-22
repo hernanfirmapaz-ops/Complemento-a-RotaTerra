@@ -168,6 +168,12 @@ def test_health_and_full_phase0_flow(client: TestClient, tmp_path: Path):
     assert ev_csv["has_time_series"] is True
     assert ev_csv["total_mm"] == pytest.approx(80.0)
 
+    # Perfil de suelo local para cálculo de K de Wischmeier en USLE
+    (store.field_dir(field_id) / "soil.json").write_text(
+        json.dumps({"sand_pct": 40.0, "silt_pct": 40.0, "clay_pct": 20.0, "quality": "confiable"}),
+        encoding="utf-8",
+    )
+
     # Corrida A (45 mm, suelo B, humedad media)
     r = client.post(
         f"/api/v1/fields/{field_id}/hydrology/runoff-runs",
