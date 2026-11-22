@@ -9,6 +9,7 @@ import {
   createWaterShaderMaterial,
 } from './WaterSurfaceMesh'
 import { RainSimulationSystem } from './RainSimulation'
+import { formatAmcLabel } from '../utils/formatters'
 
 export type AgronomistOverlayMode =
   | 'satellite_water'
@@ -709,7 +710,7 @@ export function TerrainDiorama3D({
         for (let c = 1; c < cols - 1; c++) {
           const idx = r * cols + c
           const areaHa = mfdArr[idx] ?? 0
-          if (areaHa < 1.35) continue
+          if (areaHa < 3.0) continue
           const code = d8Code?.[idx] ?? 0
           const d = deltaMap[code]
           if (!d) continue
@@ -720,10 +721,10 @@ export function TerrainDiorama3D({
           streamSegs.push(
             positions[3 * idx],
             positions[3 * idx + 1],
-            positions[3 * idx + 2] + 0.22,
+            positions[3 * idx + 2] + 0.15,
             positions[3 * nIdx],
             positions[3 * nIdx + 1],
-            positions[3 * nIdx + 2] + 0.22,
+            positions[3 * nIdx + 2] + 0.15,
           )
         }
       }
@@ -733,10 +734,11 @@ export function TerrainDiorama3D({
           'position',
           new THREE.Float32BufferAttribute(streamSegs, 3),
         )
+        // Trazos atenuados temporales en cauces principales a la espera de estelas animadas (Etapas 3 y 4)
         streamMat = new THREE.LineBasicMaterial({
-          color: 0x00e5ff,
+          color: 0x38bdf8,
           transparent: true,
-          opacity: Math.min(0.95, 0.45 + 0.4 * rainIntensityFactor),
+          opacity: Math.min(0.35, 0.18 + 0.15 * rainIntensityFactor),
         })
         dioramaGroup.add(new THREE.LineSegments(sGeom, streamMat))
       }
@@ -946,12 +948,12 @@ export function TerrainDiorama3D({
         }
       }
 
-      // 1. Pulso y brillo de corriente en las venas y arroyos
+      // 1. Pulso y brillo suave de corriente en cauces concentrados (atenuado)
       if (streamMat) {
-        const pulse = 0.58 + 0.38 * Math.sin(Date.now() * 0.0055)
+        const pulse = 0.22 + 0.10 * Math.sin(Date.now() * 0.003)
         streamMat.opacity = Math.min(
-          0.98,
-          pulse * (0.65 + 0.35 * rainIntensityFactor),
+          0.35,
+          pulse * (0.8 + 0.2 * rainIntensityFactor),
         )
       }
 
@@ -1387,7 +1389,7 @@ export function TerrainDiorama3D({
             <span className="sep">·</span>
             <span>Lluvia estimada: <strong>{dailyRainContext.selected_day.precipitation_mm.toFixed(1)} mm</strong></span>
             <span className="sep">·</span>
-            <span>Humedad antecedente: <strong>{dailyRainContext.selected_day.prior_5d_rain_mm.toFixed(1)} mm ({dailyRainContext.selected_day.antecedent_moisture_amc.toUpperCase()})</strong></span>
+            <span>Humedad antecedente: <strong>{dailyRainContext.selected_day.prior_5d_rain_mm.toFixed(1)} mm ({formatAmcLabel(dailyRainContext.selected_day.antecedent_moisture_amc)})</strong></span>
           </div>
           <div style={{ fontSize: '11px', color: 'var(--ink-2)', marginTop: '3px' }}>
             Aviso: Lluvia regional estimada (~55 km), no es la medición de su campo.
