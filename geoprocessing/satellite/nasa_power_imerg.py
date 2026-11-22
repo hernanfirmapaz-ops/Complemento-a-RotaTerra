@@ -6,13 +6,25 @@ from __future__ import annotations
 
 import math
 from datetime import date, datetime, timedelta
+from typing import Literal
 
 import numpy as np
 
 from geoprocessing.dem.terrain import Dem
 from geoprocessing.net import client
-from geoprocessing.rainfall.nrcs_cn import SoilGroup, compute_nrcs_cn, lookup_cn_ii
+from geoprocessing.rainfall.nrcs_cn import (
+    AntecedentMoisture,
+    SoilGroup,
+    compute_nrcs_cn,
+    lookup_cn_ii,
+)
 from geoprocessing.supuestos import (
+    SUPUESTO_AMC_CRECIMIENTO_HUMEDO_MM,
+    SUPUESTO_AMC_CRECIMIENTO_SECO_MM,
+    SUPUESTO_AMC_REPOSO_HUMEDO_MM,
+    SUPUESTO_AMC_REPOSO_SECO_MM,
+    SUPUESTO_FAO56_KC_BARBECHO,
+    SUPUESTO_FAO56_LATITUD_DEFECTO,
     SUPUESTO_NDVI_UMBRAL_ALTO_VIGOR,
     SUPUESTO_NDVI_UMBRAL_BAJO_VIGOR,
 )
@@ -111,15 +123,238 @@ def fetch_nasa_power_daily_series(
     )
 
 
+# ==============================================================================
+# 1. Radiación Solar Extraterrestre y Evapotranspiración según FAO-56
+# ==============================================================================
+
+def compute_extraterrestrial_radiation_ra(
+    latitude_deg: float,
+    day_of_year: int,
+    return_mj: bool = False,
+) -> float | tuple[float, float]:
+    """Calcula la radiación solar extraterrestre diaria Ra en equivalente de evaporación [mm/día]
+
+    según FAO Irrigation and Drainage Paper No. 56 (Allen et al. 1998, Capítulo 3, Ecuaciones 21 a 28, págs. 45-47).
+
+    Parámetros:
+    - latitude_deg: latitud en grados decimales (negativa para hemisferio sur, ej. -33.3 para San Luis).
+    - day_of_year: día juliano del año J (1 a 365 o 366).
+    - return_mj: si True, devuelve una tupla (ra_mm_day, ra_mj_m2_day).
+
+    Verificación de referencia:
+    - Ejemplo 8 resuelto de FAO-56 (pág. 47): para latitud 20° Sur (-20.0°) y 3 de septiembre (J = 246),
+      dr = 0.985, delta = 0.120 rad, omega_s = 1.527 rad, Ra = 32.2 MJ/(m²·día), Ra = 13.1 mm/día.
+    """
+    phi = math.radians(float(latitude_deg))
+    j = int(day_of_year)
+
+    # Distancia relativa inversa Tierra-Sol (dr, FAO-56 Eq. 23, pág. 46)
+    dr = 1.0 + 0.033 * math.cos(2.0 * math.pi * j / 365.0)
+
+    # Declinación solar (delta, FAO-56 Eq. 24, pág. 46)
+    delta = 0.409 * math.sin((2.0 * math.pi * j / 365.0) - 1.39)
+
+    # Ángulo horario de puesta del sol (omega_s, FAO-56 Eq. 25, pág. 46)
+    tan_val = -math.tan(phi) * math.tan(delta)
+    if tan_val >= 1.0:
+        omega_s = 0.0  # Noche polar
+    elif tan_val <= -1.0:
+        omega_s = math.pi  # Día polar
+    else:
+        omega_s = math.acos(tan_val)
+
+    # Constante solar Gsc = 0.0820 MJ / (m^2 * min)
+    # Factor (24 * 60 / pi) * Gsc = 37.586 MJ / (m^2 * día) (FAO-56 Eq. 21, pág. 45)
+    ra_mj = (
+        (24.0 * 60.0 / math.pi)
+        * 0.0820
+        * dr
+        * (omega_s * math.sin(phi) * math.sin(delta) + math.cos(phi) * math.cos(delta) * math.sin(omega_s))
+    )
+    ra_mj_val = max(0.0, float(ra_mj))
+
+    # Conversión a mm/día (FAO-56 Eq. 20, pág. 45: 1 MJ/(m²·día) = 0.408 mm/día)
+    ra_mm_val = 0.408 * ra_mj_val
+
+    if return_mj:
+        return round(ra_mm_val, 2), round(ra_mj_val, 2)
+    return round(ra_mm_val, 2)
+
+
+def compute_hargreaves_et0_daily(
+    tmean_c: float,
+    tmax_c: float,
+    tmin_c: float,
+    ra_mm_day: float,
+) -> float:
+    """Calcula la evapotranspiración de referencia diaria ET0 [mm/día] según la
+
+    fórmula de radiación de Hargreaves (FAO-56 Ecuación 52, pág. 64; Hargreaves y Samani 1985):
+        ET0 = 0.0023 * (Tmean + 17.8) * (Tmax - Tmin)^0.5 * Ra
+    donde Ra se expresa en evaporación equivalente [mm/día].
+    """
+    dt = max(0.0, float(tmax_c - tmin_c))
+    t_mean = float(tmean_c)
+    ra = max(0.0, float(ra_mm_day))
+    et0 = 0.0023 * (t_mean + 17.8) * math.sqrt(dt) * ra
+    return round(max(0.0, float(et0)), 3)
+
+
+# ==============================================================================
+# 2. Coeficientes de Cultivo Kc según FAO-56 (Tabla 12, págs. 110–114)
+# ==============================================================================
+
+# Coeficientes Kc por etapa fenológica: inicial (kc_ini), media/floración (kc_mid), final (kc_end)
+FAO56_CROP_KC_TABLE: dict[str, dict[str, float]] = {
+    "soja": {"kc_ini": 0.40, "kc_mid": 1.15, "kc_end": 0.50},
+    "maiz": {"kc_ini": 0.30, "kc_mid": 1.20, "kc_end": 0.60},
+    "trigo": {"kc_ini": 0.30, "kc_mid": 1.15, "kc_end": 0.30},
+    "cebada": {"kc_ini": 0.30, "kc_mid": 1.15, "kc_end": 0.25},
+    "girasol": {"kc_ini": 0.35, "kc_mid": 1.15, "kc_end": 0.35},
+    "pastura": {"kc_ini": 0.40, "kc_mid": 1.00, "kc_end": 0.85},
+    "barbecho": {"kc_ini": 0.25, "kc_mid": 0.25, "kc_end": 0.25},
+}
+
+
+def get_crop_kc_fao56(crop: str, stage: Literal["ini", "mid", "end"] = "mid") -> float:
+    """Devuelve el coeficiente de cultivo Kc de FAO-56 Tabla 12 para un cultivo y etapa."""
+    key = crop.lower()
+    for k, v in FAO56_CROP_KC_TABLE.items():
+        if k in key:
+            return v.get(f"kc_{stage}", v["kc_mid"])
+    return 1.0 if stage == "mid" else 0.40
+
+
+def get_crop_kc_monthly(cover_code: str, month: int, latitude_deg: float = -33.3) -> float:
+    """Asigna el coeficiente de cultivo Kc mensual según fenología regional y FAO-56 Tabla 12.
+
+    En el Hemisferio Sur (San Luis / región pampeana, lat < 0):
+    - Cultivos estivales (soja / maíz / girasol):
+        - Nov: inicio / vegetativo temprano (Kc ~ 0.65)
+        - Dic - Feb: floración y llenado de grano (Kc_mid = 1.15)
+        - Mar: maduración (Kc_end = 0.50)
+        - Abr - Oct: barbecho / rastrojo protector invernal (Kc = 0.25, FAO-56 Tabla 12)
+    - Cultivos invernales (trigo / cebada):
+        - Jun - Jul: implantación y macollaje (Kc_ini = 0.35)
+        - Ago - Sep: encañazón y crecimiento activo (Kc ~ 0.80)
+        - Oct: floración / espigazón (Kc_mid = 1.15)
+        - Nov: llenado y maduración (Kc_end = 0.35)
+        - Dic - May: barbecho estival (Kc = 0.25)
+    - Pasturas / pastizales:
+        - Oct - Mar (estación cálida): Kc = 0.95
+        - Abr - Sep (estación fría): Kc = 0.60
+    """
+    code = cover_code.lower()
+    is_south = float(latitude_deg) < 0
+
+    if "trigo" in code or "cebada" in code:
+        if is_south:
+            if month in (6, 7):
+                return 0.35
+            if month in (8, 9):
+                return 0.80
+            if month == 10:
+                return 1.15
+            if month == 11:
+                return 0.35
+            return float(SUPUESTO_FAO56_KC_BARBECHO.valor)
+        else:
+            if month in (12, 1):
+                return 0.35
+            if month in (2, 3):
+                return 0.80
+            if month == 4:
+                return 1.15
+            if month == 5:
+                return 0.35
+            return float(SUPUESTO_FAO56_KC_BARBECHO.valor)
+
+    if "pastura" in code or "pastizal" in code:
+        if is_south:
+            return 0.95 if month in (10, 11, 12, 1, 2, 3) else 0.60
+        else:
+            return 0.95 if month in (4, 5, 6, 7, 8, 9) else 0.60
+
+    if "barbecho" in code or "desnudo" in code:
+        return float(SUPUESTO_FAO56_KC_BARBECHO.valor)
+
+    # Cultivo estival (soja / maíz / girasol) por omisión
+    if is_south:
+        if month in (12, 1, 2):
+            return 1.15  # Pleno llenado de grano y máxima área foliar
+        if month == 11:
+            return 0.65  # Implantación y primeros nudos
+        if month == 3:
+            return 0.50  # Maduración y caída de hojas
+        return float(SUPUESTO_FAO56_KC_BARBECHO.valor)  # Barbecho / descanso invernal
+    else:
+        if month in (6, 7, 8):
+            return 1.15
+        if month == 5:
+            return 0.65
+        if month == 9:
+            return 0.50
+        return float(SUPUESTO_FAO56_KC_BARBECHO.valor)
+
+
+# ==============================================================================
+# 3. Condición de Humedad Antecedente (AMC) USDA-NRCS NEH Parte 630
+# ==============================================================================
+
+def determine_nrcs_amc(
+    prior_5d_mm: float,
+    month: int | None = None,
+    season: Literal["growing", "dormant"] | None = None,
+    latitude_deg: float = -33.3,
+) -> AntecedentMoisture:
+    """Determina la condición de humedad antecedente AMC (dry / medium / wet) según
+
+    USDA-NRCS National Engineering Handbook Part 630, Capítulo 10, Tabla 10-1 (pág. 10-2).
+
+    Diferencia estación de reposo (dormant) y de crecimiento (growing):
+    - Estación de reposo (dormant):
+        AMC I (Dry): P_5d < 12.7 mm (< 0.5 pulg)
+        AMC II (Medium): 12.7 mm <= P_5d <= 27.9 mm (0.5 a 1.1 pulg)
+        AMC III (Wet): P_5d > 27.9 mm (> 1.1 pulg)
+    - Estación de crecimiento (growing):
+        AMC I (Dry): P_5d < 35.6 mm (< 1.4 pulg)
+        AMC II (Medium): 35.6 mm <= P_5d <= 53.3 mm (1.4 a 2.1 pulg)
+        AMC III (Wet): P_5d > 53.3 mm (> 2.1 pulg)
+    """
+    p = max(0.0, float(prior_5d_mm))
+    st = season
+    if st is None and month is not None:
+        is_south = float(latitude_deg) < 0
+        if is_south:
+            st = "dormant" if month in (5, 6, 7, 8, 9) else "growing"
+        else:
+            st = "dormant" if month in (11, 12, 1, 2, 3) else "growing"
+
+    if st == "dormant":
+        dry_thresh = float(SUPUESTO_AMC_REPOSO_SECO_MM.valor)
+        wet_thresh = float(SUPUESTO_AMC_REPOSO_HUMEDO_MM.valor)
+    else:
+        dry_thresh = float(SUPUESTO_AMC_CRECIMIENTO_SECO_MM.valor)
+        wet_thresh = float(SUPUESTO_AMC_CRECIMIENTO_HUMEDO_MM.valor)
+
+    if p < dry_thresh:
+        return "dry"
+    if p <= wet_thresh:
+        return "medium"
+    return "wet"
+
+
 def compute_monthly_water_balance(
     daily_rows: list[dict],
     source_label: str,
     soil_group: SoilGroup = "B",
     cover_code: str = "soja_maiz_sd_buena",
+    latitude_deg: float | None = None,
 ) -> dict:
-    """Herramienta 2: Balance hídrico mensual del lote (lluvia, ET0 Hargreaves, agua útil, déficit y exceso)."""
+    """Herramienta 2: Balance hídrico mensual del lote con ET0 y Kc de FAO-56 (Ecuaciones 21-28, 52 y Tabla 12)."""
     awc_max = AVAILABLE_WATER_CAPACITY_MM.get(soil_group, 150.0)
     cn_ii, _ = lookup_cn_ii(cover_code, soil_group)
+    lat = float(latitude_deg if latitude_deg is not None else SUPUESTO_FAO56_LATITUD_DEFECTO.valor)
 
     if not daily_rows:
         return {
@@ -153,21 +388,31 @@ def compute_monthly_water_balance(
     for yr, mo in last_12_keys:
         days = by_ym[(yr, mo)]
         rain_m = sum(d["precip_mm"] for d in days)
-        # Estimar escorrentía superficial de las tormentas fuertes del mes (días con P > 15 mm)
+        # Estimar escorrentía superficial de las tormentas fuertes del mes (días con P >= 15 mm)
+        # Condición antecedente evaluada con criterio estacional NRCS NEH-630 Tabla 10-1
         runoff_m = sum(
-            compute_nrcs_cn(d["precip_mm"], cn_ii, "medium").runoff_q_mm
+            compute_nrcs_cn(
+                d["precip_mm"],
+                cn_ii,
+                determine_nrcs_amc(d.get("prior_5d_rain_mm", 20.0), month=mo, latitude_deg=lat),
+            ).runoff_q_mm
             for d in days
             if d["precip_mm"] >= 15.0
         )
         effective_infiltration = max(0.0, rain_m - runoff_m)
 
-        # Evapotranspiración potencial mensual aproximada (Hargreaves simplificado)
+        # Evapotranspiración potencial diaria según FAO-56 (Hargreaves Eq. 52 con Ra diaria Eq. 21-28)
         et0_m = sum(
-            max(0.8, 0.0023 * 15.0 * (d["tmean_c"] + 17.8) * math.sqrt(max(2.0, d["tmax_c"] - d["tmin_c"])))
+            compute_hargreaves_et0_daily(
+                tmean_c=d["tmean_c"],
+                tmax_c=d["tmax_c"],
+                tmin_c=d["tmin_c"],
+                ra_mm_day=compute_extraterrestrial_radiation_ra(lat, d["day_of_year"]),
+            )
             for d in days
         )
-        # Coeficiente de cultivo Kc estacional orientativo
-        kc = 0.85 if mo in (11, 12, 1, 2, 3) else 0.55
+        # Coeficiente de cultivo Kc estacional según FAO-56 Tabla 12
+        kc = get_crop_kc_monthly(cover_code, mo, lat)
         etc_m = et0_m * kc
 
         supply = storage_mm + effective_infiltration
@@ -200,6 +445,7 @@ def compute_monthly_water_balance(
             "precipitation_mm": round(rain_m, 1),
             "surface_runoff_mm": round(runoff_m, 1),
             "et0_mm": round(et0_m, 1),
+            "kc": round(kc, 2),
             "crop_demand_etc_mm": round(etc_m, 1),
             "available_water_mm": round(storage_mm, 1),
             "available_water_pct": round(100.0 * storage_mm / awc_max, 1),
@@ -254,13 +500,11 @@ def evaluate_real_date_waterlogging_risk(
         if p_day < 18.0:
             continue
         p_5d_prior = sum(daily_rows[j]["precip_mm"] for j in range(i - 5, i))
-        # Criterio NRCS de humedad antecedente en estación de cultivo (5 días previos):
-        if p_5d_prior < 15.0:
-            amc = "dry"
-        elif p_5d_prior <= 38.0:
-            amc = "medium"
-        else:
-            amc = "wet"
+        # Condición de humedad antecedente según USDA-NRCS NEH Parte 630 Tabla 10-1 (reposo vs. crecimiento):
+        amc = determine_nrcs_amc(
+            prior_5d_mm=p_5d_prior,
+            month=daily_rows[i]["month"],
+        )
 
         cn_res = compute_nrcs_cn(p_day, cn_ii, amc, 0.2)
         runoff_m3 = (cn_res.runoff_q_mm / 1000.0) * (float(field_area_ha) * 10_000.0)
