@@ -249,3 +249,14 @@ SUPUESTO_LIMITE_DESCOMPRIMIDO_ZIP_MB = Supuesto(
     motivo="Límite máximo de tamaño descomprimido (50 MB) para archivos ZIP/KMZ para prevenir ataques de descompresión (zip bombs). Configurable mediante ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB.",
     fuente_referencia="Criterio de seguridad de API (auditoría 21/11/2026, punto 9)",
 )
+
+# --- Umbral de Encharcamiento Hidrodinámico 2D y Visualización 3D (Spec 013) ---
+UMBRAL_ENCHARCAMIENTO_MOTOR_M = Supuesto(
+    clave="umbral_encharcamiento_motor_m",
+    valor=0.05,
+    unidad="m",
+    motivo="Umbral hidrológico mínimo de lámina de agua acumulada (5 cm) para considerar que una celda está encharcada / anegada en el solver 2D y la zonificación agronómica.",
+    fuente_referencia="Modelo hidrodinámico 2D RotaTerra (shallow_water_2d.py / zonation.py)",
+    editable=True,
+)
+

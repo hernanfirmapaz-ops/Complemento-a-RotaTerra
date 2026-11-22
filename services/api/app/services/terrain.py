@@ -171,8 +171,9 @@ def terrain_mesh(field_id: str, max_size: int) -> dict:
             extra["soil_loss_t_ha"] = grids["soil_loss_t_ha"]
         if "ndvi" in grids and grids["ndvi"] is not None and getattr(grids["ndvi"], "ndim", 0) == 2:
             extra["ndvi"] = grids["ndvi"]
-    if active_run := hydrology.optional_active_runoff(field_id):
-        _, r_grids = active_run
+    active_run = hydrology.optional_active_runoff(field_id)
+    if active_run:
+        run_doc, r_grids = active_run
         extra["runoff_load_mm"] = r_grids["runoff_load_mm"]
         extra["cumulative_runoff_m3"] = r_grids["cumulative_runoff_m3"]
         if "water_depth_m" in r_grids:
@@ -181,7 +182,13 @@ def terrain_mesh(field_id: str, max_size: int) -> dict:
             extra["velocity_m_s"] = r_grids["velocity_m_s"]
         if "agronomic_zone_id" in r_grids:
             extra["agronomic_zone_id"] = r_grids["agronomic_zone_id"]
-    return mesh(dem, mascara, anillos, max_size, extra_grids=extra or None)
+    res = mesh(dem, mascara, anillos, max_size, extra_grids=extra or None)
+    if active_run:
+        run_doc, _ = active_run
+        h2d = run_doc.get("hydrodynamic_2d_summary") or {}
+        if "ponding_threshold_m" in h2d:
+            res["ponding_threshold_m"] = float(h2d["ponding_threshold_m"])
+    return res
 
 
 def terrain_point(field_id: str, lon: float, lat: float) -> dict:
