@@ -450,6 +450,14 @@ class RunoffRunOut(BaseModel):
     assumptions_and_notes: list[str]
     warnings: list[str]
     limitations: list[str]
+    ponded_area_pct: float | None = Field(
+        None,
+        description="Porcentaje de superficie anegable respecto al área total del lote (1 decimal)",
+    )
+    field_area_ha: float | None = Field(
+        None,
+        description="Superficie total del lote en hectáreas (1 decimal)",
+    )
 
 
 class ScenarioComparisonOut(BaseModel):

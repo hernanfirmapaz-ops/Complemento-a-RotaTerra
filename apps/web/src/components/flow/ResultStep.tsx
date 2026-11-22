@@ -14,6 +14,7 @@ interface ResultStepProps {
   runsList?: RunoffRunOut[]
   toolkit: AgronomicToolkitOut | null
   terrain: TerrainOut | null
+  field?: { area_ha?: number } | null
   activeOverlay: AgronomistOverlayMode
   onSelectOverlay: (overlay: AgronomistOverlayMode) => void
   onReplayRain: () => void
@@ -32,6 +33,7 @@ export function ResultStep({
   runsList = [],
   toolkit,
   terrain,
+  field,
   activeOverlay,
   onSelectOverlay,
   onReplayRain,
@@ -59,8 +61,28 @@ export function ResultStep({
   const runoffCoeff = run?.cn_result?.runoff_coefficient ?? null
   const runoffPct = runoffCoeff !== null ? Math.round(runoffCoeff * 100) : null
 
-  // Estimación de hectáreas anegadas a partir del modelo hidrodinámico 2D
-  const floodedHa = run?.hydrodynamic_2d_summary?.ponded_area_in_field_ha ?? null
+  // Estimación de porcentaje y hectáreas anegadas calculadas por la API (Issue #85)
+  const pondedPct =
+    run?.ponded_area_pct ??
+    run?.hydrodynamic_2d_summary?.ponded_area_pct ??
+    null
+  const floodedHa =
+    run?.hydrodynamic_2d_summary?.ponded_area_in_field_ha ?? null
+  const totalFieldHa = run?.field_area_ha ?? field?.area_ha ?? null
+
+  const pondedCaption =
+    floodedHa !== null && totalFieldHa !== null
+      ? `${floodedHa.toFixed(1).replace('.', ',')} ha de ${Math.round(totalFieldHa)} ha`
+      : floodedHa !== null
+        ? `${floodedHa.toFixed(1).replace('.', ',')} ha`
+        : 'Sin simulación 2D'
+
+  const waterloggingMeta =
+    pondedPct !== null && floodedHa !== null && totalFieldHa !== null
+      ? `${pondedPct.toFixed(1).replace('.', ',')} % (${floodedHa.toFixed(1).replace('.', ',')} ha de ${Math.round(totalFieldHa)} ha)`
+      : floodedHa !== null
+        ? `${floodedHa.toFixed(1).replace('.', ',')} ha`
+        : 'Sin dato'
 
   // Pérdida de suelo USLE estimada en t/ha
   const soilLossAvg = toolkit?.erosion_usle?.mean_soil_loss_t_ha ?? null
@@ -78,7 +100,7 @@ export function ResultStep({
       id: 'waterlogging',
       title: 'Dónde se encharca',
       subtitle: 'Lámina de agua acumulada en bajos y microrelieves',
-      meta: floodedHa !== null ? `${floodedHa.toFixed(1)} ha` : 'Sin dato',
+      meta: waterloggingMeta,
       icon: 'droplet',
       selected: activeOverlay === 'waterlogging',
     },
@@ -183,10 +205,14 @@ export function ResultStep({
       {/* 3 Métricas destacadas */}
       <div className="result-metrics-grid">
         <Metric
-          value={floodedHa !== null ? floodedHa.toFixed(1) : 'Sin dato'}
-          unit={floodedHa !== null ? 'ha' : undefined}
+          value={
+            pondedPct !== null
+              ? pondedPct.toFixed(1).replace('.', ',')
+              : 'Sin dato'
+          }
+          unit={pondedPct !== null ? '%' : undefined}
           label="Superficie anegable"
-          caption={floodedHa !== null ? 'Bajos y cubetas de retención' : 'Sin simulación 2D'}
+          caption={pondedCaption}
         />
 
         <Metric

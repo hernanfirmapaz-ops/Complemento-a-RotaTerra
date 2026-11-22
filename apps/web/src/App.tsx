@@ -310,6 +310,7 @@ export function App() {
       setRunoffRuns(rns)
       setToolkit(tk)
       setFields(all)
+      setDioramaOverlay('waterlogging')
       setIsPlayingDioramaRain(true)
       setFlowStep('resultado')
     } catch (err) {
@@ -372,6 +373,7 @@ export function App() {
       )
       setTimeline(tl)
       setTimelineStep(tl?.peak_step_index ?? 0)
+      setDioramaOverlay('waterlogging')
       setIsPlayingDioramaRain(true)
       setFlowStep('resultado')
     } catch (err) {
@@ -446,6 +448,7 @@ export function App() {
       setFields(all)
       if (fld) {
         setActiveFieldId(fld.id)
+        setDioramaOverlay('waterlogging')
         setFlowStep('resultado')
       }
       setIsMapDrawerOpen(false)
@@ -676,6 +679,7 @@ export function App() {
                 runsList={runoffRuns}
                 toolkit={toolkit}
                 terrain={terrain}
+                field={activeField}
                 activeOverlay={dioramaOverlay}
                 onSelectOverlay={setDioramaOverlay}
                 onReplayRain={() => setFlowStep('lluvia')}
@@ -776,6 +780,7 @@ export function App() {
                   runsList={runoffRuns}
                   toolkit={toolkit}
                   terrain={terrain}
+                  field={activeField}
                   activeOverlay={dioramaOverlay}
                   onSelectOverlay={setDioramaOverlay}
                   onReplayRain={() => setFlowStep('lluvia')}

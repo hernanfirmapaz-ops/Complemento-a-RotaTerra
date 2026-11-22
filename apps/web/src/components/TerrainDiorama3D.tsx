@@ -311,11 +311,18 @@ export function TerrainDiorama3D({
       camera.up.set(0, 0, 1)
     }
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      powerPreference: 'high-performance',
-    })
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        powerPreference: 'high-performance',
+      })
+    } catch (err) {
+      console.warn('Visor 3D: WebGL no disponible en este entorno', err)
+      container.innerHTML = '<div class="stage-empty"><p class="stage-empty-title">Visor 3D no disponible</p><p class="stage-empty-text">El entorno no cuenta con aceleración WebGL activa.</p></div>'
+      return
+    }
     renderer.setSize(widthPx, heightPx)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.shadowMap.enabled = true
@@ -647,45 +654,55 @@ export function TerrainDiorama3D({
     }
 
     // 3.5 Spec 013 (Etapa 1): Malla de agua 4x desacoplada y corte en umbral físico del motor
+    // La lámina de agua 3D se muestra cuando la capa activa es waterlogging / satellite_water o mientras llueve
     const pondingThresholdM = mesh.ponding_threshold_m
+    const shouldShowWaterMesh =
+      overlayMode === 'waterlogging' ||
+      overlayMode === 'satellite_water' ||
+      isPlayingRain
+
     const waterDepthArr = new Float32Array(rows * cols)
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const idx = r * cols + c
-        let depth = 0
-        if (mesh.water_depth_m) {
-          depth = mesh.water_depth_m[idx] ?? 0
-        } else if (overlayMode === 'waterlogging' && mesh.sink_depth_m) {
-          depth = mesh.sink_depth_m[idx] ?? 0
+    if (shouldShowWaterMesh) {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const idx = r * cols + c
+          let depth = 0
+          if (mesh.water_depth_m) {
+            depth = mesh.water_depth_m[idx] ?? 0
+          } else if (overlayMode === 'waterlogging' && mesh.sink_depth_m) {
+            depth = mesh.sink_depth_m[idx] ?? 0
+          }
+          waterDepthArr[idx] = depth
         }
-        waterDepthArr[idx] = depth
       }
     }
 
     let waterMesh: THREE.Mesh | null = null
     let waterShaderMat: THREE.ShaderMaterial | null = null
 
-    const waterGeom = createWaterGeometry4x({
-      positions,
-      waterDepthArr,
-      rows,
-      cols,
-      exaggeration,
-      subdivision: 4,
-    })
-
-    if (
-      pondingThresholdM !== undefined &&
-      pondingThresholdM !== null &&
-      (waterGeom.getAttribute('position')?.count ?? 0) > 0
-    ) {
-      waterShaderMat = createWaterShaderMaterial({
-        pondingThresholdM,
-        rainIntensityFactor,
-        enableFlowMap: true,
+    if (shouldShowWaterMesh) {
+      const waterGeom = createWaterGeometry4x({
+        positions,
+        waterDepthArr,
+        rows,
+        cols,
+        exaggeration,
+        subdivision: 4,
       })
-      waterMesh = new THREE.Mesh(waterGeom, waterShaderMat)
-      dioramaGroup.add(waterMesh)
+
+      if (
+        pondingThresholdM !== undefined &&
+        pondingThresholdM !== null &&
+        (waterGeom.getAttribute('position')?.count ?? 0) > 0
+      ) {
+        waterShaderMat = createWaterShaderMaterial({
+          pondingThresholdM,
+          rainIntensityFactor,
+          enableFlowMap: true,
+        })
+        waterMesh = new THREE.Mesh(waterGeom, waterShaderMat)
+        dioramaGroup.add(waterMesh)
+      }
     }
 
     // 4. Venas / cauces de escurrimiento celestes permanentes donde converge el flujo MFD
