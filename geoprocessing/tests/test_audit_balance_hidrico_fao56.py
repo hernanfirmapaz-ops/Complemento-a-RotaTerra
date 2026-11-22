@@ -144,3 +144,35 @@ def test_monthly_water_balance_uses_fao56_ra_and_lat():
 
     # ET0 en verano austral debe ser sustancialmente mayor que en invierno boreal para las mismas T
     assert et0_sur > 2.0 * et0_norte
+
+
+def test_monthly_water_balance_discards_incomplete_rows_without_invented_defaults():
+    """Auditoría 21/11 / Regla de datos: si falta temperatura, precipitación o fecha,
+
+    el mes se marca como descartado / incompleto con valores null, nunca inventando 20 °C ni ±5 °C.
+    """
+    incomplete_days = [
+        {
+            "year": 2025,
+            "month": 1,
+            "day_of_year": 15,
+            "precip_mm": 10.0,
+            # tmean_c, tmax_c, tmin_c faltantes
+        }
+    ]
+    wb = compute_monthly_water_balance(incomplete_days, "NASA POWER (test)", "B")
+
+    # El balance global y el mes deben descartarse por incompletos
+    assert wb["status"] == "unavailable"
+    assert wb["calidad"] == "descartada"
+    assert wb["annual_precipitation_mm"] is None
+    assert wb["annual_et0_mm"] is None
+
+    month_0 = wb["months"][0]
+    assert month_0["calidad"] == "descartada"
+    assert month_0["precipitation_mm"] is None
+    assert month_0["et0_mm"] is None
+    assert month_0["crop_demand_etc_mm"] is None
+    assert month_0["available_water_mm"] is None
+    assert "temperatura faltante" in month_0["motivo"]
+

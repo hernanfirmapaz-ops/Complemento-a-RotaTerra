@@ -211,36 +211,37 @@ export function AgronomicToolkitPanel({
                 <div>
                   <dt>Lluvia / ET0 anual</dt>
                   <dd>
-                    {toolkit.water_balance_monthly.annual_precipitation_mm.toFixed(
-                      0,
-                    )}{' '}
-                    / {toolkit.water_balance_monthly.annual_et0_mm.toFixed(0)}{' '}
-                    mm
+                    {toolkit.water_balance_monthly.annual_precipitation_mm !== null &&
+                    toolkit.water_balance_monthly.annual_precipitation_mm !== undefined
+                      ? `${toolkit.water_balance_monthly.annual_precipitation_mm.toFixed(0)} / ${toolkit.water_balance_monthly.annual_et0_mm?.toFixed(0) ?? 0} mm`
+                      : 'Sin datos (descartada)'}
                   </dd>
                 </div>
                 <div>
                   <dt>Agua útil actual</dt>
                   <dd>
-                    {toolkit.water_balance_monthly.final_available_water_mm.toFixed(
-                      0,
-                    )}{' '}
-                    mm (
-                    {toolkit.water_balance_monthly.final_available_water_pct.toFixed(
-                      0,
-                    )}{' '}
-                    %)
+                    {toolkit.water_balance_monthly.final_available_water_mm !== null &&
+                    toolkit.water_balance_monthly.final_available_water_mm !== undefined
+                      ? `${toolkit.water_balance_monthly.final_available_water_mm.toFixed(0)} mm (${toolkit.water_balance_monthly.final_available_water_pct?.toFixed(0) ?? 0} %)`
+                      : 'Sin datos (descartada)'}
                   </dd>
                 </div>
                 <div>
                   <dt>Meses con déficit</dt>
                   <dd>
-                    {toolkit.water_balance_monthly.deficit_months_count} de 12
+                    {toolkit.water_balance_monthly.deficit_months_count !== null &&
+                    toolkit.water_balance_monthly.deficit_months_count !== undefined
+                      ? `${toolkit.water_balance_monthly.deficit_months_count} de 12`
+                      : 'Sin datos'}
                   </dd>
                 </div>
                 <div>
                   <dt>Meses con exceso</dt>
                   <dd>
-                    {toolkit.water_balance_monthly.excess_months_count} de 12
+                    {toolkit.water_balance_monthly.excess_months_count !== null &&
+                    toolkit.water_balance_monthly.excess_months_count !== undefined
+                      ? `${toolkit.water_balance_monthly.excess_months_count} de 12`
+                      : 'Sin datos'}
                   </dd>
                 </div>
               </dl>
@@ -261,9 +262,9 @@ export function AgronomicToolkitPanel({
                       .map((m) => (
                         <tr key={m.label}>
                           <td>{m.label}</td>
-                          <td>{m.precipitation_mm.toFixed(0)}</td>
-                          <td>{m.et0_mm.toFixed(0)}</td>
-                          <td>{m.available_water_pct.toFixed(0)} %</td>
+                          <td>{m.precipitation_mm !== null && m.precipitation_mm !== undefined ? `${m.precipitation_mm.toFixed(0)}` : 'N/D'}</td>
+                          <td>{m.et0_mm !== null && m.et0_mm !== undefined ? `${m.et0_mm.toFixed(0)}` : 'N/D'}</td>
+                          <td>{m.available_water_pct !== null && m.available_water_pct !== undefined ? `${m.available_water_pct.toFixed(0)} %` : 'N/D'}</td>
                           <td>{m.status}</td>
                         </tr>
                       ))}

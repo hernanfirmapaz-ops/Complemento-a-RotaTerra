@@ -378,12 +378,13 @@ def compute_monthly_water_balance(
         mo = r.get("month")
         if (yr is None or mo is None) and "date" in r:
             try:
-                parts = r["date"].split("-")
+                parts = str(r["date"]).split("-")
                 yr = yr if yr is not None else int(parts[0])
                 mo = mo if mo is not None else int(parts[1])
-            except Exception:
-                pass
-        if yr is not None and mo is not None:
+            except (ValueError, IndexError):
+                yr = None
+                mo = None
+        if yr is not None and mo is not None and 1 <= mo <= 12:
             by_ym.setdefault((yr, mo), []).append(r)
 
     last_12_keys = sorted(by_ym.keys())[-12:]
@@ -394,20 +395,58 @@ def compute_monthly_water_balance(
     excess_months = 0
     total_rain = 0.0
     total_et0 = 0.0
+    has_incomplete_month = False
 
     for yr, mo in last_12_keys:
         days = by_ym[(yr, mo)]
-        rain_m = sum(d.get("precip_mm", 0.0) for d in days)
+
+        # Verificar integridad del mes: sin lluvia o temperatura inventada (Auditoría 21/11 / Regla de datos)
+        missing_reasons = []
+        for d in days:
+            if d.get("precip_mm") is None:
+                missing_reasons.append("precipitación faltante")
+            if d.get("tmean_c") is None or d.get("tmax_c") is None or d.get("tmin_c") is None:
+                missing_reasons.append("temperatura faltante")
+            doy = d.get("day_of_year")
+            if doy is None and "date" in d:
+                try:
+                    doy = datetime.strptime(str(d["date"]), "%Y-%m-%d").timetuple().tm_yday
+                except (ValueError, TypeError):
+                    doy = None
+            if doy is None:
+                missing_reasons.append("fecha / día del año faltante")
+
+        if missing_reasons:
+            has_incomplete_month = True
+            months_out.append({
+                "year": yr,
+                "month": mo,
+                "label": f"{MONTH_NAMES_ES[mo - 1]} {yr}",
+                "calidad": "descartada",
+                "motivo": f"Mes incompleto: {', '.join(sorted(set(missing_reasons)))}",
+                "precipitation_mm": None,
+                "surface_runoff_mm": None,
+                "et0_mm": None,
+                "kc": round(get_crop_kc_monthly(cover_code, mo, lat), 2),
+                "crop_demand_etc_mm": None,
+                "available_water_mm": None,
+                "available_water_pct": None,
+                "deficit_mm": None,
+                "excess_drainage_mm": None,
+                "status": "Incompleto (descartada)",
+            })
+            continue
+
+        rain_m = sum(float(d["precip_mm"]) for d in days)
         # Estimar escorrentía superficial de las tormentas fuertes del mes (días con P >= 15 mm)
-        # Condición antecedente evaluada con criterio estacional NRCS NEH-630 Tabla 10-1
         runoff_m = sum(
             compute_nrcs_cn(
-                d["precip_mm"],
+                float(d["precip_mm"]),
                 cn_ii,
                 determine_nrcs_amc(d.get("prior_5d_rain_mm", 20.0), month=mo, latitude_deg=lat),
             ).runoff_q_mm
             for d in days
-            if d.get("precip_mm", 0.0) >= 15.0
+            if float(d["precip_mm"]) >= 15.0
         )
         effective_infiltration = max(0.0, rain_m - runoff_m)
 
@@ -415,27 +454,16 @@ def compute_monthly_water_balance(
         et0_m = 0.0
         for d in days:
             doy = d.get("day_of_year")
-            if doy is None and "date" in d:
-                try:
-                    doy = datetime.strptime(d["date"], "%Y-%m-%d").timetuple().tm_yday
-                except Exception:
-                    doy = 15 + (mo - 1) * 30
-            elif doy is None:
-                doy = 15 + (mo - 1) * 30
-
-            t_mean = d.get("tmean_c")
-            t_max = d.get("tmax_c")
-            t_min = d.get("tmin_c")
-            if t_mean is None:
-                t_mean = 20.0
-            if t_max is None:
-                t_max = t_mean + 5.0
-            if t_min is None:
-                t_min = t_mean - 5.0
-
+            if doy is None:
+                doy = datetime.strptime(str(d["date"]), "%Y-%m-%d").timetuple().tm_yday
             ra = compute_extraterrestrial_radiation_ra(lat, doy)
-            et0_m += compute_hargreaves_et0_daily(t_mean, t_max, t_min, ra)
-        # Coeficiente de cultivo Kc estacional según FAO-56 Tabla 12
+            et0_m += compute_hargreaves_et0_daily(
+                float(d["tmean_c"]),
+                float(d["tmax_c"]),
+                float(d["tmin_c"]),
+                ra,
+            )
+
         kc = get_crop_kc_monthly(cover_code, mo, lat)
         etc_m = et0_m * kc
 
@@ -477,6 +505,23 @@ def compute_monthly_water_balance(
             "excess_drainage_mm": round(excess, 1),
             "status": "Déficit" if deficit >= 15.0 else ("Exceso" if (excess + runoff_m) >= 20.0 else "Adecuado"),
         })
+
+    if has_incomplete_month:
+        return {
+            "source": source_label,
+            "status": "unavailable",
+            "calidad": "descartada",
+            "motivo": "Serie mensual incompleta por datos faltantes de clima (temperatura, precipitación o fecha).",
+            "soil_group": soil_group,
+            "available_water_capacity_max_mm": awc_max,
+            "annual_precipitation_mm": None,
+            "annual_et0_mm": None,
+            "deficit_months_count": None,
+            "excess_months_count": None,
+            "final_available_water_mm": None,
+            "final_available_water_pct": None,
+            "months": months_out,
+        }
 
     return {
         "source": source_label,
@@ -520,16 +565,19 @@ def evaluate_real_date_waterlogging_risk(
     # Calcular para cada día la lluvia del evento (1 a 2 días consecutivos) y la lluvia antecedente de 5 días
     storms: list[dict] = []
     for i in range(5, len(daily_rows)):
-        p_day = daily_rows[i]["precip_mm"]
-        if p_day < 18.0:
+        p_day = daily_rows[i].get("precip_mm")
+        if p_day is None or p_day < 18.0:
             continue
-        p_5d_prior = sum(daily_rows[j]["precip_mm"] for j in range(i - 5, i))
+        prior_slice = [daily_rows[j].get("precip_mm") for j in range(i - 5, i)]
+        if any(p is None for p in prior_slice):
+            continue
+        p_5d_prior = sum(float(p) for p in prior_slice)
         # Condición de humedad antecedente según USDA-NRCS NEH Parte 630 Tabla 10-1 (reposo vs. crecimiento):
         mo = daily_rows[i].get("month")
         if mo is None and "date" in daily_rows[i]:
             try:
-                mo = int(daily_rows[i]["date"].split("-")[1])
-            except Exception:
+                mo = int(str(daily_rows[i]["date"]).split("-")[1])
+            except (ValueError, IndexError):
                 mo = None
         amc = determine_nrcs_amc(
             prior_5d_mm=p_5d_prior,
