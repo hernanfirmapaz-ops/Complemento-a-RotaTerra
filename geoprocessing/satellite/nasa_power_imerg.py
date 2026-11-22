@@ -374,7 +374,17 @@ def compute_monthly_water_balance(
     # Agrupar los últimos 12 meses disponibles
     by_ym: dict[tuple[int, int], list[dict]] = {}
     for r in daily_rows:
-        by_ym.setdefault((r["year"], r["month"]), []).append(r)
+        yr = r.get("year")
+        mo = r.get("month")
+        if (yr is None or mo is None) and "date" in r:
+            try:
+                parts = r["date"].split("-")
+                yr = yr if yr is not None else int(parts[0])
+                mo = mo if mo is not None else int(parts[1])
+            except Exception:
+                pass
+        if yr is not None and mo is not None:
+            by_ym.setdefault((yr, mo), []).append(r)
 
     last_12_keys = sorted(by_ym.keys())[-12:]
     storage_mm = 0.65 * awc_max  # humedad inicial al 65 % de capacidad de campo
@@ -387,7 +397,7 @@ def compute_monthly_water_balance(
 
     for yr, mo in last_12_keys:
         days = by_ym[(yr, mo)]
-        rain_m = sum(d["precip_mm"] for d in days)
+        rain_m = sum(d.get("precip_mm", 0.0) for d in days)
         # Estimar escorrentía superficial de las tormentas fuertes del mes (días con P >= 15 mm)
         # Condición antecedente evaluada con criterio estacional NRCS NEH-630 Tabla 10-1
         runoff_m = sum(
@@ -397,20 +407,34 @@ def compute_monthly_water_balance(
                 determine_nrcs_amc(d.get("prior_5d_rain_mm", 20.0), month=mo, latitude_deg=lat),
             ).runoff_q_mm
             for d in days
-            if d["precip_mm"] >= 15.0
+            if d.get("precip_mm", 0.0) >= 15.0
         )
         effective_infiltration = max(0.0, rain_m - runoff_m)
 
         # Evapotranspiración potencial diaria según FAO-56 (Hargreaves Eq. 52 con Ra diaria Eq. 21-28)
-        et0_m = sum(
-            compute_hargreaves_et0_daily(
-                tmean_c=d["tmean_c"],
-                tmax_c=d["tmax_c"],
-                tmin_c=d["tmin_c"],
-                ra_mm_day=compute_extraterrestrial_radiation_ra(lat, d["day_of_year"]),
-            )
-            for d in days
-        )
+        et0_m = 0.0
+        for d in days:
+            doy = d.get("day_of_year")
+            if doy is None and "date" in d:
+                try:
+                    doy = datetime.strptime(d["date"], "%Y-%m-%d").timetuple().tm_yday
+                except Exception:
+                    doy = 15 + (mo - 1) * 30
+            elif doy is None:
+                doy = 15 + (mo - 1) * 30
+
+            t_mean = d.get("tmean_c")
+            t_max = d.get("tmax_c")
+            t_min = d.get("tmin_c")
+            if t_mean is None:
+                t_mean = 20.0
+            if t_max is None:
+                t_max = t_mean + 5.0
+            if t_min is None:
+                t_min = t_mean - 5.0
+
+            ra = compute_extraterrestrial_radiation_ra(lat, doy)
+            et0_m += compute_hargreaves_et0_daily(t_mean, t_max, t_min, ra)
         # Coeficiente de cultivo Kc estacional según FAO-56 Tabla 12
         kc = get_crop_kc_monthly(cover_code, mo, lat)
         etc_m = et0_m * kc
@@ -501,9 +525,15 @@ def evaluate_real_date_waterlogging_risk(
             continue
         p_5d_prior = sum(daily_rows[j]["precip_mm"] for j in range(i - 5, i))
         # Condición de humedad antecedente según USDA-NRCS NEH Parte 630 Tabla 10-1 (reposo vs. crecimiento):
+        mo = daily_rows[i].get("month")
+        if mo is None and "date" in daily_rows[i]:
+            try:
+                mo = int(daily_rows[i]["date"].split("-")[1])
+            except Exception:
+                mo = None
         amc = determine_nrcs_amc(
             prior_5d_mm=p_5d_prior,
-            month=daily_rows[i]["month"],
+            month=mo,
         )
 
         cn_res = compute_nrcs_cn(p_day, cn_ii, amc, 0.2)
