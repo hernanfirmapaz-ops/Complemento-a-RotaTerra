@@ -322,11 +322,18 @@ export function TerrainDiorama3D({
       camera.up.set(0, 0, 1)
     }
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      powerPreference: 'high-performance',
-    })
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        powerPreference: 'high-performance',
+      })
+    } catch (err) {
+      console.warn('Visor 3D: WebGL no disponible en este entorno', err)
+      container.innerHTML = '<div class="stage-empty"><p class="stage-empty-title">Visor 3D no disponible</p><p class="stage-empty-text">El entorno no cuenta con aceleración WebGL activa.</p></div>'
+      return
+    }
     renderer.setSize(widthPx, heightPx)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.shadowMap.enabled = true
