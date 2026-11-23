@@ -1404,6 +1404,7 @@ def simulate_field_daily_rainfall(
     amc_to_use = day["antecedent_moisture_amc"]
     amc_note = f"Humedad antecedente 5d: {day['prior_5d_rain_mm']:.1f} mm ({amc_to_use.upper()}) [NASA POWER]."
 
+    rem_used = False
     if rem_st.get("in_range"):
         rem_5d = get_rem_antecedent_rainfall_5d(rem_st["id"], day["date"], latitude_deg=lat)
         if rem_5d is not None and rem_5d.get("prior_5d_mm") is not None:
@@ -1414,9 +1415,10 @@ def simulate_field_daily_rainfall(
             )
             ctx["nearest_rem_station"] = rem_st
             ctx["rem_antecedent_moisture"] = rem_5d
+            rem_used = True
 
     now = store.now_iso()
-    rem_tag = f" · {rem_st['label']}" if rem_st.get("in_range") else ""
+    rem_tag = f" · {rem_st['label']}" if rem_used else ""
     event_name = (
         f"Día {day['date']} · {p_mm:.1f} mm (NASA POWER{rem_tag} · Ref. SMN {smn['name']} a {smn['distance_km']} km)"
     )

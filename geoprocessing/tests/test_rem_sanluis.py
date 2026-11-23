@@ -99,6 +99,22 @@ def test_get_rem_antecedent_rainfall_5d_missing_data_returns_none():
     assert res is None
 
 
+def test_get_rem_antecedent_rainfall_5d_missing_latitude_returns_none():
+    raw_bytes = FIXTURE_CSV.read_bytes()
+    records = parse_rem_csv(raw_bytes)
+
+    # Estación desconocida (sin coordenadas en el catálogo REM y sin latitude_deg explícita)
+    # Sin latitud no se puede determinar la estación astronómica (dormant/growing).
+    # Debe retornar None sin inventar latitud por omisión, degradando limpiamente a reanálisis regional.
+    res = get_rem_antecedent_rainfall_5d(
+        station_id=99999,
+        target_date_str="2026-11-20",
+        latitude_deg=None,
+        records=records,
+    )
+    assert res is None
+
+
 def test_amc_thresholds():
     """Prueba los umbrales NEH-4 Tabla 4.2 en las dos estaciones del hemisferio sur (latitud San Luis -33.68°)."""
     lat_san_luis = -33.68
@@ -131,3 +147,28 @@ def test_rem_offline_guarantee():
         st = find_nearest_rem_station(lon, lat)
         assert st["name"] in ("Villa Mercedes", "Villa Reynolds")
         mock_url.assert_not_called()
+
+
+def test_rem_tag_provenance_only_when_data_available():
+    # Estación en rango pero sin serie disponible (rem_5d es None): rem_tag debe ser vacío
+    # para evitar procedencia engañosa en la ficha del lote cuando degrada a NASA POWER.
+    rem_st = {"id": 42, "name": "Villa Mercedes", "label": "REM Villa Mercedes (12.0 km)", "in_range": True}
+    rem_5d_none = None
+
+    rem_used_false = bool(
+        rem_st.get("in_range")
+        and rem_5d_none is not None
+        and rem_5d_none.get("prior_5d_mm") is not None
+    )
+    rem_tag_empty = f" · {rem_st['label']}" if rem_used_false else ""
+    assert rem_tag_empty == ""
+
+    # Estación en rango con serie completa utilizada: rem_tag debe documentar la estación
+    rem_5d_valid = {"prior_5d_mm": 24.5, "antecedent_moisture_amc": "medium"}
+    rem_used_true = bool(
+        rem_st.get("in_range")
+        and rem_5d_valid is not None
+        and rem_5d_valid.get("prior_5d_mm") is not None
+    )
+    rem_tag_present = f" · {rem_st['label']}" if rem_used_true else ""
+    assert rem_tag_present == " · REM Villa Mercedes (12.0 km)"

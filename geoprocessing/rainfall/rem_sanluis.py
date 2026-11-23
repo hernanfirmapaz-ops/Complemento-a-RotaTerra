@@ -403,7 +403,9 @@ def get_rem_antecedent_rainfall_5d(
         if st_match is not None and st_match.get("latitude") is not None:
             lat = float(st_match["latitude"])
         else:
-            lat = -33.68  # Latitud representativa de San Luis (Hemisferio Sur)
+            # Sin latitud verificada no se puede clasificar la condición agronómica (reposo vs crecimiento).
+            # No inventar valores por omisión -> retorna None para degradar limpiamente a reanálisis regional.
+            return None
 
     amc = determine_nrcs_amc(
         prior_5d_mm=total_5d,
