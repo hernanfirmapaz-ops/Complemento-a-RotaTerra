@@ -1405,7 +1405,7 @@ def simulate_field_daily_rainfall(
     amc_note = f"Humedad antecedente 5d: {day['prior_5d_rain_mm']:.1f} mm ({amc_to_use.upper()}) [NASA POWER]."
 
     if rem_st.get("in_range"):
-        rem_5d = get_rem_antecedent_rainfall_5d(rem_st["id"], day["date"])
+        rem_5d = get_rem_antecedent_rainfall_5d(rem_st["id"], day["date"], latitude_deg=lat)
         if rem_5d is not None and rem_5d.get("prior_5d_mm") is not None:
             amc_to_use = rem_5d["antecedent_moisture_amc"]
             amc_note = (

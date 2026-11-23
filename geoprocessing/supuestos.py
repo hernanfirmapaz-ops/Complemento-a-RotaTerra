@@ -266,7 +266,7 @@ SUPUESTO_REM_DISTANCIA_MAX_KM = Supuesto(
     valor=30.0,
     unidad="km",
     motivo="Distancia máxima geodésica entre el centroide del lote y una estación de la Red de Estaciones Meteorológicas (REM) de San Luis para utilizar su precipitación acumulada de los 5 días previos en la determinación de la condición de humedad antecedente (AMC) en lugar de la estimación satelital/reanálisis regional (~55 km).",
-    fuente_referencia="Criterio agrometeorológico INTA San Luis (Contreras 2012) e Issue #23.",
+    fuente_referencia="Decisión metodológica, Issue #23",
     editable=True,
 )
 

@@ -18,8 +18,9 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
+from geoprocessing.satellite.nasa_power_imerg import determine_nrcs_amc
 from geoprocessing.supuestos import SUPUESTO_REM_DISTANCIA_MAX_KM
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
@@ -28,14 +29,22 @@ REM_STATIONS_FILE = DATA_DIR / "rem_estaciones.json"
 
 BASE_URL_CSV = "https://clima.sanluis.gob.ar/ObtenerCsv.aspx"
 
-# Catálogo oficial verificado de estaciones REM (San Luis)
+# Catálogo de 14 estaciones meteorológicas de la Red de Estaciones Meteorológicas (REM) de San Luis.
+# Fuente oficial: Red de Estaciones Meteorológicas (REM), Universidad de La Punta (ULP), Gobierno de San Luis.
+# URL oficial: https://clima.sanluis.gob.ar/Index.aspx
+# Fecha de consulta: 2026-11-23.
+#
+# Nota de verificación:
+# - Coordenadas (latitud y longitud): verificadas en el mapa del portal oficial de la REM (https://clima.sanluis.gob.ar/Index.aspx).
+# - Cotas de elevación (elevation_m): no se encuentran publicadas explícitamente en el portal web de la REM;
+#   se registran como None (a verificar) para evitar datos inventados (Regla 2).
 REM_STATIONS: list[dict[str, Any]] = [
     {
         "id": 42,
         "name": "Villa Mercedes",
         "latitude": -33.6786,
         "longitude": -65.5046,
-        "elevation_m": 486.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -43,7 +52,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Villa Reynolds",
         "latitude": -33.7255,
         "longitude": -65.3858,
-        "elevation_m": 482.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -51,7 +60,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "El Trapiche",
         "latitude": -33.1086,
         "longitude": -66.0647,
-        "elevation_m": 1050.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -59,7 +68,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Justo Daract",
         "latitude": -33.8569,
         "longitude": -65.1822,
-        "elevation_m": 500.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -67,7 +76,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Aeropuerto San Luis",
         "latitude": -33.2722,
         "longitude": -66.3578,
-        "elevation_m": 710.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -75,7 +84,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "La Toma",
         "latitude": -33.0531,
         "longitude": -65.6236,
-        "elevation_m": 850.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -83,7 +92,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Merlo",
         "latitude": -32.3425,
         "longitude": -65.0131,
-        "elevation_m": 880.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -91,7 +100,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Buena Esperanza",
         "latitude": -34.7572,
         "longitude": -65.2536,
-        "elevation_m": 390.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -99,7 +108,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Unión",
         "latitude": -35.1539,
         "longitude": -65.9458,
-        "elevation_m": 360.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -107,7 +116,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Fraga",
         "latitude": -33.4933,
         "longitude": -65.7906,
-        "elevation_m": 600.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -115,7 +124,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Concarán",
         "latitude": -32.5614,
         "longitude": -65.2428,
-        "elevation_m": 660.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -123,7 +132,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Tilisarao",
         "latitude": -32.7333,
         "longitude": -65.2917,
-        "elevation_m": 710.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -131,7 +140,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Quines",
         "latitude": -32.2333,
         "longitude": -65.8000,
-        "elevation_m": 510.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
     {
@@ -139,7 +148,7 @@ REM_STATIONS: list[dict[str, Any]] = [
         "name": "Nogolí",
         "latitude": -32.9167,
         "longitude": -66.3167,
-        "elevation_m": 840.0,
+        "elevation_m": None,  # a verificar (no publicado en Index.aspx)
         "operator": "REM - Universidad de La Punta",
     },
 ]
@@ -219,7 +228,7 @@ def _parse_rem_date(date_str: str) -> str | None:
 
 
 def parse_rem_csv(content: bytes | str) -> list[dict[str, Any]]:
-    """Parsea el contenido CSV exportado por clima.sanluis.gob.ar (Windows-1252).
+    """Parsea el contenido CSV exportado por clima.sanluis.gob.ar (Windows-1252 / cp1252).
 
     Retorna una lista de diccionarios con claves:
     - 'date': str (YYYY-MM-DD)
@@ -230,9 +239,9 @@ def parse_rem_csv(content: bytes | str) -> list[dict[str, Any]]:
     """
     if isinstance(content, bytes):
         try:
-            text = content.decode("windows-1252")
+            text = content.decode("cp1252")
         except UnicodeDecodeError:
-            text = content.decode("latin-1", errors="replace")
+            text = content.decode("cp1252", errors="replace")
     else:
         text = content
 
@@ -339,29 +348,21 @@ def fetch_rem_daily_series(
         return []
 
 
-def determine_amc_from_prior_rain(prior_5d_mm: float) -> Literal["dry", "medium", "wet"]:
-    """Clasifica la condición de humedad antecedente (AMC) según el estándar NRCS/INTA:
-    - dry: < 15 mm en los 5 días previos (AMC I)
-    - medium: entre 15 y 38 mm (AMC II)
-    - wet: > 38 mm (AMC III)
-    """
-    if prior_5d_mm < 15.0:
-        return "dry"
-    if prior_5d_mm <= 38.0:
-        return "medium"
-    return "wet"
-
-
 def get_rem_antecedent_rainfall_5d(
     station_id: int | str,
     target_date_str: str,
+    latitude_deg: float | None = None,
     records: list[dict[str, Any]] | None = None,
     cache_dir: Path | None = None,
 ) -> dict[str, Any] | None:
     """Calcula la precipitación acumulada de los 5 días estrictamente previos a target_date.
 
-    Si falta el dato de alguno de los 5 días o la serie no está disponible, retorna None
-    cumpliendo estrictamente la regla de integridad de datos (sin valores inventados).
+    Determina la condición de humedad antecedente (AMC) mediante determine_nrcs_amc()
+    según USDA-SCS NEH-4 Tabla 4.2 diferenciando estación de reposo y crecimiento según
+    el mes calendario y la latitud (hemisferio).
+
+    Si falta el dato de alguno de los 5 días previos o la serie no está disponible,
+    retorna None cumpliendo estrictamente la regla de integridad de datos (sin valores inventados).
     """
     try:
         target_dt = datetime.strptime(target_date_str, "%Y-%m-%d")
@@ -394,7 +395,21 @@ def get_rem_antecedent_rainfall_5d(
             return None
         total_5d += pp
 
-    amc = determine_amc_from_prior_rain(total_5d)
+    if latitude_deg is not None:
+        lat = float(latitude_deg)
+    else:
+        stations = load_rem_stations()
+        st_match = next((s for s in stations if str(s.get("id")) == str(station_id)), None)
+        if st_match is not None and st_match.get("latitude") is not None:
+            lat = float(st_match["latitude"])
+        else:
+            lat = -33.68  # Latitud representativa de San Luis (Hemisferio Sur)
+
+    amc = determine_nrcs_amc(
+        prior_5d_mm=total_5d,
+        month=target_dt.month,
+        latitude_deg=lat,
+    )
     return {
         "station_id": int(station_id),
         "target_date": target_date_str,

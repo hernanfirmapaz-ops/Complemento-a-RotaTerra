@@ -11,12 +11,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from geoprocessing.rainfall.rem_sanluis import (
-    determine_amc_from_prior_rain,
     find_nearest_rem_station,
     get_rem_antecedent_rainfall_5d,
     load_rem_stations,
     parse_rem_csv,
 )
+from geoprocessing.satellite.nasa_power_imerg import determine_nrcs_amc
 from geoprocessing.supuestos import SUPUESTO_REM_DISTANCIA_MAX_KM
 
 FIXTURE_CSV = Path(__file__).parent / "fixtures" / "rainfall" / "rem_villa_mercedes_sample.csv"
@@ -75,13 +75,14 @@ def test_get_rem_antecedent_rainfall_5d_complete():
     raw_bytes = FIXTURE_CSV.read_bytes()
     records = parse_rem_csv(raw_bytes)
 
-    # Para target_date = 2026-11-20:
+    # Para target_date = 2026-11-20 (noviembre, hemisferio sur -> estación de crecimiento):
     # 5 días previos: 11/15 (12.4), 11/16 (5.2), 11/17 (0.0), 11/18 (18.0), 11/19 (2.6)
-    # Total = 12.4 + 5.2 + 0.0 + 18.0 + 2.6 = 38.2 mm -> AMC wet (> 38 mm)
+    # Total = 12.4 + 5.2 + 0.0 + 18.0 + 2.6 = 38.2 mm.
+    # En crecimiento (NEH-4 Tabla 4.2): 35.6 mm <= P <= 53.3 mm -> AMC medium.
     res = get_rem_antecedent_rainfall_5d(42, "2026-11-20", records=records)
     assert res is not None
     assert res["prior_5d_mm"] == 38.2
-    assert res["antecedent_moisture_amc"] == "wet"
+    assert res["antecedent_moisture_amc"] == "medium"
     assert len(res["days_evaluated"]) == 5
     assert "2026-11-19" in res["days_evaluated"]
     assert "2026-11-15" in res["days_evaluated"]
@@ -99,13 +100,28 @@ def test_get_rem_antecedent_rainfall_5d_missing_data_returns_none():
 
 
 def test_amc_thresholds():
-    assert determine_amc_from_prior_rain(5.0) == "dry"
-    assert determine_amc_from_prior_rain(14.9) == "dry"
-    assert determine_amc_from_prior_rain(15.0) == "medium"
-    assert determine_amc_from_prior_rain(30.0) == "medium"
-    assert determine_amc_from_prior_rain(38.0) == "medium"
-    assert determine_amc_from_prior_rain(38.1) == "wet"
-    assert determine_amc_from_prior_rain(60.0) == "wet"
+    """Prueba los umbrales NEH-4 Tabla 4.2 en las dos estaciones del hemisferio sur (latitud San Luis -33.68°)."""
+    lat_san_luis = -33.68
+
+    # Caso 1: Mayo (mes 5) -> Estación de reposo (dormant en Hemisferio Sur)
+    # Umbrales NEH-4: P < 12.7 mm (dry), 12.7 <= P <= 27.9 mm (medium), P > 27.9 mm (wet)
+    assert determine_nrcs_amc(prior_5d_mm=5.0, month=5, latitude_deg=lat_san_luis) == "dry"
+    assert determine_nrcs_amc(prior_5d_mm=12.6, month=5, latitude_deg=lat_san_luis) == "dry"
+    assert determine_nrcs_amc(prior_5d_mm=12.7, month=5, latitude_deg=lat_san_luis) == "medium"
+    assert determine_nrcs_amc(prior_5d_mm=20.0, month=5, latitude_deg=lat_san_luis) == "medium"
+    assert determine_nrcs_amc(prior_5d_mm=27.9, month=5, latitude_deg=lat_san_luis) == "medium"
+    assert determine_nrcs_amc(prior_5d_mm=28.0, month=5, latitude_deg=lat_san_luis) == "wet"
+    assert determine_nrcs_amc(prior_5d_mm=50.0, month=5, latitude_deg=lat_san_luis) == "wet"
+
+    # Caso 2: Enero (mes 1) -> Estación de crecimiento (growing en Hemisferio Sur)
+    # Umbrales NEH-4: P < 35.6 mm (dry), 35.6 <= P <= 53.3 mm (medium), P > 53.3 mm (wet)
+    assert determine_nrcs_amc(prior_5d_mm=10.0, month=1, latitude_deg=lat_san_luis) == "dry"
+    assert determine_nrcs_amc(prior_5d_mm=35.5, month=1, latitude_deg=lat_san_luis) == "dry"
+    assert determine_nrcs_amc(prior_5d_mm=35.6, month=1, latitude_deg=lat_san_luis) == "medium"
+    assert determine_nrcs_amc(prior_5d_mm=45.0, month=1, latitude_deg=lat_san_luis) == "medium"
+    assert determine_nrcs_amc(prior_5d_mm=53.3, month=1, latitude_deg=lat_san_luis) == "medium"
+    assert determine_nrcs_amc(prior_5d_mm=53.4, month=1, latitude_deg=lat_san_luis) == "wet"
+    assert determine_nrcs_amc(prior_5d_mm=80.0, month=1, latitude_deg=lat_san_luis) == "wet"
 
 
 def test_rem_offline_guarantee():
