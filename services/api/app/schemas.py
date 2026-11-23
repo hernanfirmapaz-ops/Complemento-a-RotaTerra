@@ -601,7 +601,7 @@ class Hydrodynamic2DSummaryOut(BaseModel):
     max_velocity_in_field_m_s: float
     max_unit_discharge_in_field_m2_s: float
     ponded_area_in_field_ha: float
-    ponded_area_in_field_pct: float | None = None
+    ponded_area_in_field_pct: float
     ponded_retained_volume_in_field_m3: float
     domain_input_volume_m3: float
     domain_final_storage_m3: float

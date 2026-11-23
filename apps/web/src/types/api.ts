@@ -409,7 +409,6 @@ export interface Hydrodynamic2DSummaryOut {
   max_unit_discharge_in_field_m2_s: number
   ponded_area_in_field_ha: number
   ponded_area_in_field_pct: number
-  ponded_area_pct?: number | null
   ponded_retained_volume_in_field_m3: number
   domain_input_volume_m3: number
   domain_final_storage_m3: number
