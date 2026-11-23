@@ -124,6 +124,23 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
             "depresiones chicas ('fill_small'), conservando los bajos reales."
         )
 
+    fuente = terreno.get("source", {})
+    quality = terreno.get("quality", {})
+    from geoprocessing.supuestos import SUPUESTO_DEPRESION_ACCURACY_NMAD_M
+
+    acc_cand = fuente.get("vertical_nmad_local_m")
+    if acc_cand is None:
+        acc_cand = quality.get("vertical_nmad_local_m")
+    if acc_cand is None:
+        acc_cand = fuente.get("vertical_accuracy_m")
+    if acc_cand is None:
+        acc_cand = quality.get("vertical_accuracy_m")
+
+    if acc_cand is not None and acc_cand > 0:
+        vert_acc = float(acc_cand)
+    else:
+        vert_acc = float(SUPUESTO_DEPRESION_ACCURACY_NMAD_M.valor)
+
     z_cond, sink_depth_m, dep_id_grid, depressions = condition_dem(
         dem=dem,
         mascara_lote=mascara,
@@ -132,7 +149,25 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         max_fill_area_m2=params.max_fill_area_m2,
         burn_lines_lonlat=burn_lines,
         burn_depth_m=params.burn_depth_m,
+        vertical_accuracy_m=vert_acc,
     )
+
+    from geoprocessing.dem.quality import check_depression_artifacts
+
+    dep_warn = check_depression_artifacts(
+        depressions=depressions,
+        vertical_accuracy_m=vert_acc,
+        source_name=fuente.get("source_name", "Copernicus"),
+    )
+    if dep_warn:
+        existing_codes = {w.get("code") for w in terreno.get("quality", {}).get("warnings", [])}
+        if "depresiones_artefacto_dem" not in existing_codes:
+            terreno.setdefault("quality", {}).setdefault("warnings", []).append({
+                "code": dep_warn.code,
+                "level": dep_warn.level,
+                "message": dep_warn.message,
+            })
+            store.save_terrain(field_id, terreno)
 
     # Guardar el DEM acondicionado como archivo derivado sin tocar dem_utm.tif ni source/
     cond_path = carpeta / "dem_conditioned_utm.tif"
@@ -152,7 +187,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         dst.write(z_cond, 1)
         dst.update_tags(
             DERIVED_FROM="dem_utm.tif",
-            CONDITIONING_MODE=modo_efectivo,
+            CONDITIONING_MODE=params.conditioning_mode,
+            CONDITIONING_MODE_APPLIED=modo_efectivo,
             MAX_FILL_DEPTH_M=str(params.max_fill_depth_m),
             MAX_FILL_AREA_M2=str(params.max_fill_area_m2),
         )
@@ -211,10 +247,10 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     )
 
     deps_in_field = [d for d in depressions if d.in_field]
+    real_deps_in_field = [d for d in deps_in_field if d.is_real]
     deps_filled = [d for d in depressions if d.filled_in_run]
     mfd_in_field = mfd_area_m2[mascara & np.isfinite(mfd_area_m2)]
     d8_in_field = d8_area_m2[mascara & np.isfinite(d8_area_m2)]
-    sink_in_field = sink_depth_m[mascara & np.isfinite(sink_depth_m)]
 
     total_stream_len = sum(
         float(feat["properties"].get("length_m", 0.0)) for feat in network_geojson["features"]
@@ -233,11 +269,18 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         "raw_mean_slope_in_field_pct": raw_mean_slope_in_field_pct,
         "plane_fit": plane_res,
         "depressions_count": len(depressions),
-        "depressions_in_field_count": len(deps_in_field),
+        "depressions_in_field_count": len(real_deps_in_field),
+        "raw_depressions_in_field_count": len(deps_in_field),
+        "real_depressions_in_field_count": len(real_deps_in_field),
         "depressions_filled_count": len(deps_filled),
-        "total_depression_area_in_field_ha": round(sum(d.area_ha for d in deps_in_field), 4),
-        "total_depression_volume_in_field_m3": round(sum(d.volume_m3 for d in deps_in_field), 1),
-        "max_depression_depth_in_field_m": round(float(sink_in_field.max()), 3) if sink_in_field.size else 0.0,
+        "conditioning_mode_applied": modo_efectivo,
+        "total_depression_area_in_field_ha": round(sum(d.area_ha for d in real_deps_in_field), 4),
+        "total_depression_volume_in_field_m3": round(sum(d.volume_m3 for d in real_deps_in_field), 1),
+        "max_depression_depth_in_field_m": (
+            round(float(max((d.max_depth_m for d in real_deps_in_field), default=0.0)), 3)
+            if real_deps_in_field
+            else 0.0
+        ),
         "max_mfd_area_in_field_ha": round(float(mfd_in_field.max()) / 10_000.0, 3) if mfd_in_field.size else 0.0,
         "max_d8_area_in_field_ha": round(float(d8_in_field.max()) / 10_000.0, 3) if d8_in_field.size else 0.0,
         "stream_segments_count": len(network_geojson["features"]),
@@ -272,6 +315,7 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         "processed_at": store.now_iso(),
         "parameters": {
             "conditioning_mode": params.conditioning_mode,
+            "conditioning_mode_applied": modo_efectivo,
             "max_fill_depth_m": params.max_fill_depth_m,
             "max_fill_area_m2": params.max_fill_area_m2,
             "mfd_exponent": params.mfd_exponent,
@@ -1241,10 +1285,16 @@ def export_analysis_geojson(field_id: str) -> dict:
                 "geometry": feat["geometry"],
             })
         for dep in hydro.get("depressions", []):
-            if dep.get("in_field"):
+            if dep.get("in_field") and dep.get("is_real", True):
                 features.append({
                     "type": "Feature",
                     "properties": {"layer": "depression", **dep},
+                    "geometry": {"type": "Point", "coordinates": [dep["centroid_lon"], dep["centroid_lat"]]},
+                })
+            elif dep.get("in_field"):
+                features.append({
+                    "type": "Feature",
+                    "properties": {"layer": "depression_indistinguishable_from_error", **dep},
                     "geometry": {"type": "Point", "coordinates": [dep["centroid_lon"], dep["centroid_lat"]]},
                 })
         for out in hydro.get("outlets", []):
@@ -1371,7 +1421,7 @@ def export_technical_report_html(field_id: str) -> str:
 
   <h2>2. Hidrología Estática (Acondicionamiento, D8, MFD, Depresiones y Cuencas)</h2>
   {f'''<table>
-    <tr><th>Modo acondicionamiento</th><td>{esc(hydro['parameters']['conditioning_mode'])}</td>
+    <tr><th>Modo acondicionamiento</th><td>{esc(hydro['parameters'].get('conditioning_mode_applied', hydro['parameters']['conditioning_mode']))}{f" (solicitado: {esc(hydro['parameters']['conditioning_mode'])})" if hydro['parameters'].get('conditioning_mode_applied') and hydro['parameters'].get('conditioning_mode_applied') != hydro['parameters']['conditioning_mode'] else ""}</td>
         <th>Umbral red de drenaje</th><td>{esc(hydro['parameters']['stream_threshold_ha'])} ha ({esc(hydro['parameters']['routing_basis'])})</td></tr>
     <tr><th>Depresiones en lote</th><td>{hydro['summary']['depressions_in_field_count']} ({hydro['summary']['total_depression_area_in_field_ha']:.2f} ha · {hydro['summary']['total_depression_volume_in_field_m3']:.0f} m³)</td>
         <th>Aporte externo al lote</th><td>{hydro['summary']['external_inflow_ha']:.2f} ha</td></tr>

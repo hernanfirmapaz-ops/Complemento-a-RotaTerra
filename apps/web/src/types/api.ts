@@ -30,6 +30,7 @@ export interface DemSourceOut {
   vertical_datum: string | null
   vertical_accuracy_m: number | null
   vertical_accuracy_note: string | null
+  vertical_nmad_local_m?: number | null
   acquisition_start: string | null
   acquisition_end: string | null
   acquisition_method: string | null
@@ -217,6 +218,8 @@ export interface DepressionOut {
   in_field: boolean
   is_spurious_candidate: boolean
   filled_in_run: boolean
+  is_real?: boolean
+  classification?: string
 }
 
 export interface OutletOut {
@@ -239,7 +242,10 @@ export interface HydrologySummaryOut {
   plane_fit?: Record<string, any> | null
   depressions_count: number
   depressions_in_field_count: number
+  raw_depressions_in_field_count?: number | null
+  real_depressions_in_field_count?: number | null
   depressions_filled_count: number
+  conditioning_mode_applied?: string | null
   total_depression_area_in_field_ha: number
   total_depression_volume_in_field_m3: number
   max_depression_depth_in_field_m: number
