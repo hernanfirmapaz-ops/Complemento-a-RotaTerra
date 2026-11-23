@@ -297,4 +297,13 @@ SUPUESTO_DEM_DIFERENCIA_DATUM_VERTICAL_M = Supuesto(
     editable=False,
 )
 
+SUPUESTO_DEM_DISCREPANCIA_UMBRAL_M = Supuesto(
+    clave="dem_discrepancia_umbral_m",
+    valor=2.5,
+    unidad="m",
+    motivo="Umbral de discrepancia vertical absoluta entre GEM-15 DTM y Copernicus GLO-30 (|GEM − COP|) a partir del cual una celda se etiqueta como 'relieve incierto' en la capa de calidad dem_fuente. Diferencias superiores suelen indicar vegetación arbórea densa (contraste DSM vs DTM), discontinuidades de correlación o subsidencia local.",
+    fuente_referencia="Decisión metodológica Spec 014 (Fusión Copernicus GLO-30 + GEM-15 DTM); Claude 22/11/2026 en Issue #73.",
+    editable=True,
+)
+
 
