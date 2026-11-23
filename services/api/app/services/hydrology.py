@@ -1398,9 +1398,27 @@ def simulate_field_daily_rainfall(
     smn = ctx["nearest_smn_station"]
     p_mm = float(day["precipitation_mm"])
 
+    from geoprocessing.rainfall.rem_sanluis import find_nearest_rem_station, get_rem_antecedent_rainfall_5d
+
+    rem_st = find_nearest_rem_station(lon, lat)
+    amc_to_use = day["antecedent_moisture_amc"]
+    amc_note = f"Humedad antecedente 5d: {day['prior_5d_rain_mm']:.1f} mm ({amc_to_use.upper()}) [NASA POWER]."
+
+    if rem_st.get("in_range"):
+        rem_5d = get_rem_antecedent_rainfall_5d(rem_st["id"], day["date"])
+        if rem_5d is not None and rem_5d.get("prior_5d_mm") is not None:
+            amc_to_use = rem_5d["antecedent_moisture_amc"]
+            amc_note = (
+                f"Humedad antecedente 5d: {rem_5d['prior_5d_mm']:.1f} mm ({amc_to_use.upper()}) "
+                f"medida por {rem_st['label']}."
+            )
+            ctx["nearest_rem_station"] = rem_st
+            ctx["rem_antecedent_moisture"] = rem_5d
+
     now = store.now_iso()
+    rem_tag = f" · {rem_st['label']}" if rem_st.get("in_range") else ""
     event_name = (
-        f"Día {day['date']} · {p_mm:.1f} mm (NASA POWER · Ref. SMN {smn['name']} a {smn['distance_km']} km)"
+        f"Día {day['date']} · {p_mm:.1f} mm (NASA POWER{rem_tag} · Ref. SMN {smn['name']} a {smn['distance_km']} km)"
     )
 
     meta, warnings = build_event_metadata(
@@ -1416,7 +1434,7 @@ def simulate_field_daily_rainfall(
         custom_uncertainty_note=(
             f"Lluvia regional estimada (~55 km), no es la medición de su campo. "
             f"Estación SMN más cercana (referencia, sin datos conectados): {smn['name']} ({smn['distance_km']} km). "
-            f"Humedad antecedente 5d: {day['prior_5d_rain_mm']:.1f} mm ({day['antecedent_moisture_amc']})."
+            f"{amc_note}"
         ),
     )
 
@@ -1442,13 +1460,13 @@ def simulate_field_daily_rainfall(
 
     # Crear y ejecutar la corrida de escorrentía con la humedad antecedente real del día
     runoff_payload = RunoffRunIn(
-        name=f"Lluvia diaria {day['date']} ({p_mm:.1f} mm · AMC {day['antecedent_moisture_amc'].upper()})",
+        name=f"Lluvia diaria {day['date']} ({p_mm:.1f} mm · AMC {amc_to_use.upper()})",
         rainfall_event_id=event["id"],
         soil_group=soil_group,
         cover_code=cover_code,
         cover_percent=cover_percent,
         compaction_high=compaction_high,
-        antecedent_moisture=day["antecedent_moisture_amc"],
+        antecedent_moisture=amc_to_use,
         lambda_ratio=0.2,
         soil_source=soil_source,
     )

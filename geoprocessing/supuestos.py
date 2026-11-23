@@ -260,3 +260,13 @@ UMBRAL_ENCHARCAMIENTO_MOTOR_M = Supuesto(
     editable=True,
 )
 
+# --- Red de Estaciones Meteorológicas de San Luis (REM) (Issue #23) ---
+SUPUESTO_REM_DISTANCIA_MAX_KM = Supuesto(
+    clave="rem_distancia_max_km",
+    valor=30.0,
+    unidad="km",
+    motivo="Distancia máxima geodésica entre el centroide del lote y una estación de la Red de Estaciones Meteorológicas (REM) de San Luis para utilizar su precipitación acumulada de los 5 días previos en la determinación de la condición de humedad antecedente (AMC) en lugar de la estimación satelital/reanálisis regional (~55 km).",
+    fuente_referencia="Criterio agrometeorológico INTA San Luis (Contreras 2012) e Issue #23.",
+    editable=True,
+)
+
