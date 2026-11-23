@@ -684,7 +684,6 @@ export function App() {
                 onSelectOverlay={setDioramaOverlay}
                 onReplayRain={() => setFlowStep('lluvia')}
                 onChangeLot={() => setFlowStep('lote')}
-                onOpenToolkit={() => setIsToolkitModalOpen(true)}
                 onCompareRuns={(a, b) =>
                   activeField
                     ? compareScenarios(activeField.id, a, b)
@@ -785,7 +784,6 @@ export function App() {
                   onSelectOverlay={setDioramaOverlay}
                   onReplayRain={() => setFlowStep('lluvia')}
                   onChangeLot={() => setFlowStep('lote')}
-                  onOpenToolkit={() => setIsToolkitModalOpen(true)}
                   onCompareRuns={(a, b) =>
                     activeField
                       ? compareScenarios(activeField.id, a, b)

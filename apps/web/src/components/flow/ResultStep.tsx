@@ -7,6 +7,7 @@ import { Details } from '../ui/Details'
 import { Button } from '../ui/Button'
 import { SourceNote } from '../ui/SourceNote'
 import { Icon } from '../ui/Icon'
+import { formatAmcLabel } from '../../utils/formatters'
 
 interface ResultStepProps {
   stormMm: number
@@ -19,7 +20,6 @@ interface ResultStepProps {
   onSelectOverlay: (overlay: AgronomistOverlayMode) => void
   onReplayRain: () => void
   onChangeLot: () => void
-  onOpenToolkit: () => void
   onCompareRuns?: (runAId: string, runBId: string) => Promise<ScenarioComparisonOut | null>
   onActivateRun?: (runId: string) => void
   onSimulatePresets?: () => Promise<void>
@@ -38,7 +38,6 @@ export function ResultStep({
   onSelectOverlay,
   onReplayRain,
   onChangeLot,
-  onOpenToolkit,
   onCompareRuns,
   onActivateRun,
   onSimulatePresets,
@@ -413,18 +412,6 @@ export function ResultStep({
         )}
       </div>
 
-      {/* Acceso a las 8 herramientas agronómicas adicionales */}
-      <div className="result-toolkit-callout">
-        <Button
-          variant="secondary"
-          onClick={onOpenToolkit}
-          icon="layers"
-          fullWidth
-        >
-          Ver las 8 herramientas agronómicas (rotación, siembra, heladas) →
-        </Button>
-      </div>
-
       {/* Detalles técnicos plegables con caudales y láminas */}
       <div className="result-details-accordion">
         <Details
@@ -454,7 +441,7 @@ export function ResultStep({
             )}
             <div className="tech-row">
               <span>Humedad Antecedente (AMC):</span>
-              <strong>{run?.cn_result?.antecedent_moisture?.toUpperCase() ?? 'Sin dato'}</strong>
+              <strong>{formatAmcLabel(run?.cn_result?.antecedent_moisture)}</strong>
             </div>
             <div className="tech-row">
               <span>Resolución DEM:</span>

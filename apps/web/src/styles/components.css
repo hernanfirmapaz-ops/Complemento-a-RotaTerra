@@ -111,7 +111,10 @@
 }
 
 .ui-segmented {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  width: 100%;
+  box-sizing: border-box;
   background-color: var(--surface);
   border-radius: var(--radius-pill);
   padding: 3px;
@@ -125,19 +128,28 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8px 16px;
+  padding: 6px 4px;
+  min-width: 0;
   border-radius: var(--radius-pill);
   background-color: transparent;
   border: var(--border-width) solid transparent;
   color: var(--ink-2);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
-  white-space: nowrap;
+  text-align: center;
+  box-sizing: border-box;
   transition: background-color var(--motion-duration) var(--motion-ease),
               color var(--motion-duration) var(--motion-ease),
               border-color var(--motion-duration) var(--motion-ease);
+}
+
+.ui-segmented-label {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .ui-segmented-btn:disabled {
@@ -153,9 +165,13 @@
 }
 
 .ui-segmented-sublabel {
-  font-size: 11px;
+  display: block;
+  width: 100%;
+  font-size: 9.5px;
   color: var(--ink-3);
-  margin-top: 1px;
+  margin-top: 2px;
+  white-space: normal;
+  line-height: 1.15;
 }
 
 .ui-option-list {
@@ -636,6 +652,18 @@
   gap: var(--s2);
 }
 
+.flow-topbar-actions .ui-segmented {
+  width: 130px;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+.flow-topbar-actions .ui-segmented-btn {
+  padding: 5px 10px;
+  min-width: 50px;
+  flex-direction: row;
+}
+
 .flow-main {
   flex: 1;
   display: flex;
@@ -646,16 +674,50 @@
 
 .flow-sidebar {
   width: 380px;
+  max-width: 100%;
+  box-sizing: border-box;
   flex-shrink: 0;
   background-color: #FFFFFF;
   border-right: var(--border-width) solid var(--line);
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--s3);
   display: flex;
   flex-direction: column;
   gap: var(--s3);
   z-index: 50;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
+}
+
+.flow-sidebar * {
+  box-sizing: border-box;
+}
+
+.flow-sidebar .ui-metric {
+  min-width: 0;
+  padding: 8px 6px;
+  overflow: hidden;
+}
+
+.flow-sidebar .ui-metric-main {
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.flow-sidebar .ui-metric-number {
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.flow-sidebar .ui-metric-unit {
+  font-size: 11px;
+}
+
+.flow-sidebar .ui-metric-label {
+  font-size: 11px;
+  line-height: 1.25;
+  margin-top: 4px;
+  word-break: break-word;
 }
 
 .flow-stage {
@@ -673,23 +735,29 @@
 }
 
 .step-nav-list {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
   gap: 4px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .step-nav-item {
-  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .step-nav-btn {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 6px;
+  padding: 6px 4px;
   background: transparent;
   border: none;
   border-radius: var(--radius-pill);
@@ -1080,8 +1148,10 @@
 
 .result-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .result-layers-section {
@@ -1135,11 +1205,16 @@
 
 .compare-deltas-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .compare-delta-card {
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;

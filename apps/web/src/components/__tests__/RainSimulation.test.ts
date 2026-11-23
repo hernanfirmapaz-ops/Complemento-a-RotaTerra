@@ -12,6 +12,7 @@ import {
   RAIN_INTENSITY_MIN_NORMALIZED,
   RAIN_INTENSITY_MAX_NORMALIZED,
   RAIN_DROPLET_BASE_OPACITY,
+  RAIN_DROPLET_SCREEN_PIXELS,
   RAIN_DROP_BASE_SPEED,
   RAIN_DROP_SPEED_VARIATION,
 } from '../RainSimulation'
@@ -21,6 +22,7 @@ describe('Spec 013 - Etapa 5: Lluvia ligera y realista (Sprites 2-4 px, Salpicad
     expect(RAIN_INTENSITY_MIN_NORMALIZED).toBe(0.1)
     expect(RAIN_INTENSITY_MAX_NORMALIZED).toBe(2.0)
     expect(RAIN_DROPLET_BASE_OPACITY).toBe(0.85)
+    expect(RAIN_DROPLET_SCREEN_PIXELS).toBe(3.0) // 2-4 px reales de pantalla
     expect(RAIN_DROP_BASE_SPEED).toBe(1.35)
     expect(RAIN_DROP_SPEED_VARIATION).toBe(0.85)
   })

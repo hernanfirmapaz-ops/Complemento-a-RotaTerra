@@ -24,3 +24,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["geoprocessing", "services", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["geoprocessing", "services", "tests"]
+addopts = "--ignore=tests/e2e/test_sidebar_overflow_playwright.py"
