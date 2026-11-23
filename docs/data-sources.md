@@ -123,3 +123,24 @@ Estado: **Integrada** = conectada y en uso · **Planificada** = aprobada, falta 
 - **Grupos Hidrológicos:** A, B, C y D basados en el Sistema de Cartas de Suelos del INTA y el Manual de Hidrología del USDA-NRCS (NEH-4).
 - **Tablas de Número de Curva ($CN_{II}$):** Parametrizadas para labranza convencional, siembra directa (buena condición) y pasturas permanentes.
 - **Erodabilidad $K$ y Cobertura $C$ (USLE):** Coeficientes calibrados para la región pampeana argentina (INTA Castelar / INTA Pergamino).
+
+---
+
+## 5. Cartografía y Límites Jurisdiccionales Oficiales (IGN)
+
+### 5.1 Límites Vectoriales de Provincias y Departamentos
+- **Fuente:** Instituto Geográfico Nacional de la República Argentina (IGN).
+- **Servicio WFS:** `https://wms.ign.gob.ar/geoserver/ows`
+- **Capas descargadas:**
+  - `ign:provincia` (24 jurisdicciones de primer orden)
+  - `ign:departamento` (529 departamentos y partidos)
+- **Licencia:** Datos Abiertos IGN / IDERA (Ley Nacional de la Carta N° 22.963) · Licencia Creative Commons Atribución 4.0 Internacional (CC-BY 4.0).
+- **Cita obligatoria:** `FUENTE: Instituto Geográfico Nacional de la República Argentina`.
+- **Fecha de descarga y procesamiento:** 2026-11-23.
+- **Script generador:** `scripts/generar_limites_ign.py`
+- **Archivos estáticos en repositorio:**
+  - `apps/web/public/data/boundaries/provincias.geojson` (167,3 KB, 24 features)
+  - `apps/web/public/data/boundaries/departamentos.geojson` (761,8 KB, 529 features)
+  - **Peso total combinado:** 929,1 KB (< 1 MB en disco).
+- **Uso en la aplicación:** Renderizado vectorial en cliente MapLibre GL sin depender de WMS ráster externo ni latencia de red, permitiendo estilos nítidos por nivel de zoom y geolocalización local rápida (point-in-polygon) para la ficha de ubicación sin consultas adicionales.
+
