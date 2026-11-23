@@ -33,7 +33,7 @@ export function ResultStep({
   runsList = [],
   toolkit,
   terrain,
-  field,
+  field: _field,
   activeOverlay,
   onSelectOverlay,
   onReplayRain,
