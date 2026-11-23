@@ -349,16 +349,25 @@ SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_MAX_DIFF_M = Supuesto(
     valor=3.0,
     unidad="m",
     motivo="Desplazamiento vertical absoluto máximo permitido por celda durante el filtrado FPS de WhiteboxTools para no alterar la cota regional.",
-    fuente_referencia="Spec 014 §5.3 / NMAD geodésica; calibrable.",
+    fuente_referencia="Spec 014 §5.3; calibrable.",
     editable=True,
 )
 
 SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW = Supuesto(
     clave="slope_smoothing_fallback_window",
-    valor=5,
+    valor=7,
     unidad="celdas",
     motivo="Tamaño de ventana móvil WxW para el ajuste local de plano por mínimos cuadrados cuando WhiteboxTools no está disponible.",
     fuente_referencia="Auditoría de relieve (Paso 2) / Spec 014 §5.3; calibrable.",
+    editable=True,
+)
+
+SUPUESTO_PLANE_FIT_R2_MINIMO = Supuesto(
+    clave="plane_fit_r2_minimo",
+    valor=0.70,
+    unidad="adimensional",
+    motivo="Coeficiente de determinación R² mínimo del plano ajustado por mínimos cuadrados para considerar representativa la pendiente macroscópica del lote. Con R² inferior, el relieve es complejo multiescurrimiento.",
+    fuente_referencia="Spec 014 §5.2",
     editable=True,
 )
 

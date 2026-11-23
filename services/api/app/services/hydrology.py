@@ -248,8 +248,12 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     }
 
     avisos = [w["message"] for w in terreno["quality"]["warnings"] if w["level"] in ("critico", "advertencia")]
-    if plane_res.get("r_squared") is not None and plane_res["r_squared"] < 0.70:
-        avisos.append("Relieve complejo multiescurrimiento (R² < 0,70); la pendiente del plano describe solo la tendencia macroscópica.")
+    from geoprocessing.supuestos import SUPUESTO_PLANE_FIT_R2_MINIMO
+    r2_min = float(SUPUESTO_PLANE_FIT_R2_MINIMO.valor)
+    if plane_res.get("r_squared") is not None and plane_res["r_squared"] < r2_min:
+        avisos.append(
+            f"Relieve complejo multiescurrimiento (R² < {r2_min:.2f}); la pendiente del plano describe solo la tendencia macroscópica."
+        )
     if aviso_modo:
         avisos.append(aviso_modo)
     if params.conditioning_mode == "fill_all" and deps_in_field:

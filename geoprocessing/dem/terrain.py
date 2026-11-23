@@ -393,10 +393,10 @@ def field_rings_utm(geometria_utm) -> list[np.ndarray]:
 
 def smooth_dem_whitebox(
     dem: Dem,
-    filter_size: int = 15,
-    norm_diff: float = 25.0,
-    num_iter: int = 4,
-    max_diff: float | None = 2.5,
+    filter_size: int,
+    norm_diff: float,
+    num_iter: int,
+    max_diff: float | None = None,
 ) -> np.ndarray:
     """Suavizado con preservación de bordes (Feature-Preserving Smoothing) de WhiteboxTools."""
     import tempfile
@@ -439,15 +439,31 @@ def smooth_dem_whitebox(
             return src.read(1).astype("float32")
 
 
+def _correlate1d_numpy(arr: np.ndarray, weights: np.ndarray, axis: int) -> np.ndarray:
+    """Correlación 1D en NumPy puro con modo reflect (evita dependencia de scipy)."""
+    k = len(weights) // 2
+    pad_width = [(0, 0), (0, 0)]
+    pad_width[axis] = (k, k)
+    padded = np.pad(arr, pad_width, mode="reflect")
+    out = np.zeros_like(arr, dtype=np.float64)
+    h, w = arr.shape
+    for idx, weight in enumerate(weights):
+        if weight == 0:
+            continue
+        if axis == 0:
+            out += float(weight) * padded[idx : idx + h, :]
+        else:
+            out += float(weight) * padded[:, idx : idx + w]
+    return out
+
+
 def moving_plane_slope(
     z: np.ndarray,
     dx: float,
     dy: float,
-    window_size: int = 5,
+    window_size: int = 7,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Pendiente y aspecto por ajuste local de plano por mínimos cuadrados en ventana móvil WxW."""
-    from scipy.ndimage import correlate1d
-
     w = int(window_size)
     if w % 2 == 0:
         w += 1
@@ -458,13 +474,14 @@ def moving_plane_slope(
     denom_y = float(w * sum_sq * dy)
 
     z_64 = z.astype(np.float64)
+    ones_w = np.ones(w, dtype=np.float64)
     # dz/dx hacia el este
-    dzdx = correlate1d(z_64, weights_1d, axis=1, mode="reflect")
-    dzdx = correlate1d(dzdx, np.ones(w, dtype=np.float64), axis=0, mode="reflect") / denom_x
+    dzdx = _correlate1d_numpy(z_64, weights_1d, axis=1)
+    dzdx = _correlate1d_numpy(dzdx, ones_w, axis=0) / denom_x
 
     # dz/dy hacia el sur (filas crecen al sur)
-    dzdy = correlate1d(z_64, weights_1d, axis=0, mode="reflect")
-    dzdy = correlate1d(dzdy, np.ones(w, dtype=np.float64), axis=1, mode="reflect") / denom_y
+    dzdy = _correlate1d_numpy(z_64, weights_1d, axis=0)
+    dzdy = _correlate1d_numpy(dzdy, ones_w, axis=1) / denom_y
 
     grad = np.hypot(dzdx, dzdy)
     pct = (100.0 * grad).astype(np.float32)
@@ -499,9 +516,9 @@ def slope_for_hydrology(
     )
 
     if is_whitebox_available():
-        f_size = int(wbt_filter or SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_FILTER.valor)
-        n_diff = float(wbt_norm_diff or SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_NORM_DIFF.valor)
-        n_iter = int(wbt_num_iter or SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_ITER.valor)
+        f_size = int(wbt_filter if wbt_filter is not None else SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_FILTER.valor)
+        n_diff = float(wbt_norm_diff if wbt_norm_diff is not None else SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_NORM_DIFF.valor)
+        n_iter = int(wbt_num_iter if wbt_num_iter is not None else SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_ITER.valor)
         m_diff = float(wbt_max_diff if wbt_max_diff is not None else SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_MAX_DIFF_M.valor)
 
         z_smooth = smooth_dem_whitebox(
@@ -513,7 +530,7 @@ def slope_for_hydrology(
         )
         return slope_aspect(z_smooth, dem.pixel, dem.pixel)
 
-    win = int(fallback_window or SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW.valor)
+    win = int(fallback_window if fallback_window is not None else SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW.valor)
     return moving_plane_slope(dem.z, dem.pixel, dem.pixel, window_size=win)
 
 
@@ -526,16 +543,30 @@ def fit_plane_to_field(dem: Dem, field_mask: np.ndarray) -> dict:
     valid = field_mask & np.isfinite(dem.z)
     if not np.any(valid):
         return {
-            "slope_pct": 0.0,
+            "slope_pct": None,
             "aspect_deg": None,
-            "r_squared": 0.0,
-            "z_mean_m": 0.0,
-            "b_dz_dx": 0.0,
-            "c_dz_dy": 0.0,
-            "description": "Sin datos de relieve en el lote",
+            "r_squared": None,
+            "z_mean_m": None,
+            "b_dz_dx": None,
+            "c_dz_dy": None,
+            "calidad": "descartada",
+            "description": "Sin datos de relieve en el lote (descartada)",
         }
 
     rows, cols = np.where(valid)
+    if len(rows) < 3:
+        z_val = float(dem.z[rows[0], cols[0]]) if len(rows) > 0 else None
+        return {
+            "slope_pct": None,
+            "aspect_deg": None,
+            "r_squared": None,
+            "z_mean_m": round(z_val, 2) if z_val is not None else None,
+            "b_dz_dx": None,
+            "c_dz_dy": None,
+            "calidad": "descartada",
+            "description": "Celdas insuficientes para ajustar plano (< 3 celdas, descartada)",
+        }
+
     xs, ys = dem.xy_of_cell(rows, cols)
     zs = dem.z[rows, cols].astype(np.float64)
 
@@ -556,13 +587,14 @@ def fit_plane_to_field(dem: Dem, field_mask: np.ndarray) -> dict:
     det = s_xx * s_yy - s_xy * s_xy
     if abs(det) < 1e-12:
         return {
-            "slope_pct": 0.0,
+            "slope_pct": None,
             "aspect_deg": None,
-            "r_squared": 0.0,
+            "r_squared": None,
             "z_mean_m": round(float(z_mean), 2),
-            "b_dz_dx": 0.0,
-            "c_dz_dy": 0.0,
-            "description": "Plano indeterminado",
+            "b_dz_dx": None,
+            "c_dz_dy": None,
+            "calidad": "descartada",
+            "description": "Plano indeterminado colineal (descartada)",
         }
 
     b = (s_yy * s_xz - s_xy * s_yz) / det
@@ -577,21 +609,24 @@ def fit_plane_to_field(dem: Dem, field_mask: np.ndarray) -> dict:
     z_pred = z_mean + b * dx + c * dy
     ss_tot = float(np.sum((zs - z_mean) ** 2))
     ss_res = float(np.sum((zs - z_pred) ** 2))
-    r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 1e-9 else 1.0
-    r2 = float(np.clip(r2, 0.0, 1.0))
+    r2 = float(np.clip(1.0 - (ss_res / ss_tot), 0.0, 1.0)) if ss_tot > 1e-9 else None
 
     direcciones = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"]
     idx = int((aspect_deg + 22.5) // 45) % 8
     rumbo_str = direcciones[idx]
 
-    desc = f"{slope_pct:.1f} % hacia el {rumbo_str} (plano ajustado R² = {r2:.2f})".replace(".", ",")
+    if r2 is not None:
+        desc = f"{slope_pct:.1f} % hacia el {rumbo_str} (plano ajustado R² = {r2:.2f})".replace(".", ",")
+    else:
+        desc = f"{slope_pct:.1f} % hacia el {rumbo_str} (sin varianza altimétrica)".replace(".", ",")
 
     return {
         "slope_pct": round(float(slope_pct), 3),
         "aspect_deg": round(float(aspect_deg), 1),
-        "r_squared": round(float(r2), 3),
+        "r_squared": round(float(r2), 3) if r2 is not None else None,
         "z_mean_m": round(float(z_mean), 2),
         "b_dz_dx": float(b),
         "c_dz_dy": float(c),
+        "calidad": "confiable",
         "description": desc,
     }

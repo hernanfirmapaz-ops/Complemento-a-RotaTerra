@@ -118,3 +118,59 @@ def test_moving_plane_slope_fallback(synthetic_noisy_plain_dem, monkeypatch):
     mean_fb = float(fb_inner.mean())
 
     assert 0.25 <= mean_fb <= 0.55, f"Fallback de ventana móvil {mean_fb:.3f}% fuera de 0,4 % ± 0,15"
+
+
+def test_fit_plane_to_field_empty_or_nan_returns_null_and_descartada():
+    """Valida que fit_plane_to_field devuelva null y calidad 'descartada' si no hay celdas válidas."""
+    pixel_m = 10.0
+    z = np.full((10, 10), np.nan, dtype="float32")
+    transform = Affine(pixel_m, 0.0, 500000.0, 0.0, -pixel_m, 6000000.0)
+    dem = Dem(z=z, transform=transform, crs="EPSG:32720")
+    mask = np.ones((10, 10), dtype=bool)
+
+    res = fit_plane_to_field(dem, mask)
+    assert res["slope_pct"] is None
+    assert res["r_squared"] is None
+    assert res["aspect_deg"] is None
+    assert res["z_mean_m"] is None
+    assert res["calidad"] == "descartada"
+
+    # Máscara vacía (ninguna celda en el lote)
+    z_valid = np.full((10, 10), 100.0, dtype="float32")
+    dem_valid = Dem(z=z_valid, transform=transform, crs="EPSG:32720")
+    res_empty = fit_plane_to_field(dem_valid, np.zeros((10, 10), dtype=bool))
+    assert res_empty["slope_pct"] is None
+    assert res_empty["r_squared"] is None
+    assert res_empty["calidad"] == "descartada"
+
+
+def test_fit_plane_to_field_insufficient_cells_returns_descartada():
+    """Con menos de 3 celdas, el plano es indeterminado y devuelve calidad 'descartada'."""
+    pixel_m = 10.0
+    z = np.full((10, 10), 100.0, dtype="float32")
+    transform = Affine(pixel_m, 0.0, 500000.0, 0.0, -pixel_m, 6000000.0)
+    dem = Dem(z=z, transform=transform, crs="EPSG:32720")
+    mask = np.zeros((10, 10), dtype=bool)
+    mask[1, 1] = True
+    mask[1, 2] = True  # solo 2 celdas
+
+    res = fit_plane_to_field(dem, mask)
+    assert res["slope_pct"] is None
+    assert res["r_squared"] is None
+    assert res["calidad"] == "descartada"
+
+
+def test_fit_plane_to_field_zero_variance_flat_plane():
+    """En un plano perfectamente horizontal (sin varianza altimétrica, ss_tot = 0), r_squared es None."""
+    pixel_m = 10.0
+    z = np.full((20, 20), 120.0, dtype="float32")
+    transform = Affine(pixel_m, 0.0, 500000.0, 0.0, -pixel_m, 6000000.0)
+    dem = Dem(z=z, transform=transform, crs="EPSG:32720")
+    mask = np.ones((20, 20), dtype=bool)
+
+    res = fit_plane_to_field(dem, mask)
+    assert res["slope_pct"] == 0.0
+    assert res["r_squared"] is None
+    assert res["calidad"] == "confiable"
+    assert "sin varianza altimétrica" in res["description"]
+
