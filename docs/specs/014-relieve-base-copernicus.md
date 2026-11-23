@@ -36,12 +36,12 @@ Durante la investigación de campo se contrastaron en la tesela `Copernicus_DSM_
 | Topográfica ⚠️ *(excluida)* | 45 | Copernicus GLO-30 | $+0,35\text{ m}$ | $3,75\text{ m}$ | $9,40\text{ m}$ | $16,20\text{ m}$ |
 
 **Exclusión justificada de la red topográfica secundaria:**
-La red topográfica **no debe utilizarse para validación ni calibración**. Dicha red secundaria presenta una dispersión muy elevada ($\text{NMAD} = 3,75\text{ m}$, $\text{LE90} = 16,20\text{ m}$ frente a los $\approx 1\text{ m}$ de las redes principales), evidenciando coordenadas con redondeo grosero o errores históricos de transcripción en los partes de nivelación secundaria. Asimismo, se descartó el mojón topográfico `PF1n(75)n` cuya cota figuraba en $26,226\text{ m}$ en una cota real de terreno de $\approx 500\text{ m}$. Por tanto, la calibración y validación se limita estrictamente a las redes de **alta precisión** y **precisión**.
+La red topográfica **no debe utilizarse para validación ni calibración**. Dicha red secundaria presenta una dispersión muy elevada ($\text{NMAD} = 3,75\text{ m}$, $\text{LE90} = 16,20\text{ m}$ frente a los $\approx 1\text{ m}$ de las redes principales), evidenciando coordenadas con redondeo grosero o errores históricos de transcripción en los partes de nivelación secundaria. Asimismo, se descartó el mojón topográfico `PF1n(75)n` cuya cota publicada es $26,226\text{ m}$ mientras que Copernicus GLO-30 da $\approx 936\text{ m}$ en ese punto (valor verificado en la revisión de Claude del PR #82; no forma parte del fixture, que ya no incluye ese mojón). Por tanto, la calibración y validación se limita estrictamente a las redes de **alta precisión** y **precisión**.
 
 **Hallazgos clave:**
 - **Copernicus GLO-30** presenta un sesgo vertical muy reducido ($+0,45\text{ m}$) y un error robusto típico ($\text{NMAD}$) de $1,15\text{ m}$ en las redes combinadas de alta precisión y precisión ($1,08\text{ m}$ en alta precisión pura), con un $\text{LE90}$ de $2,61\text{ m}$.
 - **Métrica estándar:** El $\text{RMSE}$ y el $\text{LE90}$ se ven distorsionados por mojones atípicos (emplazados sobre terraplenes de ferrocarril, puentes o alcantarillas); por ello, la métrica oficial de dispersión vertical en RotaTerra es el **NMAD** (Normalized Median Absolute Deviation, Höhle & Höhle 2009).
-- **Datum vertical:** Las cotas IGN están referidas al cero oficial de nivelación nacional (cero de Mar del Plata), mientras que Copernicus GLO-30 está referido al geoide mundial EGM2008. Al no disponerse de un modelo geoidal de transformación oficial milimétrico en la región, **no se fija una cifra a priori** ("< 0,4 m" queda descartado como hecho no documentado) y se declara como **supuesto agronómico** en `geoprocessing/supuestos.py` (`SUPUESTO_DEM_DIFERENCIA_DATUM_VERTICAL_M = None`), absorbiéndose empíricamente en la mediana de residuos ($\delta_{\text{local}}$) durante la calibración local con mojones IGN.
+- **Datum vertical:** Las cotas IGN están referidas al cero oficial de nivelación nacional (cero de Mar del Plata), mientras que Copernicus GLO-30 está referido al geoide mundial EGM2008. Al no disponerse de un modelo geoidal de transformación oficial milimétrico en la región, **no se fija una cifra a priori** ("< 0,4 m" queda descartado como hecho no documentado) y se declara como **supuesto geodésico** en `geoprocessing/supuestos.py` (`SUPUESTO_DEM_DIFERENCIA_DATUM_VERTICAL_M = None`), absorbiéndose empíricamente en la mediana de residuos ($\delta_{\text{local}}$) durante la calibración local con mojones IGN.
 
 ---
 
@@ -69,7 +69,7 @@ En la misma zona de San Luis, se evaluó la pendiente en 4 ventanas agronómicas
    - **Prioridad 1 (Máxima):** Relevamiento propio del usuario (Dron RTK / LiDAR / GNSS en GeoTIFF). Se respetan sus cotas y resolución sin sobrescritura.
    - **Prioridad 2 (Por defecto nacional):** **Copernicus GLO-30** (DSM 30 m, AWS Open Data COG).
    - **Prioridad 3 (Opcional experimental):** GEM-15 (Google, 15 m DTM) únicamente para contraste relativo de pendiente, advirtiendo su sesgo vertical de metros.
-   - **Descartados para relieve base:** MDE-Ar 30 (sesgo vertical sistemático no calibrado), NASADEM (obsoleto, año 2000, ruido de $1,5\text{ m}$). FABDEM solo si se habilita uso no comercial (licencia CC BY-NC-SA 4.0).
+   - **Descartados para relieve base:** MDE-Ar 30 (sesgo vertical sistemático no calibrado), NASADEM (obsoleto: derivado de la misión SRTM del año 2000). FABDEM solo si se habilita uso no comercial (licencia CC BY-NC-SA 4.0).
 3. **Eficiencia en ingesta:** Lectura por ventana (*Windowed read* mediante peticiones HTTP `Range` sobre el COG público de AWS), descargando exclusivamente el área del lote más su buffer de entorno sin transferir la tesela completa de 1° × 1°.
 4. **Pruebas 100 % aisladas de la red:** Ningún test del pipeline de CI dependerá de internet. Se utilizarán fixtures sintéticos y recortes georreferenciados almacenados localmente.
 
@@ -153,7 +153,7 @@ Para evitar que la pendiente píxel a píxel sufra del ruido de $\pm 1\text{ m}$
 - **Capas consultadas:**
   1. `ign:nivelacion_alta_precision` (Red de alta precisión)
   2. `ign:nivelacion_precision` (Red de precisión)
-  *(Nota: `ign:nivelacion_topografica` queda expresamente excluida debido a discrepancias > 10 m frente a Copernicus y MDE-Ar y errores de cota documentados).*
+  *(Nota: `ign:nivelacion_topografica` queda expresamente excluida debido a dispersión muy superior a la de las otras redes frente a Copernicus (ver tabla de 1.2) y un error de cota documentado).*
 - **Atributos utilizados:** `cota` (cota ortométrica en metros sobre el nivel del mar), `latitud`, `longitud`, `estado` (filtrando únicamente mojones con estado `"Bueno"`, `"Encontrado"`, `"Sin Novedad"` o sin marca de destrucción) y `nomenclatura`.
 
 ### 5.2 Algoritmo de calibración zonal
@@ -250,7 +250,7 @@ Todas las pruebas del conjunto de tests deben ejecutarse sin acceso a internet:
 3. **Fixture de mojones IGN y script de validación reproducible:**
    - Script de descarga y cálculo reproducible: `scripts/validar_copernicus_ign.py`.
    - GeoJSON offline descargado el 22/11/2026: `geoprocessing/tests/fixtures/dem/ign_nivelacion_san_luis_20261122.geojson`.
-   - Test offline: `geoprocessing/tests/test_dem_copernicus_ign.py`, que recalcula sin internet la mediana de residuos ($+0,41\text{ a }+0,50\text{ m}$ en alta precisión), el $\text{NMAD}$ ($1,08\text{ m}$), $\text{RMSE}$ ($1,59\text{ m}$) y $\text{LE90}$ ($2,42\text{ m}$), y comprueba la exclusión documentada de la red topográfica secundaria.
+   - Test offline: `geoprocessing/tests/test_dem_copernicus_ign.py`, que recalcula sin internet la mediana de residuos ($+0,50\text{ m}$ en alta precisión), el $\text{NMAD}$ ($1,08\text{ m}$), $\text{RMSE}$ ($1,59\text{ m}$) y $\text{LE90}$ ($2,42\text{ m}$), y comprueba la exclusión documentada de la red topográfica secundaria.
 4. **Aislamiento de red:** Verificación de que el test falla si intenta conectar con sockets externos.
 
 ---
