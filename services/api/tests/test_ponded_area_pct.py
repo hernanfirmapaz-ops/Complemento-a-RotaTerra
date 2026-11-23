@@ -117,10 +117,9 @@ def test_api_runoff_runs_returns_ponded_area_pct_and_field_ha(tmp_path, monkeypa
     assert len(runs) == 1
     run_out = runs[0]
 
-    # Verificar que el porcentaje devuelto por la API sea 25.0 %
+    # Verificar que el porcentaje devuelto por la API sea 25.0 % en el campo único ponded_area_pct
     assert run_out["ponded_area_pct"] == 25.0
     assert run_out["field_area_ha"] == 100.0
-    assert run_out["hydrodynamic_2d_summary"]["ponded_area_pct"] == 25.0
 
 
 def test_api_runoff_runs_null_when_missing_2d(tmp_path, monkeypatch):

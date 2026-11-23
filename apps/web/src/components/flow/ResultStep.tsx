@@ -61,13 +61,10 @@ export function ResultStep({
   const runoffPct = runoffCoeff !== null ? Math.round(runoffCoeff * 100) : null
 
   // Estimación de porcentaje y hectáreas anegadas calculadas por la API (Issue #85)
-  const pondedPct =
-    run?.ponded_area_pct ??
-    run?.hydrodynamic_2d_summary?.ponded_area_pct ??
-    null
+  const pondedPct = run?.ponded_area_pct ?? null
   const floodedHa =
     run?.hydrodynamic_2d_summary?.ponded_area_in_field_ha ?? null
-  const totalFieldHa = run?.field_area_ha ?? field?.area_ha ?? null
+  const totalFieldHa = run?.field_area_ha ?? null
 
   const pondedCaption =
     floodedHa !== null && totalFieldHa !== null

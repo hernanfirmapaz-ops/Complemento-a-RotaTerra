@@ -452,6 +452,29 @@ def load_sample_rainfall_event(field_id: str) -> dict:
     )
 
 
+def _enrich_run_fields(r: dict, field_ha: float | None) -> dict:
+    """Enriquece la corrida con field_area_ha y ponded_area_pct en un único formato estándar."""
+    if "field_area_ha" not in r or r["field_area_ha"] is None:
+        r["field_area_ha"] = round(field_ha, 1) if field_ha is not None else None
+    if "ponded_area_pct" not in r or r["ponded_area_pct"] is None:
+        h2d = r.get("hydrodynamic_2d_summary")
+        if h2d and "ponded_area_in_field_ha" in h2d:
+            r["ponded_area_pct"] = compute_ponded_area_pct(h2d.get("ponded_area_in_field_ha"), field_ha)
+        else:
+            r["ponded_area_pct"] = None
+    return r
+
+
+def list_runoff_runs(field_id: str) -> list[dict]:
+    """Lista las corridas de escurrimiento de un lote con sus campos normalizados."""
+    field = store.load_field(field_id)
+    field_ha = float(field["area_ha"]) if field.get("area_ha") else None
+    runs = store.list_runoff_runs(field_id)
+    for r in runs:
+        _enrich_run_fields(r, field_ha)
+    return runs
+
+
 def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
     field = store.load_field(field_id)
     terreno = store.load_terrain(field_id)
@@ -610,6 +633,10 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         "limitations": LIMITACIONES_FASE2,
     }
 
+    field = store.load_field(field_id)
+    field_ha = float(field["area_ha"]) if field.get("area_ha") else None
+    _enrich_run_fields(run_doc, field_ha)
+
     runs = store.list_runoff_runs(field_id)
     for r in runs:
         r["is_active"] = False
@@ -630,6 +657,9 @@ def activate_runoff_run(field_id: str, run_id: str) -> dict:
             r["is_active"] = False
     if target is None:
         raise store.NotFound(f"runoff_run:{run_id}")
+    field = store.load_field(field_id)
+    field_ha = float(field["area_ha"]) if field.get("area_ha") else None
+    _enrich_run_fields(target, field_ha)
     store.save_runoff_runs(field_id, runs)
     load_active_runoff_grids.cache_clear()
     return target
@@ -785,8 +815,6 @@ def execute_hydrodynamic_2d_on_run(
     field_ha = float(field["area_ha"]) if field.get("area_ha") else None
     ponded_ha = sim2d["summary"].get("ponded_area_in_field_ha")
     pct = compute_ponded_area_pct(ponded_ha, field_ha)
-    sim2d["summary"]["ponded_area_pct"] = pct
-    sim2d["summary"]["ponded_area_in_field_pct"] = pct
     target["hydrodynamic_2d_summary"] = sim2d["summary"]
     target["agronomic_zonation"] = agro_zonation
     target["ponded_area_pct"] = pct
