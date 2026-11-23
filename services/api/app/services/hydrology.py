@@ -19,7 +19,13 @@ from geoprocessing.agronomy.seeding_and_rotation import (
 )
 from geoprocessing.agronomy.zonation import ZONE_CATALOG, classify_hydro_agronomic_zones
 from geoprocessing.dem.quality import field_mask
-from geoprocessing.dem.terrain import Dem, contours_geojson, slope_aspect
+from geoprocessing.dem.terrain import (
+    Dem,
+    contours_geojson,
+    fit_plane_to_field,
+    slope_aspect,
+    slope_for_hydrology,
+)
 from geoprocessing.hydrology.conditioning import condition_dem, is_whitebox_available
 from geoprocessing.hydrology.confidence import compute_confidence_indicator
 from geoprocessing.hydrology.flow import (
@@ -175,7 +181,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     contours = contours_geojson(dem, interval_m=params.contour_interval_m)
 
     # Calcular índices topográficos TWI y SPI + Zonificación hidro-agronómica inicial (Fase 5)
-    pct_grid, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    # Pendiente filtrada para mitigar sobrestimación por ruido instrumental en llanura (Spec 014 / Auditoría Relieve)
+    pct_grid, _, _ = slope_for_hydrology(dem)
     twi_grid, spi_grid = compute_twi_and_spi(mfd_area_m2, pct_grid, dem.pixel)
     agro_zone_grid, agro_zonation = classify_hydro_agronomic_zones(
         z=dem.z,
@@ -214,12 +221,17 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     )
     ext_inflow_ha = sum(float(o["subbasin_external_inflow_ha"]) for o in outlets_info)
 
-    pendiente_pct, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
-    pendiente_lote = pendiente_pct[mascara & np.isfinite(pendiente_pct)]
-    mean_slope_in_field_pct = round(float(pendiente_lote.mean()), 3) if pendiente_lote.size else None
+    # Pendiente media del lote por plano ajustado (FAO T0231E / Spec 014); la cruda queda de diagnóstico
+    plane_res = fit_plane_to_field(dem, mascara)
+    pct_raw, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    raw_in_field = pct_raw[mascara & np.isfinite(pct_raw)]
+    raw_mean_slope_in_field_pct = round(float(raw_in_field.mean()), 3) if raw_in_field.size else None
+    mean_slope_in_field_pct = plane_res["slope_pct"]
 
     summary = {
         "mean_slope_in_field_pct": mean_slope_in_field_pct,
+        "raw_mean_slope_in_field_pct": raw_mean_slope_in_field_pct,
+        "plane_fit": plane_res,
         "depressions_count": len(depressions),
         "depressions_in_field_count": len(deps_in_field),
         "depressions_filled_count": len(deps_filled),
@@ -236,6 +248,12 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     }
 
     avisos = [w["message"] for w in terreno["quality"]["warnings"] if w["level"] in ("critico", "advertencia")]
+    from geoprocessing.supuestos import SUPUESTO_PLANE_FIT_R2_MINIMO
+    r2_min = float(SUPUESTO_PLANE_FIT_R2_MINIMO.valor)
+    if plane_res.get("r_squared") is not None and plane_res["r_squared"] < r2_min:
+        avisos.append(
+            f"Relieve complejo multiescurrimiento (R² < {r2_min:.2f}); la pendiente del plano describe solo la tendencia macroscópica."
+        )
     if aviso_modo:
         avisos.append(aviso_modo)
     if params.conditioning_mode == "fill_all" and deps_in_field:
@@ -551,8 +569,8 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
     terreno_src = terreno.get("source") or {}
     dem_source_id = terreno_src.get("source_id", "copernicus_glo30")
     dem_res_m = float(terreno_src.get("nominal_resolution_m", 30.0))
-    # Pendiente media real del lote (antes se leía de una clave inexistente y quedaba siempre en 1,0 %)
-    pct_run, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    # Pendiente filtrada para mitigar sobrestimación por ruido instrumental (Paso 2 / Spec 014)
+    pct_run, _, _ = slope_for_hydrology(dem)
     pendiente_guardada = hydro.get("summary", {}).get("mean_slope_in_field_pct")
     if pendiente_guardada is None:
         pct_run_lote = pct_run[mascara & np.isfinite(pct_run)]
@@ -781,7 +799,7 @@ def execute_hydrodynamic_2d_on_run(
         recession_minutes=params.recession_minutes,
     )
 
-    pct_grid, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    pct_grid, _, _ = slope_for_hydrology(dem)
     twi_grid = grids["twi"] if "twi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[0]
     spi_grid = grids["spi"] if "spi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[1]
 
@@ -848,7 +866,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
     grids = dict(load_hydrology_grids(field_id, hydro["processed_at"]))
     dem = Dem.open(carpeta / "dem_utm.tif")
     mascara = field_mask(field["geometry"], field["utm_epsg"], dem.transform, dem.z.shape)
-    pct_grid, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    pct_grid, _, _ = slope_for_hydrology(dem)
     twi_grid = grids["twi"] if "twi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[0]
     spi_grid = grids["spi"] if "spi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[1]
     zone_grid = grids.get("agronomic_zone_id")
@@ -1104,9 +1122,9 @@ def get_runoff_timeline(field_id: str, run_id: str) -> dict:
             "limitations": LIMITACIONES_FASE3,
         }
 
-    from geoprocessing.dem.terrain import slope_aspect
+    from geoprocessing.dem.terrain import slope_for_hydrology
 
-    pct, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    pct, _, _ = slope_for_hydrology(dem)
     pct_in_field = pct[mascara & np.isfinite(pct)]
     mean_slope = float(pct_in_field.mean()) if pct_in_field.size else 1.5
 

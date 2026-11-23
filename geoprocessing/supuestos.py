@@ -316,4 +316,59 @@ SUPUESTO_DEM_DISCREPANCIA_UMBRAL_M = Supuesto(
     editable=True,
 )
 
+# --- Suavizado de Relieve y Pendiente Filtrada para Hidrología (Spec 014 / Auditoría Relieve) ---
+SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_FILTER = Supuesto(
+    clave="slope_smoothing_whitebox_filter",
+    valor=15,
+    unidad="celdas",
+    motivo="Tamaño de la ventana de vecindad del filtro con preservación de bordes (Feature-Preserving Smoothing) de WhiteboxTools para eliminar ruido instrumental vertical en áreas llanas sin degradar quiebres de pendiente.",
+    fuente_referencia="Spec 014 §5.3 (Sun et al. 2007; Lindsay 2016); calibrable.",
+    editable=True,
+)
+
+SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_NORM_DIFF = Supuesto(
+    clave="slope_smoothing_whitebox_norm_diff",
+    valor=30.0,
+    unidad="grados",
+    motivo="Diferencia máxima angular entre vectores normales en Feature-Preserving Smoothing para tratar ondulaciones como micro-rugosidad de ruido en vez de escarpes topográficos.",
+    fuente_referencia="Spec 014 §5.3 / Sun et al. 2007; calibrable.",
+    editable=True,
+)
+
+SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_ITER = Supuesto(
+    clave="slope_smoothing_whitebox_iter",
+    valor=5,
+    unidad="iteraciones",
+    motivo="Número de iteraciones de actualización de cota en Feature-Preserving Smoothing.",
+    fuente_referencia="Spec 014 §5.3; calibrable.",
+    editable=True,
+)
+
+SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_MAX_DIFF_M = Supuesto(
+    clave="slope_smoothing_whitebox_max_diff_m",
+    valor=3.0,
+    unidad="m",
+    motivo="Desplazamiento vertical absoluto máximo permitido por celda durante el filtrado FPS de WhiteboxTools para no alterar la cota regional.",
+    fuente_referencia="Spec 014 §5.3; calibrable.",
+    editable=True,
+)
+
+SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW = Supuesto(
+    clave="slope_smoothing_fallback_window",
+    valor=7,
+    unidad="celdas",
+    motivo="Tamaño de ventana móvil WxW para el ajuste local de plano por mínimos cuadrados cuando WhiteboxTools no está disponible.",
+    fuente_referencia="Auditoría de relieve (Paso 2) / Spec 014 §5.3; calibrable.",
+    editable=True,
+)
+
+SUPUESTO_PLANE_FIT_R2_MINIMO = Supuesto(
+    clave="plane_fit_r2_minimo",
+    valor=0.70,
+    unidad="adimensional",
+    motivo="Coeficiente de determinación R² mínimo del plano ajustado por mínimos cuadrados para considerar representativa la pendiente macroscópica del lote. Con R² inferior, el relieve es complejo multiescurrimiento.",
+    fuente_referencia="Spec 014 §5.2",
+    editable=True,
+)
+
 
