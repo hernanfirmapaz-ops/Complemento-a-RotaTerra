@@ -135,7 +135,6 @@ const mockRun: RunoffRunOut = {
     domain_boundary_outflow_m3: 45350,
     mass_balance_relative_error: 0.001,
     solver_mode: 'diffusive',
-    ponded_area_pct: 4.4,
   },
   assumptions_and_notes: [],
   warnings: [],
