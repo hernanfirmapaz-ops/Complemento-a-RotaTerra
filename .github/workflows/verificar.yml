@@ -77,6 +77,8 @@ jobs:
           sleep 4
       - name: Verificar no desbordamiento de barra lateral (Playwright)
         run: python -m pytest tests/e2e/test_sidebar_overflow_playwright.py -v -o addopts=""
+      - name: Verificar delimitador y límites IGN (Playwright)
+        run: python -m pytest tests/e2e/test_delimitador_ign_playwright.py -v -o addopts=""
       - name: Capturar primera pantalla y verificar bundles
         run: python scripts/verificar_capturas.py --url http://127.0.0.1:8000 --output-dir dist-capturas
       - uses: actions/upload-artifact@v7

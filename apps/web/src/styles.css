@@ -617,3 +617,31 @@ html, body, #root {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* Responsividad móvil para el delimitador de lotes (Issue #84) */
+@media (max-width: 768px) {
+  .drawer-modal-backdrop {
+    padding: 0;
+  }
+  .drawer-modal-card {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    border: none;
+  }
+  .drawer-body-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: 320px 1fr;
+    overflow-y: auto;
+  }
+  .drawer-map-wrapper {
+    min-height: 320px;
+    height: 320px;
+  }
+  .drawer-side-panel {
+    border-left: none;
+    border-top: var(--border-width) solid var(--line);
+    overflow-y: visible;
+  }
+}
+
