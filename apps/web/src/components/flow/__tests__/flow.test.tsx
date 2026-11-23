@@ -135,10 +135,13 @@ const mockRun: RunoffRunOut = {
     domain_boundary_outflow_m3: 45350,
     mass_balance_relative_error: 0.001,
     solver_mode: 'diffusive',
+    ponded_area_pct: 4.4,
   },
   assumptions_and_notes: [],
   warnings: [],
   limitations: [],
+  ponded_area_pct: 4.4,
+  field_area_ha: 145.5,
 }
 
 const mockToolkit: AgronomicToolkitOut = {
@@ -503,9 +506,10 @@ describe('Flujo Lote -> Lluvia -> Resultado', () => {
       expect(screen.getByText('35')).toBeInTheDocument()
       expect(screen.getByText('Escurre fuera del lote')).toBeInTheDocument()
 
-      // Anegamiento 6.4 ha
-      expect(screen.getByText('6.4')).toBeInTheDocument()
+      // Anegamiento: 4,4 % principal, 6,4 ha de 146 ha debajo (Issue #85)
+      expect(screen.getByText('4,4')).toBeInTheDocument()
       expect(screen.getByText('Superficie anegable')).toBeInTheDocument()
+      expect(screen.getByText('6,4 ha de 146 ha')).toBeInTheDocument()
 
       // Erosión USLE 4.1 t/ha
       expect(screen.getByText('4.1')).toBeInTheDocument()
@@ -718,7 +722,8 @@ describe('Flujo Lote -> Lluvia -> Resultado', () => {
       // 3. Pasamos a paso "resultado": vemos las métricas y capas
       expect(screen.getByText(/Qué pasó con 130 mm/i)).toBeInTheDocument()
       expect(screen.getByText('35')).toBeInTheDocument()
-      expect(screen.getByText('6.4')).toBeInTheDocument()
+      expect(screen.getByText('4,4')).toBeInTheDocument()
+      expect(screen.getByText('6,4 ha de 146 ha')).toBeInTheDocument()
 
       // 4. Volver a lluvia con "Probar otra lluvia"
       const btnProbarOtra = screen.getByRole('button', { name: /Probar otra lluvia/i })

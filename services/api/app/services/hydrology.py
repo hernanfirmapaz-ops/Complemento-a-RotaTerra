@@ -79,6 +79,23 @@ LIMITACIONES_FASE1 = [
 ]
 
 
+def compute_ponded_area_pct(ponded_ha: float | None, field_ha: float | None) -> float | None:
+    """Calcula el porcentaje de superficie anegable respecto al área total del lote (1 decimal).
+
+    Retorna None si falta el área del lote o el área anegable, o si el área del lote es <= 0.
+    """
+    if ponded_ha is None or field_ha is None:
+        return None
+    try:
+        p = float(ponded_ha)
+        f = float(field_ha)
+        if f <= 0:
+            return None
+        return round((p / f) * 100.0, 1)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
 def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     field = store.load_field(field_id)
     terreno = store.load_terrain(field_id)
@@ -765,8 +782,15 @@ def execute_hydrodynamic_2d_on_run(
 
     for r in runs:
         r["is_active"] = (r["id"] == run_id)
+    field_ha = float(field["area_ha"]) if field.get("area_ha") else None
+    ponded_ha = sim2d["summary"].get("ponded_area_in_field_ha")
+    pct = compute_ponded_area_pct(ponded_ha, field_ha)
+    sim2d["summary"]["ponded_area_pct"] = pct
+    sim2d["summary"]["ponded_area_in_field_pct"] = pct
     target["hydrodynamic_2d_summary"] = sim2d["summary"]
     target["agronomic_zonation"] = agro_zonation
+    target["ponded_area_pct"] = pct
+    target["field_area_ha"] = round(field_ha, 1) if field_ha is not None else None
     store.save_runoff_runs(field_id, runs)
     load_active_runoff_grids.cache_clear()
     return target
@@ -1228,6 +1252,16 @@ def export_technical_report_html(field_id: str) -> str:
     def esc(v):
         return html.escape(str(v if v is not None else "s/d"))
 
+    def format_ponded(r: dict, field_ha: float | None) -> str:
+        h2d = r.get("hydrodynamic_2d_summary") or {}
+        p_ha = h2d.get("ponded_area_in_field_ha")
+        pct = compute_ponded_area_pct(p_ha, field_ha)
+        if pct is not None and p_ha is not None and field_ha:
+            return f"<strong>{pct:.1f}%</strong> ({p_ha:.1f} ha de {round(field_ha)} ha)"
+        elif p_ha is not None:
+            return f"{p_ha:.1f} ha"
+        return "Sin simulación 2D"
+
     runs_rows = "".join(
         f"<tr><td>{esc(r['name'])}</td><td>{esc(r['rainfall_event_name'])}</td>"
         f"<td>{r['cn_result']['precipitation_mm']:.1f} mm</td>"
@@ -1235,9 +1269,10 @@ def export_technical_report_html(field_id: str) -> str:
         f"<td>{r['cn_result']['initial_abstraction_ia_mm']:.1f} mm</td>"
         f"<td><strong>{r['cn_result']['runoff_q_mm']:.2f} mm</strong></td>"
         f"<td>{r['spatial_summary']['field_runoff_generated_m3']:.0f} m³</td>"
-        f"<td>{r['spatial_summary']['net_outflow_potential_m3']:.0f} m³</td></tr>"
+        f"<td>{r['spatial_summary']['net_outflow_potential_m3']:.0f} m³</td>"
+        f"<td>{format_ponded(r, field.get('area_ha'))}</td></tr>"
         for r in runs
-    ) or "<tr><td colspan='8'>Sin escenarios de escorrentía ejecutados.</td></tr>"
+    ) or "<tr><td colspan='9'>Sin escenarios de escorrentía ejecutados.</td></tr>"
 
     obs_rows = "".join(
         f"<tr><td>{esc(o['label'])}</td><td>{o['lat']:.5f}°, {o['lon']:.5f}°</td>"
@@ -1301,7 +1336,7 @@ def export_technical_report_html(field_id: str) -> str:
   <h2>3. Escenarios de Lluvia y Escorrentía Estimada (NRCS Curve Number + MFD)</h2>
   <table>
     <thead>
-      <tr><th>Escenario</th><th>Evento lluvia</th><th>P</th><th>CN ef.</th><th>Ia</th><th>Escorrentía Q</th><th>Vol. generado lote</th><th>Salida neta pot.</th></tr>
+      <tr><th>Escenario</th><th>Evento lluvia</th><th>P</th><th>CN ef.</th><th>Ia</th><th>Escorrentía Q</th><th>Vol. generado lote</th><th>Salida neta pot.</th><th>Superficie anegable</th></tr>
     </thead>
     <tbody>{runs_rows}</tbody>
   </table>
