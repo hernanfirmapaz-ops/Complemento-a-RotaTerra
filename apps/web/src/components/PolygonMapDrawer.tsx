@@ -3,6 +3,13 @@ import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Icon } from './ui/Icon'
 import {
+  IGN_DEPARTAMENTO_MINZOOM,
+  IGN_DEPARTAMENTO_OPACITY_EXPR,
+  IGN_DEPARTAMENTO_WIDTH,
+  IGN_LINE_COLOR,
+  IGN_PROVINCIA_MINZOOM,
+  IGN_PROVINCIA_OPACITY_EXPR,
+  IGN_PROVINCIA_WIDTH,
   POLYGON_EDGE_COLOR,
   POLYGON_EDGE_DASHARRAY,
   POLYGON_EDGE_WIDTH,
@@ -10,6 +17,17 @@ import {
   POLYGON_FILL_OPACITY,
   computeDistanceM,
 } from '../utils/polygonStyles'
+import {
+  BoundariesCache,
+  prepareBoundaryFeatures,
+  resolveLocationFromBoundaries,
+} from '../utils/ignLocation'
+import { formatDecimal, formatDistance, formatHa } from '../utils/formatters'
+
+// Configurar URL oficial del worker de MapLibre para empaquetado en Vite (Issue #84)
+if (typeof window !== 'undefined' && typeof (maplibregl as any).setWorkerUrl === 'function') {
+  ;(maplibregl as any).setWorkerUrl('/maplibre-gl-worker.mjs')
+}
 
 interface Props {
   isOpen: boolean
@@ -105,7 +123,7 @@ function computePolygonAreaHa(pts: [number, number][]): number {
     const y2 = (p2[1] - y0) * metersPerDegLat
     twiceAreaM2 += x1 * y2 - x2 * y1
   }
-  return Math.abs(twiceAreaM2) * 0.5 / 10000
+  return (Math.abs(twiceAreaM2) * 0.5) / 10000
 }
 
 /** Calcula el perímetro aproximado en metros de un polígono [lon, lat][]. */
@@ -127,7 +145,10 @@ function computePerimeterM(pts: [number, number][]): number {
 }
 
 /** Calcula las dimensiones estimadas del rectángulo envolvente (ancho y alto en metros). */
-function computeBoundingBoxDimensions(pts: [number, number][]): { widthM: number; heightM: number } {
+function computeBoundingBoxDimensions(pts: [number, number][]): {
+  widthM: number
+  heightM: number
+} {
   if (pts.length < 2) return { widthM: 0, heightM: 0 }
   let minLon = pts[0][0]
   let maxLon = pts[0][0]
@@ -153,7 +174,9 @@ export function PolygonMapDrawer({
 }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  const mapReadyRef = useRef<boolean>(false)
   const markersRef = useRef<maplibregl.Marker[]>([])
+  const boundariesRef = useRef<BoundariesCache>({})
 
   const [drawTool, setDrawTool] = useState<'polygon' | 'rectangle'>('polygon')
   const [vertices, setVertices] = useState<[number, number][]>([])
@@ -180,10 +203,183 @@ export function PolygonMapDrawer({
   drawToolRef.current = drawTool
   const rectCornerRef = useRef(rectFirstCorner)
   rectCornerRef.current = rectFirstCorner
+  const searchQueryRef = useRef(searchQuery)
+  searchQueryRef.current = searchQuery
 
   const areaHa = computePolygonAreaHa(vertices)
   const perimeterM = computePerimeterM(vertices)
   const dimensions = computeBoundingBoxDimensions(vertices)
+
+  /** Actualiza la fuente GeoJSON del polígono dibujado sin requerir isStyleLoaded (Issue #84). */
+  const updateGeoJsonSource = (pts: [number, number][]) => {
+    const map = mapRef.current
+    if (!map) return
+    const src = map.getSource('drawn-polygon') as
+      | maplibregl.GeoJSONSource
+      | undefined
+    if (!src) return
+
+    const features: GeoJSON.Feature[] = []
+    if (pts.length >= 3) {
+      const ring = [...pts, pts[0]]
+      features.push({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [ring],
+        },
+      })
+    } else if (pts.length >= 2) {
+      features.push({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: pts,
+        },
+      })
+    }
+    src.setData({
+      type: 'FeatureCollection',
+      features,
+    })
+  }
+
+  /** Garantiza la existencia de las fuentes y capas del polígono dibujado. */
+  const ensurePolygonLayers = (map: maplibregl.Map) => {
+    if (!map.getSource('drawn-polygon')) {
+      map.addSource('drawn-polygon', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [],
+        },
+      })
+    }
+    if (!map.getLayer('drawn-polygon-fill')) {
+      map.addLayer({
+        id: 'drawn-polygon-fill',
+        type: 'fill',
+        source: 'drawn-polygon',
+        filter: ['==', '$type', 'Polygon'],
+        paint: {
+          'fill-color': POLYGON_FILL_COLOR,
+          'fill-opacity': POLYGON_FILL_OPACITY,
+        },
+      })
+    }
+    if (!map.getLayer('drawn-polygon-line')) {
+      map.addLayer({
+        id: 'drawn-polygon-line',
+        type: 'line',
+        source: 'drawn-polygon',
+        paint: {
+          'line-color': POLYGON_EDGE_COLOR,
+          'line-width': POLYGON_EDGE_WIDTH,
+          'line-dasharray': POLYGON_EDGE_DASHARRAY,
+        },
+      })
+    }
+  }
+
+  /** Garantiza la existencia de las fuentes y capas vectoriales IGN (Issue #84). */
+  const ensureIgnLayers = (map: maplibregl.Map) => {
+    if (!map.getSource('ign-provincias')) {
+      map.addSource('ign-provincias', {
+        type: 'geojson',
+        data: '/data/boundaries/provincias.geojson',
+      })
+    }
+    if (!map.getSource('ign-departamentos')) {
+      map.addSource('ign-departamentos', {
+        type: 'geojson',
+        data: '/data/boundaries/departamentos.geojson',
+      })
+    }
+
+    if (!map.getLayer('ign-provincias-layer')) {
+      map.addLayer({
+        id: 'ign-provincias-layer',
+        type: 'line',
+        source: 'ign-provincias',
+        minzoom: IGN_PROVINCIA_MINZOOM,
+        layout: {
+          visibility: showIgnLimitsRef.current ? 'visible' : 'none',
+        },
+        paint: {
+          'line-color': IGN_LINE_COLOR,
+          'line-width': IGN_PROVINCIA_WIDTH,
+          'line-opacity': IGN_PROVINCIA_OPACITY_EXPR,
+        },
+      })
+    }
+
+    if (!map.getLayer('ign-departamentos-layer')) {
+      map.addLayer({
+        id: 'ign-departamentos-layer',
+        type: 'line',
+        source: 'ign-departamentos',
+        minzoom: IGN_DEPARTAMENTO_MINZOOM,
+        layout: {
+          visibility: showIgnLimitsRef.current ? 'visible' : 'none',
+        },
+        paint: {
+          'line-color': IGN_LINE_COLOR,
+          'line-width': IGN_DEPARTAMENTO_WIDTH,
+          'line-opacity': IGN_DEPARTAMENTO_OPACITY_EXPR,
+        },
+      })
+    }
+  }
+
+  const updateLocalLocation = () => {
+    const map = mapRef.current
+    if (!map) return
+    const c = map.getCenter()
+    const z = map.getZoom()
+    const loc = resolveLocationFromBoundaries(
+      c.lng,
+      c.lat,
+      z,
+      boundariesRef.current,
+    )
+    setIgnLocation(loc)
+  }
+
+  // Carga asíncrona de límites IGN locales para point-in-polygon sin llamadas externas
+  useEffect(() => {
+    if (!isOpen) return
+    let active = true
+
+    Promise.all([
+      fetch('/data/boundaries/provincias.geojson').then((r) =>
+        r.ok ? r.json() : null,
+      ),
+      fetch('/data/boundaries/departamentos.geojson').then((r) =>
+        r.ok ? r.json() : null,
+      ),
+    ])
+      .then(([provData, deptoData]) => {
+        if (!active) return
+        boundariesRef.current = {
+          provincias: provData?.features
+            ? prepareBoundaryFeatures(provData.features)
+            : [],
+          departamentos: deptoData?.features
+            ? prepareBoundaryFeatures(deptoData.features)
+            : [],
+        }
+        updateLocalLocation()
+      })
+      .catch(() => {
+        // En caso de entorno sin HTTP estático (ej. tests unitarios sin mock) se maneja limpio
+      })
+
+    return () => {
+      active = false
+    }
+  }, [isOpen])
 
   const fitToVertices = (pts: [number, number][]) => {
     const map = mapRef.current
@@ -207,10 +403,11 @@ export function PolygonMapDrawer({
     )
   }
 
-  // Inicializar el mapa interactivo cuando se abre el selector
+  // Inicializar el mapa interactivo cuando se abre el modal
   useEffect(() => {
     if (!isOpen || !mapContainerRef.current) return
 
+    mapReadyRef.current = false
     const center: [number, number] = initialCenter ?? [-66.085, -33.128]
 
     const map = new maplibregl.Map({
@@ -259,64 +456,28 @@ export function PolygonMapDrawer({
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right')
     mapRef.current = map
+    if (typeof window !== 'undefined') {
+      ;(window as any).__drawerMap = map
+    }
 
     map.on('load', () => {
-      // Límites superpuestos oficiales del Instituto Geográfico Nacional (IGN)
-      map.addSource('ign-limits', {
-        type: 'raster',
-        tiles: [
-          'https://wms.ign.gob.ar/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=ign:linea_de_limite_070111,ign:linea_de_limite_070110,ign:gobiernoslocales_2022&FORMAT=image/png&TRANSPARENT=TRUE&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}',
-        ],
-        tileSize: 256,
-        attribution: 'Límites: Instituto Geográfico Nacional (IGN)',
-      })
+      mapReadyRef.current = true
 
-      map.addLayer({
-        id: 'ign-limits-layer',
-        type: 'raster',
-        source: 'ign-limits',
-        layout: {
-          visibility: showIgnLimitsRef.current ? 'visible' : 'none',
-        },
-        paint: {
-          'raster-opacity': 0.85,
-        },
-      })
+      // 1. Capas vectoriales oficiales IGN (blancas, nítidas, sin WMS)
+      ensureIgnLayers(map)
 
-      map.addSource('drawn-polygon', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: [],
-        },
-      })
+      // 2. Capas del polígono trazado por el usuario
+      ensurePolygonLayers(map)
 
-      // Relleno amarillo muy tenue (deja ver el mapa debajo)
-      map.addLayer({
-        id: 'drawn-polygon-fill',
-        type: 'fill',
-        source: 'drawn-polygon',
-        filter: ['==', '$type', 'Polygon'],
-        paint: {
-          'fill-color': POLYGON_FILL_COLOR,
-          'fill-opacity': POLYGON_FILL_OPACITY,
-        },
-      })
+      // 3. Pintar vértices actuales
+      updateGeoJsonSource(verticesRef.current)
 
-      // Bordes en línea punteada de alto contraste (~2 px)
-      map.addLayer({
-        id: 'drawn-polygon-line',
-        type: 'line',
-        source: 'drawn-polygon',
-        paint: {
-          'line-color': POLYGON_EDGE_COLOR,
-          'line-width': POLYGON_EDGE_WIDTH,
-          'line-dasharray': POLYGON_EDGE_DASHARRAY,
-        },
-      })
+      // 4. Actualizar ficha de ubicación local
+      updateLocalLocation()
     })
 
     const handleAddVertex = (clicked: [number, number]) => {
+      setSearchStatus(null)
       if (drawToolRef.current === 'rectangle') {
         const first = rectCornerRef.current
         if (!first) {
@@ -374,29 +535,19 @@ export function PolygonMapDrawer({
       }
     })
 
-    // Consultar ubicación oficial IGN en el centro del mapa
-    const fetchIgnLocation = async (lon: number, lat: number) => {
-      try {
-        const res = await fetch(`/api/v1/georef/location?lon=${lon}&lat=${lat}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data.formatted) {
-            setIgnLocation(data.formatted)
-          }
-        }
-      } catch {
-        // Silencioso en caso de error de red
-      }
-    }
-
     map.on('moveend', () => {
-      const c = map.getCenter()
-      fetchIgnLocation(Number(c.lng.toFixed(5)), Number(c.lat.toFixed(5)))
+      updateLocalLocation()
     })
 
-    fetchIgnLocation(center[0], center[1])
+    map.on('zoomend', () => {
+      updateLocalLocation()
+    })
 
     return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).__drawerMap
+      }
+      mapReadyRef.current = false
       markersRef.current.forEach((m) => m.remove())
       markersRef.current = []
       map.remove()
@@ -407,7 +558,7 @@ export function PolygonMapDrawer({
   // Alternar vista Satélite / Calles
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !map.isStyleLoaded()) return
+    if (!map || !mapReadyRef.current) return
     if (map.getLayer('sat-layer')) {
       map.setLayoutProperty(
         'sat-layer',
@@ -415,18 +566,22 @@ export function PolygonMapDrawer({
         basemapStyle === 'satellite' ? 'visible' : 'none',
       )
     }
+    // Asegurar que las capas del polígono e IGN permanezcan intactas y repintadas
+    ensureIgnLayers(map)
+    ensurePolygonLayers(map)
+    updateGeoJsonSource(verticesRef.current)
   }, [basemapStyle])
 
-  // Alternar límites oficiales del IGN
+  // Alternar límites oficiales del IGN (ambas capas vectoriales: provincias y departamentos)
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !map.isStyleLoaded()) return
-    if (map.getLayer('ign-limits-layer')) {
-      map.setLayoutProperty(
-        'ign-limits-layer',
-        'visibility',
-        showIgnLimits ? 'visible' : 'none',
-      )
+    if (!map || !mapReadyRef.current) return
+    const vis = showIgnLimits ? 'visible' : 'none'
+    if (map.getLayer('ign-provincias-layer')) {
+      map.setLayoutProperty('ign-provincias-layer', 'visibility', vis)
+    }
+    if (map.getLayer('ign-departamentos-layer')) {
+      map.setLayoutProperty('ign-departamentos-layer', 'visibility', vis)
     }
   }, [showIgnLimits])
 
@@ -435,43 +590,9 @@ export function PolygonMapDrawer({
     const map = mapRef.current
     if (!map) return
 
-    const updateGeoJsonSource = () => {
-      const src = map.getSource('drawn-polygon') as
-        | maplibregl.GeoJSONSource
-        | undefined
-      if (!src) return
-
-      const features: GeoJSON.Feature[] = []
-      if (vertices.length >= 3) {
-        const ring = [...vertices, vertices[0]]
-        features.push({
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'Polygon',
-            coordinates: [ring],
-          },
-        })
-      } else if (vertices.length >= 2) {
-        features.push({
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: vertices,
-          },
-        })
-      }
-      src.setData({
-        type: 'FeatureCollection',
-        features,
-      })
-    }
-
-    if (map.isStyleLoaded()) {
-      updateGeoJsonSource()
-    } else {
-      map.once('load', updateGeoJsonSource)
+    // Actualizar directamente la fuente GeoJSON si el mapa ya cargó (Issue #84)
+    if (mapReadyRef.current) {
+      updateGeoJsonSource(vertices)
     }
 
     // Recrear marcadores arrastrables para cada vértice del lote (círculo blanco con borde oscuro)
@@ -481,7 +602,7 @@ export function PolygonMapDrawer({
     vertices.forEach((pt, idx) => {
       const el = document.createElement('div')
       el.className = 'polygon-vertex-marker'
-      el.title = `Esquina #${idx + 1}: ${pt[1].toFixed(5)}°, ${pt[0].toFixed(5)}° (arrastrá para ajustar)`
+      el.title = `Esquina #${idx + 1}: ${formatDecimal(pt[1], 5)}°, ${formatDecimal(pt[0], 5)}° (arrastrá para ajustar)`
 
       const marker = new maplibregl.Marker({
         element: el,
@@ -491,6 +612,7 @@ export function PolygonMapDrawer({
         .addTo(map)
 
       marker.on('dragend', () => {
+        setSearchStatus(null)
         const lngLat = marker.getLngLat()
         const updated: [number, number] = [
           Number(lngLat.lng.toFixed(6)),
@@ -516,7 +638,10 @@ export function PolygonMapDrawer({
   const handleSearchLocation = async (e: React.FormEvent) => {
     e.preventDefault()
     const q = searchQuery.trim()
-    if (!q) return
+    if (!q) {
+      setSearchStatus(null)
+      return
+    }
     setSearchStatus('Buscando ubicación...')
 
     // 1. Verificar si ingresó coordenadas directas "lat, lon"
@@ -527,9 +652,12 @@ export function PolygonMapDrawer({
       const a = Number(coordMatch[1])
       const b = Number(coordMatch[2])
       // En Argentina latitud ~ -20 a -55, longitud ~ -53 a -74
-      const [lat, lon] = Math.abs(a) < 56 && Math.abs(b) > 52 ? [a, b] : [b, a]
+      const [lat, lon] =
+        Math.abs(a) < 56 && Math.abs(b) > 52 ? [a, b] : [b, a]
       flyToLocation(lon, lat, 14)
-      setSearchStatus(`Coordenadas centradas (${lat.toFixed(4)}, ${lon.toFixed(4)})`)
+      setSearchStatus(
+        `Coordenadas centradas (${formatDecimal(lat, 4)}, ${formatDecimal(lon, 4)})`,
+      )
       return
     }
 
@@ -552,6 +680,7 @@ export function PolygonMapDrawer({
           q + ', Argentina',
         )}&limit=1`,
       )
+      if (!searchQueryRef.current.trim()) return
       if (res.ok) {
         const data = await res.json()
         if (Array.isArray(data) && data.length > 0) {
@@ -562,19 +691,21 @@ export function PolygonMapDrawer({
           return
         }
       }
+      if (!searchQueryRef.current.trim()) return
       setSearchStatus(
         'No se encontró esa localidad. Probá con otra ciudad o ingresá coordenadas (formato: -33.12, -66.08).',
       )
     } catch {
+      if (!searchQueryRef.current.trim()) return
       setSearchStatus(
         'Búsqueda externa no disponible. Elegí una zona rápida abajo o escribí coordenadas (formato: -33.12, -66.08).',
       )
     }
   }
 
-
   /** Elimina un vértice específico del polígono. */
   const handleDeleteVertex = (idxToDelete: number) => {
+    setSearchStatus(null)
     setVertices((prev) => prev.filter((_, idx) => idx !== idxToDelete))
   }
 
@@ -585,6 +716,7 @@ export function PolygonMapDrawer({
     if (!file) return
 
     setSubmitError(null)
+    setSearchStatus(null)
     const ext = file.name.split('.').pop()?.toLowerCase()
 
     if (ext === 'geojson' || ext === 'json') {
@@ -596,10 +728,17 @@ export function PolygonMapDrawer({
           let coords: [number, number][] = []
           let candidateName = file.name.replace(/\.[^.]+$/, '')
 
-          if (parsed.type === 'FeatureCollection' && parsed.features?.[0]?.geometry) {
+          if (
+            parsed.type === 'FeatureCollection' &&
+            parsed.features?.[0]?.geometry
+          ) {
             const feat = parsed.features[0]
-            candidateName = feat.properties?.name || feat.properties?.nombre || candidateName
-            if (feat.geometry.type === 'Polygon' && feat.geometry.coordinates?.[0]) {
+            candidateName =
+              feat.properties?.name || feat.properties?.nombre || candidateName
+            if (
+              feat.geometry.type === 'Polygon' &&
+              feat.geometry.coordinates?.[0]
+            ) {
               coords = feat.geometry.coordinates[0].map((c: number[]) => [
                 Number(c[0].toFixed(6)),
                 Number(c[1].toFixed(6)),
@@ -607,7 +746,10 @@ export function PolygonMapDrawer({
             }
           } else if (parsed.type === 'Feature' && parsed.geometry) {
             candidateName = parsed.properties?.name || candidateName
-            if (parsed.geometry.type === 'Polygon' && parsed.geometry.coordinates?.[0]) {
+            if (
+              parsed.geometry.type === 'Polygon' &&
+              parsed.geometry.coordinates?.[0]
+            ) {
               coords = parsed.geometry.coordinates[0].map((c: number[]) => [
                 Number(c[0].toFixed(6)),
                 Number(c[1].toFixed(6)),
@@ -624,15 +766,21 @@ export function PolygonMapDrawer({
             // Descartar punto duplicado de cierre si existe
             const pFirst = coords[0]
             const pLast = coords[coords.length - 1]
-            if (Math.hypot(pFirst[0] - pLast[0], pFirst[1] - pLast[1]) < 0.00002) {
+            if (
+              Math.hypot(pFirst[0] - pLast[0], pFirst[1] - pLast[1]) < 0.00002
+            ) {
               coords.pop()
             }
             setVertices(coords)
             setLotName(candidateName)
             fitToVertices(coords)
-            setSearchStatus(`Lote "${candidateName}" cargado en el mapa (${coords.length} esquinas).`)
+            setSearchStatus(
+              `Lote "${candidateName}" cargado en el mapa (${coords.length} esquinas).`,
+            )
           } else {
-            setSubmitError('El archivo GeoJSON no contiene un polígono con al menos 3 coordenadas válidas.')
+            setSubmitError(
+              'El archivo GeoJSON no contiene un polígono con al menos 3 coordenadas válidas.',
+            )
           }
         } catch (err) {
           setSubmitError(`Error al procesar GeoJSON: ${(err as Error).message}`)
@@ -659,12 +807,12 @@ export function PolygonMapDrawer({
       return
     }
     if (areaHa < 0.5) {
-      setSubmitError('El polígono dibujado es demasiado pequeño (< 0.5 ha).')
+      setSubmitError('El polígono dibujado es demasiado pequeño (< 0,5 ha).')
       return
     }
     if (areaHa > 6500) {
       setSubmitError(
-        `El lote dibujado tiene ${areaHa.toFixed(0)} ha. Para obtener una maqueta 3D detallada a 30 m se recomienda delimitar sectores de hasta 6.500 ha.`,
+        `El lote dibujado tiene ${formatDecimal(areaHa, 0)} ha. Para obtener una maqueta 3D detallada a 30 m se recomienda delimitar sectores de hasta 6.500 ha.`,
       )
       return
     }
@@ -715,9 +863,7 @@ export function PolygonMapDrawer({
         {/* Encabezado del dibujador de polígonos */}
         <div className="drawer-modal-header">
           <div>
-            <span className="drawer-step-badge">
-              PASO 1 · DIBUJAR LOTE
-            </span>
+            <span className="drawer-step-badge">PASO 1 · DIBUJAR LOTE</span>
             <h2>Delimitador interactivo de lotes</h2>
             <p>
               Hacé clic en el mapa para marcar cada esquina de tu terreno o subí un archivo catastral.
@@ -739,7 +885,12 @@ export function PolygonMapDrawer({
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                if (!e.target.value.trim()) {
+                  setSearchStatus(null)
+                }
+              }}
               placeholder="Buscar ciudad, paraje o coordenadas GPS (-33.12, -66.08)..."
               className="drawer-search-input"
             />
@@ -758,7 +909,7 @@ export function PolygonMapDrawer({
           <div className="drawer-map-wrapper">
             <div ref={mapContainerRef} className="drawer-map-canvas" />
 
-            {/* Indicador oficial de ubicación IGN: Provincia · Departamento · Municipio */}
+            {/* Indicador oficial de ubicación IGN: Provincia · Departamento */}
             {ignLocation && (
               <div
                 className="drawer-ign-badge"
@@ -778,6 +929,7 @@ export function PolygonMapDrawer({
                   drawTool === 'polygon' ? 'active' : ''
                 }`}
                 onClick={() => {
+                  setSearchStatus(null)
                   setDrawTool('polygon')
                   setRectFirstCorner(null)
                 }}
@@ -790,6 +942,7 @@ export function PolygonMapDrawer({
                   drawTool === 'rectangle' ? 'active' : ''
                 }`}
                 onClick={() => {
+                  setSearchStatus(null)
                   setDrawTool('rectangle')
                   setRectFirstCorner(null)
                   setVertices([])
@@ -811,7 +964,7 @@ export function PolygonMapDrawer({
                 type="button"
                 className={`drawer-tool-pill ${showIgnLimits ? 'active' : ''}`}
                 onClick={() => setShowIgnLimits((s) => !s)}
-                title="Superponer o esconder límites provinciales, departamentales y municipales del IGN"
+                title="Superponer o esconder límites provinciales y departamentales del IGN"
               >
                 {showIgnLimits ? 'Límites IGN: Activos' : 'Límites IGN: Ocultos'}
               </button>
@@ -841,7 +994,7 @@ export function PolygonMapDrawer({
                     ? 'Hacé clic sobre el mapa para marcar la primera esquina'
                     : vertices.length < 3
                       ? `Tenés ${vertices.length} punto(s). Marcá al menos 3 esquinas para cerrar el lote`
-                      : `Polígono de ${vertices.length} esquinas listo (${areaHa.toFixed(1)} ha). Podés arrastrar los puntos para ajustar.`}
+                      : `Polígono de ${vertices.length} esquinas listo (${formatHa(areaHa)}). Podés arrastrar los puntos para ajustar.`}
               </span>
               <span className="drawer-ign-attribution-tag">
                 Límites: Instituto Geográfico Nacional
@@ -889,11 +1042,11 @@ export function PolygonMapDrawer({
                     areaHa >= 1 && areaHa <= 6500 ? 'text-emerald' : ''
                   }
                 >
-                  {areaHa > 0 ? `${areaHa.toFixed(1)} ha` : '0 ha'}
+                  {formatHa(areaHa)}
                 </strong>
                 <small>
                   {areaHa > 0
-                    ? `${(areaHa / 100).toFixed(2)} km²`
+                    ? `${formatDecimal(areaHa / 100, 2)} km²`
                     : 'Marcá 3+ esquinas'}
                 </small>
               </div>
@@ -902,7 +1055,7 @@ export function PolygonMapDrawer({
                 <strong>{vertices.length} esquinas</strong>
                 <small>
                   {perimeterM > 0
-                    ? `${(perimeterM / 1000).toFixed(2)} km de alambre`
+                    ? `${formatDistance(perimeterM, 2)} de alambre`
                     : 'Sin perímetro'}
                 </small>
               </div>
@@ -911,17 +1064,8 @@ export function PolygonMapDrawer({
             {dimensions.widthM > 0 && (
               <div className="drawer-dimensions-badge">
                 Dimensiones aprox:{' '}
-                <strong>
-                  {dimensions.widthM >= 1000
-                    ? `${(dimensions.widthM / 1000).toFixed(2)} km`
-                    : `${dimensions.widthM.toFixed(0)} m`}
-                </strong>{' '}
-                (ancho) ×{' '}
-                <strong>
-                  {dimensions.heightM >= 1000
-                    ? `${(dimensions.heightM / 1000).toFixed(2)} km`
-                    : `${dimensions.heightM.toFixed(0)} m`}
-                </strong>{' '}
+                <strong>{formatDistance(dimensions.widthM, 2)}</strong> (ancho)
+                × <strong>{formatDistance(dimensions.heightM, 2)}</strong>{' '}
                 (largo)
               </div>
             )}
@@ -930,7 +1074,10 @@ export function PolygonMapDrawer({
               <button
                 type="button"
                 className="drawer-secondary-btn"
-                onClick={() => setVertices((prev) => prev.slice(0, -1))}
+                onClick={() => {
+                  setSearchStatus(null)
+                  setVertices((prev) => prev.slice(0, -1))
+                }}
                 disabled={vertices.length === 0 || submitting}
               >
                 Deshacer último
@@ -939,6 +1086,7 @@ export function PolygonMapDrawer({
                 type="button"
                 className="drawer-secondary-btn"
                 onClick={() => {
+                  setSearchStatus(null)
                   setVertices([])
                   setRectFirstCorner(null)
                 }}
@@ -958,7 +1106,7 @@ export function PolygonMapDrawer({
                     <div key={i} className="drawer-coord-row">
                       <span className="drawer-coord-badge">#{i + 1}</span>
                       <span className="drawer-coord-text">
-                        Lat {pt[1].toFixed(5)}°, Lon {pt[0].toFixed(5)}°
+                        Lat {formatDecimal(pt[1], 5)}°, Lon {formatDecimal(pt[0], 5)}°
                       </span>
                       <button
                         type="button"
