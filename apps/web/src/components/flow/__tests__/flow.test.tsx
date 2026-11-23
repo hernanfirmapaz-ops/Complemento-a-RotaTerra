@@ -495,7 +495,6 @@ describe('Flujo Lote -> Lluvia -> Resultado', () => {
           onSelectOverlay={vi.fn()}
           onReplayRain={vi.fn()}
           onChangeLot={vi.fn()}
-          onOpenToolkit={vi.fn()}
           busy={false}
         />,
       )
@@ -525,7 +524,6 @@ describe('Flujo Lote -> Lluvia -> Resultado', () => {
           onSelectOverlay={vi.fn()}
           onReplayRain={vi.fn()}
           onChangeLot={vi.fn()}
-          onOpenToolkit={vi.fn()}
           busy={false}
         />,
       )
@@ -546,7 +544,6 @@ describe('Flujo Lote -> Lluvia -> Resultado', () => {
           onSelectOverlay={onSelectOverlay}
           onReplayRain={vi.fn()}
           onChangeLot={vi.fn()}
-          onOpenToolkit={vi.fn()}
           busy={false}
         />,
       )
@@ -571,7 +568,6 @@ describe('Flujo Lote -> Lluvia -> Resultado', () => {
           onSelectOverlay={vi.fn()}
           onReplayRain={onReplayRain}
           onChangeLot={onChangeLot}
-          onOpenToolkit={vi.fn()}
           busy={false}
         />,
       )
@@ -595,7 +591,6 @@ describe('Flujo Lote -> Lluvia -> Resultado', () => {
           onSelectOverlay={vi.fn()}
           onReplayRain={vi.fn()}
           onChangeLot={vi.fn()}
-          onOpenToolkit={vi.fn()}
           busy={false}
         />,
       )
@@ -691,7 +686,6 @@ describe('Flujo Lote -> Lluvia -> Resultado', () => {
               onSelectOverlay={vi.fn()}
               onReplayRain={handleReplayRain}
               onChangeLot={handleBackToLot}
-              onOpenToolkit={vi.fn()}
               busy={false}
             />
           )}

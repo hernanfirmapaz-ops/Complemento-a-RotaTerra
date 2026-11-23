@@ -23,6 +23,7 @@ export const SPLASH_SEGMENTS_COUNT = 10
 export const RAIN_INTENSITY_MIN_NORMALIZED = 0.1
 export const RAIN_INTENSITY_MAX_NORMALIZED = 2.0
 export const RAIN_DROPLET_BASE_OPACITY = 0.85
+export const RAIN_DROPLET_SCREEN_PIXELS = 3.0 // Tamaño en píxeles reales de pantalla (2–4 px)
 export const RAIN_DROP_BASE_SPEED = 1.35
 export const RAIN_DROP_SPEED_VARIATION = 0.85
 
@@ -205,8 +206,8 @@ export class RainSimulationSystem {
     this.pointsMat = new THREE.PointsMaterial({
       map: this.spriteTexture,
       color: 0xe0f2fe,
-      size: 2.8, // Tamaño adaptativo de 2 a 4 px
-      sizeAttenuation: true,
+      size: RAIN_DROPLET_SCREEN_PIXELS,
+      sizeAttenuation: false, // Píxeles reales de pantalla (2–4 px), no unidades de escena
       transparent: true,
       opacity: RAIN_DROPLET_BASE_OPACITY,
       blending: THREE.AdditiveBlending,
