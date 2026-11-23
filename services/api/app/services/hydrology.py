@@ -583,7 +583,7 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
     # Erosión hídrica USLE real para el evento y condiciones del lote
     spi_grid = grids.get("spi")
     if spi_grid is None:
-        _, spi_grid = compute_twi_and_spi(dem.z, pct_run, grids["mfd_area_m2"], mascara, dem.pixel)
+        _, spi_grid = compute_twi_and_spi(grids["mfd_area_m2"], pct_run, dem.pixel)
     _, erosion_summary = compute_usle_erosion_and_gullies(
         mfd_area_m2=grids["mfd_area_m2"],
         slope_pct=pct_run,

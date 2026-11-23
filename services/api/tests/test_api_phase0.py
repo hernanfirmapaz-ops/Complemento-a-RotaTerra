@@ -359,3 +359,79 @@ def test_water_balance_offline_without_network_drops_series(
     assert wb["annual_precipitation_mm"] == 0.0
     assert "No disponible - sin conexión" in wb["source"]
     assert any("descartada por falta de conectividad" in w for w in tk["warnings"])
+
+
+def test_simulation_without_spi_in_grids_falls_back_cleanly(client: TestClient, tmp_path: Path):
+    """Verifica que si 'spi' no está en hydrology_grids.npz, la simulación calcula el SPI al vuelo sin fallar (Paso 1)."""
+    import numpy as np
+
+    from services.api.app.services.hydrology import load_hydrology_grids
+
+    # 1. Crear lote e importar DEM sintético
+    geojson_bytes = json.dumps(synthetic_square_field_geojson()).encode("utf-8")
+    r = client.post(
+        "/api/v1/fields/import",
+        files={"file": ("lote_test_spi.geojson", geojson_bytes, "application/geo+json")},
+        data={"default_name": "Lote Test SPI"},
+    )
+    assert r.status_code == 201
+    field_id = r.json()["fields"][0]["id"]
+
+    dem_path = write_synthetic_inclined_plane_utm(
+        tmp_path / "dem_spi.tif", slope_east=0.03, slope_south=0.04, pixel_m=10.0, width=100, height=100
+    )
+    with dem_path.open("rb") as fh:
+        r = client.post(
+            f"/api/v1/fields/{field_id}/terrain/process",
+            files={"file": ("dem_spi.tif", fh, "image/tiff")},
+            data={"source_id": "upload", "buffer_m": "50"},
+        )
+    assert r.status_code == 200
+
+    # 2. Hidrología estática
+    r = client.post(f"/api/v1/fields/{field_id}/hydrology/static", json={})
+    assert r.status_code == 200
+
+    # 3. Eliminar 'spi' de hydrology_grids.npz para forzar la rama de fallback
+    npz_path = store.field_dir(field_id) / "hydrology_grids.npz"
+    with np.load(npz_path) as data:
+        arrays_without_spi = {k: data[k] for k in data.files if k != "spi"}
+    assert "spi" not in arrays_without_spi
+    np.savez_compressed(npz_path, **arrays_without_spi)
+    load_hydrology_grids.cache_clear()
+
+    # Perfil de suelo local para cálculo de K en USLE
+    (store.field_dir(field_id) / "soil.json").write_text(
+        json.dumps({"sand_pct": 40.0, "silt_pct": 40.0, "clay_pct": 20.0, "quality": "confiable"}),
+        encoding="utf-8",
+    )
+
+    # 4. Crear evento de lluvia y ejecutar corrida de escorrentía
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/rainfall-events",
+        json={"name": "Lluvia test 50 mm", "total_mm": 50.0, "source_type": "manual"},
+    )
+    assert r.status_code == 201
+    ev_id = r.json()["id"]
+
+    r = client.post(
+        f"/api/v1/fields/{field_id}/hydrology/runoff-runs",
+        json={
+            "name": "Corrida fallback SPI",
+            "rainfall_event_id": ev_id,
+            "soil_group": "B",
+            "cover_code": "soja_maiz_sd_buena",
+            "antecedent_moisture": "medium",
+        },
+    )
+    assert r.status_code == 201, r.text
+    run_data = r.json()
+    assert run_data["id"] == ev_id or run_data["rainfall_event_id"] == ev_id
+
+    # Verificar que en el documento persistido se calculó erosion_summary usando el SPI derivado
+    run_doc = next(r for r in store.list_runoff_runs(field_id) if r["id"] == run_data["id"])
+    assert run_doc["erosion_summary"] is not None
+    assert run_doc["erosion_summary"]["spi_p95_in_field"] is not None
+    assert run_doc["erosion_summary"]["spi_p95_in_field"] > 0
+    assert run_doc["erosion_summary"]["mean_soil_loss_t_ha"] is not None
+
