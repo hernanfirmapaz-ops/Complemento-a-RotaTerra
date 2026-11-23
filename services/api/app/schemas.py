@@ -253,6 +253,8 @@ class OutletOut(BaseModel):
 
 class HydrologySummaryOut(BaseModel):
     mean_slope_in_field_pct: float | None = None
+    raw_mean_slope_in_field_pct: float | None = None
+    plane_fit: dict | None = None
     depressions_count: int
     depressions_in_field_count: int
     depressions_filled_count: int
