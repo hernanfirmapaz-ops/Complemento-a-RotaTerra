@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Icon } from './ui/Icon'
+import {
+  POLYGON_EDGE_COLOR,
+  POLYGON_EDGE_DASHARRAY,
+  POLYGON_EDGE_WIDTH,
+  POLYGON_FILL_COLOR,
+  POLYGON_FILL_OPACITY,
+  computeDistanceM,
+} from '../utils/polygonStyles'
 
 interface Props {
   isOpen: boolean
@@ -158,9 +166,14 @@ export function PolygonMapDrawer({
   const [basemapStyle, setBasemapStyle] = useState<'satellite' | 'streets'>(
     'satellite',
   )
+  const [showIgnLimits, setShowIgnLimits] = useState<boolean>(true)
+  const [ignLocation, setIgnLocation] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showIgnLimitsRef = useRef(showIgnLimits)
+  showIgnLimitsRef.current = showIgnLimits
   const verticesRef = useRef(vertices)
   verticesRef.current = vertices
   const drawToolRef = useRef(drawTool)
@@ -248,6 +261,28 @@ export function PolygonMapDrawer({
     mapRef.current = map
 
     map.on('load', () => {
+      // Límites superpuestos oficiales del Instituto Geográfico Nacional (IGN)
+      map.addSource('ign-limits', {
+        type: 'raster',
+        tiles: [
+          'https://wms.ign.gob.ar/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=ign:linea_de_limite_070111,ign:linea_de_limite_070110,ign:gobiernoslocales_2022&FORMAT=image/png&TRANSPARENT=TRUE&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}',
+        ],
+        tileSize: 256,
+        attribution: 'Límites: Instituto Geográfico Nacional (IGN)',
+      })
+
+      map.addLayer({
+        id: 'ign-limits-layer',
+        type: 'raster',
+        source: 'ign-limits',
+        layout: {
+          visibility: showIgnLimitsRef.current ? 'visible' : 'none',
+        },
+        paint: {
+          'raster-opacity': 0.85,
+        },
+      })
+
       map.addSource('drawn-polygon', {
         type: 'geojson',
         data: {
@@ -256,36 +291,32 @@ export function PolygonMapDrawer({
         },
       })
 
-      // Relleno semitransparente del polígono
+      // Relleno amarillo muy tenue (deja ver el mapa debajo)
       map.addLayer({
         id: 'drawn-polygon-fill',
         type: 'fill',
         source: 'drawn-polygon',
         filter: ['==', '$type', 'Polygon'],
         paint: {
-          'fill-color': '#10b981',
-          'fill-opacity': 0.28,
+          'fill-color': POLYGON_FILL_COLOR,
+          'fill-opacity': POLYGON_FILL_OPACITY,
         },
       })
 
-      // Borde amarillo brillante del polígono o línea en construcción
+      // Bordes en línea punteada de alto contraste (~2 px)
       map.addLayer({
         id: 'drawn-polygon-line',
         type: 'line',
         source: 'drawn-polygon',
         paint: {
-          'line-color': '#facc15',
-          'line-width': 3.5,
+          'line-color': POLYGON_EDGE_COLOR,
+          'line-width': POLYGON_EDGE_WIDTH,
+          'line-dasharray': POLYGON_EDGE_DASHARRAY,
         },
       })
     })
 
-    map.on('click', (e: maplibregl.MapMouseEvent) => {
-      const clicked: [number, number] = [
-        Number(e.lngLat.lng.toFixed(6)),
-        Number(e.lngLat.lat.toFixed(6)),
-      ]
-
+    const handleAddVertex = (clicked: [number, number]) => {
       if (drawToolRef.current === 'rectangle') {
         const first = rectCornerRef.current
         if (!first) {
@@ -305,9 +336,65 @@ export function PolygonMapDrawer({
           setRectFirstCorner(null)
         }
       } else {
-        setVertices((prev) => [...prev, clicked])
+        const prev = verticesRef.current
+        if (prev.length > 0) {
+          const last = prev[prev.length - 1]
+          if (computeDistanceM(last, clicked) < 1.0) {
+            // Descartar esquina duplicada a menos de 1 m de la anterior
+            return
+          }
+        }
+        setVertices((p) => [...p, clicked])
+      }
+    }
+
+    map.on('click', (e: maplibregl.MapMouseEvent) => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current)
+        clickTimeoutRef.current = null
+      }
+
+      const clicked: [number, number] = [
+        Number(e.lngLat.lng.toFixed(6)),
+        Number(e.lngLat.lat.toFixed(6)),
+      ]
+
+      // Diferir 250 ms: si llega un segundo clic (doble clic), se cancela la marcación
+      clickTimeoutRef.current = setTimeout(() => {
+        clickTimeoutRef.current = null
+        handleAddVertex(clicked)
+      }, 250)
+    })
+
+    map.on('dblclick', () => {
+      // Cancelar cualquier marcación diferida: el doble clic es exclusivamente para acercar
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current)
+        clickTimeoutRef.current = null
       }
     })
+
+    // Consultar ubicación oficial IGN en el centro del mapa
+    const fetchIgnLocation = async (lon: number, lat: number) => {
+      try {
+        const res = await fetch(`/api/v1/georef/location?lon=${lon}&lat=${lat}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.formatted) {
+            setIgnLocation(data.formatted)
+          }
+        }
+      } catch {
+        // Silencioso en caso de error de red
+      }
+    }
+
+    map.on('moveend', () => {
+      const c = map.getCenter()
+      fetchIgnLocation(Number(c.lng.toFixed(5)), Number(c.lat.toFixed(5)))
+    })
+
+    fetchIgnLocation(center[0], center[1])
 
     return () => {
       markersRef.current.forEach((m) => m.remove())
@@ -315,7 +402,7 @@ export function PolygonMapDrawer({
       map.remove()
       mapRef.current = null
     }
-  }, [isOpen])
+  }, [isOpen, initialCenter])
 
   // Alternar vista Satélite / Calles
   useEffect(() => {
@@ -329,6 +416,19 @@ export function PolygonMapDrawer({
       )
     }
   }, [basemapStyle])
+
+  // Alternar límites oficiales del IGN
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
+    if (map.getLayer('ign-limits-layer')) {
+      map.setLayoutProperty(
+        'ign-limits-layer',
+        'visibility',
+        showIgnLimits ? 'visible' : 'none',
+      )
+    }
+  }, [showIgnLimits])
 
   // Actualizar el polígono GeoJSON y los marcadores arrastrables de cada esquina
   useEffect(() => {
@@ -352,7 +452,7 @@ export function PolygonMapDrawer({
             coordinates: [ring],
           },
         })
-      } else if (vertices.length === 2) {
+      } else if (vertices.length >= 2) {
         features.push({
           type: 'Feature',
           properties: {},
@@ -374,15 +474,14 @@ export function PolygonMapDrawer({
       map.once('load', updateGeoJsonSource)
     }
 
-    // Recrear marcadores arrastrables para cada vértice del lote
+    // Recrear marcadores arrastrables para cada vértice del lote (círculo blanco con borde oscuro)
     markersRef.current.forEach((m) => m.remove())
     markersRef.current = []
 
     vertices.forEach((pt, idx) => {
       const el = document.createElement('div')
       el.className = 'polygon-vertex-marker'
-      el.innerText = String(idx + 1)
-      el.title = `Esquina #${idx + 1} (arrastrá para mover o eliminá en el panel lateral)`
+      el.title = `Esquina #${idx + 1}: ${pt[1].toFixed(5)}°, ${pt[0].toFixed(5)}° (arrastrá para ajustar)`
 
       const marker = new maplibregl.Marker({
         element: el,
@@ -649,22 +748,6 @@ export function PolygonMapDrawer({
             </button>
           </form>
 
-          <div className="drawer-quick-zones">
-            <span className="drawer-quick-label">Centrar región:</span>
-            {AGRO_ZONES.map((z) => (
-              <button
-                key={z.label}
-                type="button"
-                className="drawer-zone-chip"
-                onClick={() => {
-                  flyToLocation(z.lon, z.lat, z.zoom)
-                  setSearchStatus(`Centrado en ${z.label} (${z.region})`)
-                }}
-              >
-                {z.label}
-              </button>
-            ))}
-          </div>
           {searchStatus && (
             <div className="drawer-search-status">{searchStatus}</div>
           )}
@@ -674,6 +757,18 @@ export function PolygonMapDrawer({
         <div className="drawer-body-grid">
           <div className="drawer-map-wrapper">
             <div ref={mapContainerRef} className="drawer-map-canvas" />
+
+            {/* Indicador oficial de ubicación IGN: Provincia · Departamento · Municipio */}
+            {ignLocation && (
+              <div
+                className="drawer-ign-badge"
+                title="Límites oficiales según el Instituto Geográfico Nacional (IGN)"
+              >
+                <span className="drawer-ign-dot" />
+                <span className="drawer-ign-text">{ignLocation}</span>
+                <span className="drawer-ign-source">IGN</span>
+              </div>
+            )}
 
             {/* Barra flotante superior dentro del mapa */}
             <div className="drawer-map-floating-tools">
@@ -714,6 +809,14 @@ export function PolygonMapDrawer({
               )}
               <button
                 type="button"
+                className={`drawer-tool-pill ${showIgnLimits ? 'active' : ''}`}
+                onClick={() => setShowIgnLimits((s) => !s)}
+                title="Superponer o esconder límites provinciales, departamentales y municipales del IGN"
+              >
+                {showIgnLimits ? 'Límites IGN: Activos' : 'Límites IGN: Ocultos'}
+              </button>
+              <button
+                type="button"
                 className="drawer-tool-pill"
                 onClick={() =>
                   setBasemapStyle((b) =>
@@ -727,17 +830,22 @@ export function PolygonMapDrawer({
               </button>
             </div>
 
-            {/* Instrucción flotante inferior */}
+            {/* Instrucción flotante inferior y atribución IGN */}
             <div className="drawer-map-bottom-hint">
-              {drawTool === 'rectangle'
-                ? rectFirstCorner
-                  ? 'Hacé clic en la esquina opuesta para completar el rectángulo'
-                  : 'Hacé clic en la primera esquina de tu lote'
-                : vertices.length === 0
-                  ? 'Hacé clic sobre el mapa para marcar la primera esquina'
-                  : vertices.length < 3
-                    ? `Tenés ${vertices.length} punto(s). Marcá al menos 3 esquinas para cerrar el lote`
-                    : `Polígono de ${vertices.length} esquinas listo (${areaHa.toFixed(1)} ha). Podés arrastrar los números para ajustar.`}
+              <span>
+                {drawTool === 'rectangle'
+                  ? rectFirstCorner
+                    ? 'Hacé clic en la esquina opuesta para completar el rectángulo'
+                    : 'Hacé clic en la primera esquina de tu lote'
+                  : vertices.length === 0
+                    ? 'Hacé clic sobre el mapa para marcar la primera esquina'
+                    : vertices.length < 3
+                      ? `Tenés ${vertices.length} punto(s). Marcá al menos 3 esquinas para cerrar el lote`
+                      : `Polígono de ${vertices.length} esquinas listo (${areaHa.toFixed(1)} ha). Podés arrastrar los puntos para ajustar.`}
+              </span>
+              <span className="drawer-ign-attribution-tag">
+                Límites: Instituto Geográfico Nacional
+              </span>
             </div>
           </div>
 
