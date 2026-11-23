@@ -111,20 +111,7 @@ def cargar_evento_lluvia_muestra(field_id: str):
 @router.get("/runoff-runs", response_model=list[RunoffRunOut])
 def listar_corridas_escorrentia(field_id: str):
     try:
-        field = store.load_field(field_id)
-        field_ha = float(field["area_ha"]) if field.get("area_ha") else None
-        runs = store.list_runoff_runs(field_id)
-        for r in runs:
-            h2d = r.get("hydrodynamic_2d_summary")
-            if h2d and "ponded_area_in_field_ha" in h2d:
-                pct = hydrology.compute_ponded_area_pct(h2d.get("ponded_area_in_field_ha"), field_ha)
-                r["ponded_area_pct"] = pct
-                h2d["ponded_area_pct"] = pct
-                h2d["ponded_area_in_field_pct"] = pct
-            else:
-                r["ponded_area_pct"] = None
-            r["field_area_ha"] = round(field_ha, 1) if field_ha is not None else None
-        return runs
+        return hydrology.list_runoff_runs(field_id)
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail="Lote no encontrado.") from error
 
@@ -132,12 +119,7 @@ def listar_corridas_escorrentia(field_id: str):
 @router.post("/runoff-runs", response_model=RunoffRunOut, status_code=201)
 def ejecutar_corrida_escorrentia(field_id: str, payload: RunoffRunIn):
     try:
-        res = hydrology.execute_runoff_run(field_id, payload)
-        field = store.load_field(field_id)
-        field_ha = float(field["area_ha"]) if field.get("area_ha") else None
-        res["field_area_ha"] = round(field_ha, 1) if field_ha is not None else None
-        res["ponded_area_pct"] = None
-        return res
+        return hydrology.execute_runoff_run(field_id, payload)
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail=f"Recurso no encontrado: {error}") from error
     except ValueError as error:
@@ -147,19 +129,7 @@ def ejecutar_corrida_escorrentia(field_id: str, payload: RunoffRunIn):
 @router.post("/runoff-runs/{run_id}/activate", response_model=RunoffRunOut)
 def activar_corrida_escorrentia(field_id: str, run_id: str):
     try:
-        field = store.load_field(field_id)
-        field_ha = float(field["area_ha"]) if field.get("area_ha") else None
-        res = hydrology.activate_runoff_run(field_id, run_id)
-        h2d = res.get("hydrodynamic_2d_summary")
-        if h2d and "ponded_area_in_field_ha" in h2d:
-            pct = hydrology.compute_ponded_area_pct(h2d.get("ponded_area_in_field_ha"), field_ha)
-            res["ponded_area_pct"] = pct
-            h2d["ponded_area_pct"] = pct
-            h2d["ponded_area_in_field_pct"] = pct
-        else:
-            res["ponded_area_pct"] = None
-        res["field_area_ha"] = round(field_ha, 1) if field_ha is not None else None
-        return res
+        return hydrology.activate_runoff_run(field_id, run_id)
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail="Corrida de escorrentía no encontrada.") from error
 
