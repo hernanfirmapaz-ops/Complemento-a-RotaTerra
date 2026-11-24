@@ -157,6 +157,39 @@ SUPUESTO_CARCAVAS_UMBRAL_PERDIDA_T_HA = Supuesto(
     fuente_referencia="Supuesto empírico agronómico conservador; editable por el usuario.",
 )
 
+# Factores topográficos S y L (USLE / RUSLE)
+SUPUESTO_USLE_SLOPE_THRESHOLD_PCT = Supuesto(
+    clave="usle_slope_threshold_pct",
+    valor=9.0,
+    unidad="%",
+    motivo="Umbral de gradiente de pendiente (9 % o 5,14°) para transicionar entre la formulación de McCool et al. (1987) para pendientes bajas y Moore & Burch (1986) para pendientes empinadas.",
+    fuente_referencia="McCool et al. (1987, Trans. ASAE 30(5): 1387–1396) / Renard et al. (1997, USDA Agriculture Handbook No. 703, pág. 89, Ecuación 4-4); editable por el usuario.",
+)
+
+SUPUESTO_USLE_MCCOOL_COEF_A = Supuesto(
+    clave="usle_mccool_coef_a",
+    valor=10.8,
+    unidad="adimensional",
+    motivo="Coeficiente lineal multiplicativo de sin(beta) en la ecuación de factor de pendiente S para gradientes < 9 % según McCool et al. (1987).",
+    fuente_referencia="McCool et al. (1987, Trans. ASAE 30(5): 1387–1396) / Renard et al. (1997, USDA AH-703, Ec. 4-4); editable por el usuario.",
+)
+
+SUPUESTO_USLE_MCCOOL_COEF_B = Supuesto(
+    clave="usle_mccool_coef_b",
+    valor=0.03,
+    unidad="adimensional",
+    motivo="Término independiente aditivo en la ecuación de factor de pendiente S para gradientes < 9 % según McCool et al. (1987), reflejando la erosión difusa e inter-surco por impacto de gota y flujo laminar en relieve casi plano.",
+    fuente_referencia="McCool et al. (1987, Trans. ASAE 30(5): 1387–1396) / Renard et al. (1997, USDA AH-703, Ec. 4-4); editable por el usuario.",
+)
+
+SUPUESTO_USLE_MAX_SLOPE_LENGTH_M = Supuesto(
+    clave="usle_max_slope_length_m",
+    valor=180.0,
+    unidad="m",
+    motivo="Longitud máxima de ladera efectiva para el cálculo del factor LS de USLE/RUSLE en ausencia de terrazas, antes de que el escurrimiento concentrado forme flujo en cárcava.",
+    fuente_referencia="Wischmeier & Smith (1978, USDA AH-537) / Renard et al. (1997, USDA AH-703, pág. 87); editable por el usuario.",
+)
+
 SUPUESTO_USLE_P_CONTOUR_DEFECTO = Supuesto(
     clave="usle_p_contour_defecto",
     valor=0.60,
@@ -393,7 +426,7 @@ SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW = Supuesto(
     clave="slope_smoothing_fallback_window",
     valor=7,
     unidad="celdas",
-    motivo="Tamaño de ventana móvil WxW para el ajuste local de plano por mínimos cuadrados cuando WhiteboxTools no está disponible.",
+    motivo="Tamaño de ventana móvil WxW para el ajuste local de plano por mínimos cuadrados cuando WhiteboxTools no está disponible. Calibrado empíricamente en plano inclinado con ruido instrumental gaussiano (sigma = 1 m): una ventana de 7x7 celdas (210x210 m a resolución de 30 m) promedia 49 celdas y reduce la varianza del ruido en un factor 1/sqrt(49) = 1/7 (~0.14 m), recuperando la pendiente real de llanura (0.4% ± 0.15%) donde ventanas menores de 3x3 o 5x5 aún sobreestiman por ruido en los bordes.",
     fuente_referencia="Auditoría de relieve (Paso 2) / Spec 014 §5.3; calibrable.",
     editable=True,
 )
@@ -407,13 +440,23 @@ SUPUESTO_PLANE_FIT_R2_MINIMO = Supuesto(
     editable=True,
 )
 
+# --- Factor de conversión LE90 a NMAD bajo distribución normal ---
+SUPUESTO_LE90_A_NMAD_FACTOR = Supuesto(
+    clave="le90_a_nmad_factor",
+    valor=1.645,
+    unidad="adimensional",
+    motivo="Factor de conversión de error lineal al 90 % de confianza (LE90) a desviación estándar robusta o NMAD bajo el supuesto declarado de distribución normal de errores verticales (z_0.95 = 1.645, donde LE90 = 1.645 * sigma = 1.645 * NMAD).",
+    fuente_referencia="z₀,₉₅ = 1,645 bajo error normal (supuesto declarado)",
+    editable=True,
+)
+
 # --- Acondicionamiento Hidrológico y Umbrales de Depresión según Error del DEM (Paso 3 / SDD §6.2) ---
 SUPUESTO_DEPRESION_MAX_FILL_DEPTH_M = Supuesto(
     clave="depresion_max_fill_depth_m",
     valor=0.35,
     unidad="m",
-    motivo="Profundidad máxima de depresión para considerarla espuria y rellenarla automáticamente en modo fill_small para llanura pampeana.",
-    fuente_referencia="Criterio metodológico de acondicionamiento de relieve (Spec 005 / SDD §6.2)",
+    motivo="Profundidad máxima de depresión para considerarla espuria y rellenarla automáticamente en modo fill_small.",
+    fuente_referencia="supuesto, calibrable",
     editable=True,
 )
 
@@ -422,7 +465,34 @@ SUPUESTO_DEPRESION_MAX_FILL_AREA_M2 = Supuesto(
     valor=4500.0,
     unidad="m²",
     motivo="Área superficial máxima de depresión (0,45 ha) para considerarla espuria y susceptible de relleno automático en modo fill_small.",
-    fuente_referencia="Criterio metodológico de acondicionamiento de relieve (Spec 005 / SDD §6.2)",
+    fuente_referencia="supuesto, calibrable",
+    editable=True,
+)
+
+SUPUESTO_BREACH_MAX_DEPTH_M = Supuesto(
+    clave="breach_max_depth_m",
+    valor=0.8,
+    unidad="m",
+    motivo="Profundidad máxima de canal excavado por apertura de brechas de menor costo (algoritmo de Lindsay 2016, Hydrol. Process. 30(6): 846–857, DOI 10.1002/hyp.10648) para conectar depresiones a través de terraplenes o albardones artificiales sin distorsionar el relieve natural.",
+    fuente_referencia="supuesto, calibrable",
+    editable=True,
+)
+
+SUPUESTO_BREACH_MAX_DIST_CELLS = Supuesto(
+    clave="breach_max_dist_cells",
+    valor=50,
+    unidad="celdas",
+    motivo="Distancia máxima en celdas (1500 m a 30 m de resolución) para abrir brechas topográficas a lo largo de un camino de menor costo (algoritmo de Lindsay 2016).",
+    fuente_referencia="supuesto, calibrable",
+    editable=True,
+)
+
+SUPUESTO_USLE_MAX_SLOPE_LENGTH_M = Supuesto(
+    clave="usle_max_slope_length_m",
+    valor=180.0,
+    unidad="m",
+    motivo="Longitud máxima de ladera efectiva para el cálculo del factor LS de USLE/RUSLE en ausencia de terrazas, antes de que el escurrimiento concentrado forme flujo en cárcava.",
+    fuente_referencia="supuesto, calibrable",
     editable=True,
 )
 

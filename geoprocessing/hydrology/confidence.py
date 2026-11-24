@@ -13,7 +13,7 @@ from typing import Literal
 def compute_confidence_indicator(
     source_id: str = "copernicus_glo30",
     resolution_m: float = 30.0,
-    mean_slope_pct: float = 1.0,
+    mean_slope_pct: float | None = 1.0,
     soil_source: str | None = "default",
     rain_source_type: str = "manual",
 ) -> dict:
@@ -22,7 +22,7 @@ def compute_confidence_indicator(
     Parámetros:
     - source_id: identificador de la fuente del DEM ('copernicus_glo30', 'nasadem', 'drone', 'lidar', etc.).
     - resolution_m: resolución horizontal en metros (ej. 30.0 para Copernicus, <= 2.0 para dron/LiDAR).
-    - mean_slope_pct: pendiente media del lote en porcentaje (0.3% es el umbral crítico de llanura).
+    - mean_slope_pct: pendiente media del lote en porcentaje (0.3% es el umbral crítico de llanura, o None si falta el dato).
     - soil_source: fuente del suelo ('local_survey', 'inta_detailed', 'inta_regional', 'default').
     - rain_source_type: origen de la lluvia ('gauge', 'regional_design', 'satellite_nasa').
 
@@ -37,27 +37,38 @@ def compute_confidence_indicator(
     reasons: list[str] = []
 
     res_m = max(0.5, float(resolution_m))
-    slope_pct = max(0.0, float(mean_slope_pct))
 
     # 1. Componente Relieve (peso 0.40)
     is_high_res_dem = res_m <= 2.5 or (source_id or "").lower() in ("drone", "lidar", "dron_local", "uploaded_highres")
-    is_flat_plain = slope_pct < 0.3
 
-    if is_high_res_dem:
-        score_relief = 0.95
-        relief_note = f"DEM local alta precisión ({res_m:.1f} m)"
-        reasons.append("Relieve local de alta resolución (error vertical submétrico)")
-    elif is_flat_plain:
-        score_relief = 0.35
-        relief_note = f"Copernicus GLO-30 ({res_m:.0f} m)"
-        reasons.append(
-            f"Relieve {res_m:.0f} m en llanura extremadamente plana ({slope_pct:.2f}%): "
-            "error vertical de ±2 m condiciona la dirección de micro-escurrimientos"
+    if mean_slope_pct is None:
+        is_flat_plain = False
+        score_relief = 0.40
+        relief_note = (
+            f"DEM local alta precisión ({res_m:.1f} m) · pendiente sin dato"
+            if is_high_res_dem
+            else f"Copernicus GLO-30 ({res_m:.0f} m) · pendiente sin dato"
         )
+        reasons.append("Pendiente media del lote sin dato; relieve sin confirmación topográfica")
     else:
-        score_relief = 0.70
-        relief_note = f"Copernicus GLO-30 ({res_m:.0f} m)"
-        reasons.append(f"Relieve satelital Copernicus {res_m:.0f} m con pendiente moderada ({slope_pct:.1f}%)")
+        slope_pct = max(0.0, float(mean_slope_pct))
+        is_flat_plain = slope_pct < 0.3
+
+        if is_high_res_dem:
+            score_relief = 0.95
+            relief_note = f"DEM local alta precisión ({res_m:.1f} m)"
+            reasons.append("Relieve local de alta resolución (error vertical submétrico)")
+        elif is_flat_plain:
+            score_relief = 0.35
+            relief_note = f"Copernicus GLO-30 ({res_m:.0f} m)"
+            reasons.append(
+                f"Relieve {res_m:.0f} m en llanura extremadamente plana ({slope_pct:.2f}%): "
+                "error vertical de ±2 m condiciona la dirección de micro-escurrimientos"
+            )
+        else:
+            score_relief = 0.70
+            relief_note = f"Copernicus GLO-30 ({res_m:.0f} m)"
+            reasons.append(f"Relieve satelital Copernicus {res_m:.0f} m con pendiente moderada ({slope_pct:.1f}%)")
 
     # 2. Componente Suelo (peso 0.30)
     # Cada fuente declara exactamente de dónde sale el dato: nunca se atribuye

@@ -26,6 +26,9 @@ import numpy as np
 
 from geoprocessing.crs import WGS84, to_crs
 from geoprocessing.dem.terrain import Dem
+from geoprocessing.supuestos import (
+    SUPUESTO_BREACH_MAX_DIST_CELLS,
+)
 
 ConditioningMode = Literal["preserve", "fill_small", "fill_all", "breach"]
 
@@ -57,14 +60,19 @@ def whitebox_breach_and_smooth(
     z: np.ndarray,
     filter_size: int = 11,
     norm_diff: float = 12.0,
-    max_breach_depth_m: float = 0.8,
-    max_breach_dist_cells: int = 50,
+    max_breach_depth_m: float | None = None,
+    max_breach_dist_cells: int | None = None,
 ) -> np.ndarray:
     """Acondicionamiento de relieve para llanura con WhiteboxTools (spec 005).
 
     1. Feature-Preserving Smoothing (Sun et al. 2007) para reducir ruido e instrumental.
     2. Breach Depressions Least Cost (Lindsay 2016) para abrir canales a través de barreras.
     """
+    eff_breach_dist = (
+        int(max_breach_dist_cells)
+        if max_breach_dist_cells is not None
+        else int(SUPUESTO_BREACH_MAX_DIST_CELLS.valor)
+    )
     import tempfile
     from pathlib import Path
 
@@ -108,7 +116,7 @@ def whitebox_breach_and_smooth(
         wbt.breach_depressions_least_cost(
             str(smooth_tif),
             str(breached_tif),
-            dist=max_breach_dist_cells,
+            dist=eff_breach_dist,
             fill=True,
         )
 
@@ -243,8 +251,8 @@ def condition_dem(
     min_depression_depth_m: float | None = None,
     filter_size: int = 11,
     norm_diff: float = 12.0,
-    max_breach_depth_m: float = 0.8,
-    max_breach_dist_cells: int = 50,
+    max_breach_depth_m: float | None = None,
+    max_breach_dist_cells: int | None = None,
     vertical_accuracy_m: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[DepressionInfo]]:
     """Acondiciona el DEM según la estrategia elegida e identifica todas las depresiones cerradas.

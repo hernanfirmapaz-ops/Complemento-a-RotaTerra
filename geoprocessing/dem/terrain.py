@@ -151,10 +151,18 @@ def contours_geojson(dem: Dem, interval_m: float | None = None, max_levels: int 
         segs_utm: list[tuple[tuple[float, float], tuple[float, float]]] = []
         for r, c in zip(rs.tolist(), cs.tolist()):
             k = int(code[r, c])
-            pairs = edge_table.get(k)
+            v00, v10, v11, v01 = float(z00[r, c]), float(z10[r, c]), float(z11[r, c]), float(z01[r, c])
+            # Desambiguación de punto silla mediante el Asymptotic Decider (Nielson & Hamann 1991)
+            if k == 5:
+                v_center = 0.25 * (v00 + v10 + v11 + v01)
+                pairs = [(0, 1), (3, 2)] if v_center >= lvl_f else [(3, 0), (1, 2)]
+            elif k == 10:
+                v_center = 0.25 * (v00 + v10 + v11 + v01)
+                pairs = [(0, 3), (1, 2)] if v_center >= lvl_f else [(0, 1), (3, 2)]
+            else:
+                pairs = edge_table.get(k)
             if not pairs:
                 continue
-            v00, v10, v11, v01 = float(z00[r, c]), float(z10[r, c]), float(z11[r, c]), float(z01[r, c])
 
             def _edge_pt(e: int) -> tuple[float, float]:
                 if e == 0:  # arriba: (r, c) -> (r, c+1)
