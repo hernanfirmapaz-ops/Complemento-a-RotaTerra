@@ -335,7 +335,7 @@ SUPUESTO_DEM_DIFERENCIA_DATUM_VERTICAL_M = Supuesto(
     clave="dem_diferencia_datum_vertical_m",
     valor=None,
     unidad="m",
-    motivo="Diferencia teórica entre el cero oficial de nivelación nacional (Mar del Plata) y el geoide EGM2008. Al no disponerse de un modelo geoidal oficial milimétrico unificado de transformación en la región, no se fija un valor numérico a priori y la discrepancia se absorbe empíricamente en la mediana de residuos de calibración con mojones locales.",
+    motivo="Diferencia teórica entre el cero oficial de nivelación nacional del Sistema de Alturas Nacional (IGN) y el geoide EGM2008. Al no disponerse de un modelo geoidal oficial milimétrico unificado de transformación en la región, no se fija un valor numérico a priori y la discrepancia se absorbe empíricamente en la mediana de residuos de calibración con mojones locales.",
     fuente_referencia="Supuesto metodológico (Spec 014 / docs/metodologia.md); no inventar cifra sin modelo de transformación oficial.",
     editable=False,
 )
@@ -346,6 +346,42 @@ SUPUESTO_DEM_DISCREPANCIA_UMBRAL_M = Supuesto(
     unidad="m",
     motivo="Umbral de discrepancia vertical absoluta entre GEM-15 DTM y Copernicus GLO-30 (|GEM − COP|) a partir del cual una celda se etiqueta como 'relieve incierto' en la capa de calidad dem_fuente. Diferencias superiores suelen indicar vegetación arbórea densa (contraste DSM vs DTM), discontinuidades de correlación o subsidencia local.",
     fuente_referencia="Decisión metodológica Spec 014 (Fusión Copernicus GLO-30 + GEM-15 DTM); Claude 22/11/2026 en Issue #73.",
+    editable=True,
+)
+
+SUPUESTO_DEM_DATUM_COMUN_VERTICAL = Supuesto(
+    clave="dem_datum_comun_vertical",
+    valor="EGM2008",
+    unidad="código",
+    motivo="Datum vertical geoidal de referencia común para contrastar modelos de elevación satelitales (Copernicus GLO-30 nativo en EGM2008; GEM-15 nativo en EGM96). El sesgo sistemático de GEM-15 (+3,1 m) se trata como sesgo empírico de producto y no como offset de datum.",
+    fuente_referencia="Spec 014 §3.1-§3.2 / Auditoría de relieve (Paso 4)",
+    editable=False,
+)
+
+SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE = Supuesto(
+    clave="dem_datum_diferencia_despreciable",
+    valor=True,
+    unidad="booleano",
+    motivo="Supuesto metodológico declarado: diferencia de datum no calculada analíticamente; se adopta el supuesto de discrepancia despreciable entre EGM96 y EGM2008 frente al sesgo sistemático empírico del producto (+3,1 m en GEM-15) y al error del sensor (~1,15 m NMAD en Copernicus). Las cotas IGN están en el Sistema de Alturas Nacional (IGN).",
+    fuente_referencia="Decisión metodológica declarada (Paso 4, Refs #73 / Spec 014); calibrable.",
+    editable=True,
+)
+
+SUPUESTO_DEM_EXCLUIR_RED_TOPOGRAFICA = Supuesto(
+    clave="dem_excluir_red_topografica",
+    valor=True,
+    unidad="boolean",
+    motivo="Exclusión estricta de los mojones de la red de nivelación topográfica secundaria del IGN para calibración y validación altimétrica debido a su elevada dispersión (NMAD > 3,5 m) y cotas dudosas documentadas.",
+    fuente_referencia="Spec 014 §1.2 / Auditoría de relieve (Paso 4)",
+    editable=False,
+)
+
+SUPUESTO_DEM_RASTER_REFERENCIA_PATH = Supuesto(
+    clave="dem_raster_referencia_path",
+    valor="data/reference/mde_ign_5m_villa_mercedes_2014.tif",
+    unidad="ruta",
+    motivo="Ruta configurada para el MDE aerofotogramétrico de 5 m del IGN (Villa Mercedes 2014) como estándar raster de referencia para validación espacial de alta resolución.",
+    fuente_referencia="Auditoría de relieve (Paso 4) / Solicitud oficial IGN",
     editable=True,
 )
 
