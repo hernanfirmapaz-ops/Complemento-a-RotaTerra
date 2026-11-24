@@ -157,6 +157,39 @@ SUPUESTO_CARCAVAS_UMBRAL_PERDIDA_T_HA = Supuesto(
     fuente_referencia="Supuesto empírico agronómico conservador; editable por el usuario.",
 )
 
+# Factores topográficos S y L (USLE / RUSLE)
+SUPUESTO_USLE_SLOPE_THRESHOLD_PCT = Supuesto(
+    clave="usle_slope_threshold_pct",
+    valor=9.0,
+    unidad="%",
+    motivo="Umbral de gradiente de pendiente (9 % o 5,14°) para transicionar entre la formulación de McCool et al. (1987) para pendientes bajas y Moore & Burch (1986) para pendientes empinadas.",
+    fuente_referencia="McCool et al. (1987, Trans. ASAE 30(5): 1387–1396) / Renard et al. (1997, USDA Agriculture Handbook No. 703, pág. 89, Ecuación 4-4); editable por el usuario.",
+)
+
+SUPUESTO_USLE_MCCOOL_COEF_A = Supuesto(
+    clave="usle_mccool_coef_a",
+    valor=10.8,
+    unidad="adimensional",
+    motivo="Coeficiente lineal multiplicativo de sin(beta) en la ecuación de factor de pendiente S para gradientes < 9 % según McCool et al. (1987).",
+    fuente_referencia="McCool et al. (1987, Trans. ASAE 30(5): 1387–1396) / Renard et al. (1997, USDA AH-703, Ec. 4-4); editable por el usuario.",
+)
+
+SUPUESTO_USLE_MCCOOL_COEF_B = Supuesto(
+    clave="usle_mccool_coef_b",
+    valor=0.03,
+    unidad="adimensional",
+    motivo="Término independiente aditivo en la ecuación de factor de pendiente S para gradientes < 9 % según McCool et al. (1987), reflejando la erosión difusa e inter-surco por impacto de gota y flujo laminar en relieve casi plano.",
+    fuente_referencia="McCool et al. (1987, Trans. ASAE 30(5): 1387–1396) / Renard et al. (1997, USDA AH-703, Ec. 4-4); editable por el usuario.",
+)
+
+SUPUESTO_USLE_MAX_SLOPE_LENGTH_M = Supuesto(
+    clave="usle_max_slope_length_m",
+    valor=180.0,
+    unidad="m",
+    motivo="Longitud máxima de ladera efectiva para el cálculo del factor LS de USLE/RUSLE en ausencia de terrazas, antes de que el escurrimiento concentrado forme flujo en cárcava.",
+    fuente_referencia="Wischmeier & Smith (1978, USDA AH-537) / Renard et al. (1997, USDA AH-703, pág. 87); editable por el usuario.",
+)
+
 SUPUESTO_USLE_P_CONTOUR_DEFECTO = Supuesto(
     clave="usle_p_contour_defecto",
     valor=0.60,
