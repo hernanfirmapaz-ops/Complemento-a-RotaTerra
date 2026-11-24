@@ -66,8 +66,8 @@ def assume_same_vertical_datum(
     IMPORTANTE (Limitación de datum vertical):
     - Esta función NO realiza una transformación analítica de ondulación geoidal de grilla
       (las grillas geoidales locales no se incluyen para mantener la suite 100% offline).
-    - Las cotas de los mojones del IGN están referidas al Sistema de Alturas Nacional
-      (alturas ortométricas sobre el mareógrafo de Mar del Plata 1968), NO a EGM2008 ni a EGM96.
+    - Las cotas de los mojones del IGN están referidas al Sistema de Alturas Nacional (IGN),
+      NO a EGM2008 ni a EGM96.
     - Copernicus GLO-30 está nativamente en EGM2008 y Google GEM-15 en EGM96.
     - Se adopta el supuesto metodológico declarado (SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE)
       de que la diferencia entre modelos geoidales en la zona es despreciable frente al sesgo
@@ -89,10 +89,6 @@ def assume_same_vertical_datum(
         return z
 
     return z
-
-
-# Alias para compatibilidad hacia atrás
-convert_vertical_datum = assume_same_vertical_datum
 
 
 def leave_one_out_validation(
@@ -252,9 +248,13 @@ def validate_dem_against_reference_raster(
             eval_crs = eval_src.crs
             eval_nodata = eval_src.nodata
     else:
+        if evaluated_crs is None or not str(evaluated_crs).strip():
+            raise ValueError("Sin CRS declarado: dem_evaluated como array en memoria requiere 'evaluated_crs'.")
+        if evaluated_transform is None:
+            raise ValueError("Sin transformación declarada: dem_evaluated como array en memoria requiere 'evaluated_transform'.")
         eval_data = np.asarray(dem_evaluated, dtype="float32")
         eval_transform = evaluated_transform
-        eval_crs = evaluated_crs or "EPSG:32720"
+        eval_crs = evaluated_crs
         eval_nodata = np.nan
 
     # Reproyectar DEM evaluado a la grilla y resolución del ráster de referencia

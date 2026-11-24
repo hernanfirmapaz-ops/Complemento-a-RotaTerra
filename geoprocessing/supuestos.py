@@ -335,7 +335,7 @@ SUPUESTO_DEM_DIFERENCIA_DATUM_VERTICAL_M = Supuesto(
     clave="dem_diferencia_datum_vertical_m",
     valor=None,
     unidad="m",
-    motivo="Diferencia teórica entre el cero oficial de nivelación nacional (Mar del Plata) y el geoide EGM2008. Al no disponerse de un modelo geoidal oficial milimétrico unificado de transformación en la región, no se fija un valor numérico a priori y la discrepancia se absorbe empíricamente en la mediana de residuos de calibración con mojones locales.",
+    motivo="Diferencia teórica entre el cero oficial de nivelación nacional del Sistema de Alturas Nacional (IGN) y el geoide EGM2008. Al no disponerse de un modelo geoidal oficial milimétrico unificado de transformación en la región, no se fija un valor numérico a priori y la discrepancia se absorbe empíricamente en la mediana de residuos de calibración con mojones locales.",
     fuente_referencia="Supuesto metodológico (Spec 014 / docs/metodologia.md); no inventar cifra sin modelo de transformación oficial.",
     editable=False,
 )
@@ -362,7 +362,7 @@ SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE = Supuesto(
     clave="dem_datum_diferencia_despreciable",
     valor=True,
     unidad="booleano",
-    motivo="Supuesto metodológico declarado: diferencia de datum no calculada analíticamente; se adopta el supuesto de discrepancia despreciable entre EGM96 y EGM2008 frente al sesgo sistemático empírico del producto (+3,1 m en GEM-15) y al error del sensor (~1,15 m NMAD en Copernicus). Las cotas IGN están en el Sistema de Alturas Nacional (datum Mar del Plata 1968).",
+    motivo="Supuesto metodológico declarado: diferencia de datum no calculada analíticamente; se adopta el supuesto de discrepancia despreciable entre EGM96 y EGM2008 frente al sesgo sistemático empírico del producto (+3,1 m en GEM-15) y al error del sensor (~1,15 m NMAD en Copernicus). Las cotas IGN están en el Sistema de Alturas Nacional (IGN).",
     fuente_referencia="Decisión metodológica declarada (Paso 4, Refs #73 / Spec 014); calibrable.",
     editable=True,
 )

@@ -224,18 +224,23 @@ def test_vertical_datum_conversion():
     with pytest.raises(ValueError, match="Sin datum declarado"):
         assume_same_vertical_datum(z_cop, source_datum="")
 
-    # Verifica que el supuesto metodológico declare la limitación de Mar del Plata
+    # Verifica que el supuesto metodológico declare la limitación del Sistema de Alturas Nacional (IGN)
     assert SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE.valor is True
-    assert "Mar del Plata" in SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE.motivo
+    assert "Sistema de Alturas Nacional" in SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE.motivo
 
 
 def test_validate_dem_against_reference_raster_missing_and_synthetic(tmp_path: Path):
     """Prueba el punto de entrada de validación contra ráster de referencia (MDE IGN 5 m)."""
-    # 1. Caso archivo no disponible todavía en repo
-    missing_path = tmp_path / "mde_ign_5m_no_existe.tif"
+    # 0. Caso array en memoria sin CRS declarado eleva ValueError
+    import pytest
     dem_test = np.ones((20, 20), dtype="float32") * 100.0
-    res_missing = validate_dem_against_reference_raster(dem_test, reference_raster=missing_path)
+    ref_dummy = tmp_path / "ref_dummy.tif"
+    with open(ref_dummy, "wb") as f:
+        f.write(b"")
 
+    # Si el ráster no existe, se detecta antes de reproject
+    missing_path = tmp_path / "mde_ign_5m_no_existe.tif"
+    res_missing = validate_dem_against_reference_raster(dem_test, reference_raster=missing_path)
     assert res_missing["status"] == "raster_no_disponible"
     assert "no se encuentra disponible" in res_missing["motivo"]
     assert res_missing["metrics"] is None
@@ -277,3 +282,17 @@ def test_validate_dem_against_reference_raster_missing_and_synthetic(tmp_path: P
     metrics = res_ok["metrics"]
     assert abs(metrics["mediana"] - 0.50) <= 0.05
     assert metrics["nmad"] <= 0.10
+
+    # 3. Array en memoria sin CRS declarado eleva ValueError
+    with pytest.raises(ValueError, match="Sin CRS declarado"):
+        validate_dem_against_reference_raster(data_eval, reference_raster=ref_path, evaluated_transform=transform_15m)
+
+    # Con CRS y transformación declarados explícitamente se procesa con éxito
+    res_mem = validate_dem_against_reference_raster(
+        data_eval,
+        reference_raster=ref_path,
+        evaluated_transform=transform_15m,
+        evaluated_crs="EPSG:32720",
+    )
+    assert res_mem["status"] == "ok"
+    assert abs(res_mem["metrics"]["mediana"] - 0.50) <= 0.05
