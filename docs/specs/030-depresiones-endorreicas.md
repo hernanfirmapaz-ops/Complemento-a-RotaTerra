@@ -11,7 +11,7 @@
 ## 1. Justificación Geológica y Geomorfológica
 
 ### 1.1 Evidencia de campo: Hoja Geológica 3366-IV Villa Mercedes (SEGEMAR)
-El diagnóstico territorial surge del relevamiento oficial de la **Hoja Geológica 3366-IV Villa Mercedes** (Costa et al. 2005, Instituto de Geología y Recursos Minerales, Servicio Geológico Minero Argentino - SEGEMAR, Boletín 348, sección 4 "Geomorfología", pp. 71–74):
+El diagnóstico territorial surge del relevamiento oficial de la **Hoja Geológica 3366-IV Villa Mercedes** (Costa et al. 2005, Instituto de Geología y Recursos Minerales, Servicio Geológico Minero Argentino - SEGEMAR, Boletín 348, sección 4 "Geomorfología", pp. 71–74; disponible en el [Repositorio Institucional SEGEMAR](https://repositorio.segemar.gov.ar/handle/308849217/194) con descarga directa del texto del informe en [Villa Mercedes.pdf (Secuencia 10)](https://repositorio.segemar.gov.ar/bitstream/handle/308849217/194/Villa%20Mercedes.pdf?sequence=10&isAllowed=y)):
 
 | Evidencia geomorfológica | Cita y página (Costa et al. 2005, Boletín 348) | Impacto en el modelo hidrológico |
 |---|---|---|
