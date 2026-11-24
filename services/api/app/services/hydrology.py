@@ -19,7 +19,13 @@ from geoprocessing.agronomy.seeding_and_rotation import (
 )
 from geoprocessing.agronomy.zonation import ZONE_CATALOG, classify_hydro_agronomic_zones
 from geoprocessing.dem.quality import field_mask
-from geoprocessing.dem.terrain import Dem, contours_geojson, slope_aspect
+from geoprocessing.dem.terrain import (
+    Dem,
+    contours_geojson,
+    fit_plane_to_field,
+    slope_aspect,
+    slope_for_hydrology,
+)
 from geoprocessing.hydrology.conditioning import condition_dem, is_whitebox_available
 from geoprocessing.hydrology.confidence import compute_confidence_indicator
 from geoprocessing.hydrology.flow import (
@@ -118,6 +124,29 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
             "depresiones chicas ('fill_small'), conservando los bajos reales."
         )
 
+    fuente = terreno.get("source", {})
+    quality = terreno.get("quality", {})
+    from geoprocessing.supuestos import (
+        SUPUESTO_DEPRESION_ACCURACY_NMAD_M,
+        SUPUESTO_LE90_A_NMAD_FACTOR,
+    )
+
+    acc_cand = fuente.get("vertical_nmad_local_m")
+    if acc_cand is None:
+        acc_cand = quality.get("vertical_nmad_local_m")
+
+    if acc_cand is not None and acc_cand > 0:
+        vert_acc = float(acc_cand)
+    else:
+        # Si no hay NMAD local medido contra mojones IGN, convertir LE90 a NMAD bajo distribución normal (LE90 / 1.645)
+        le90_cand = fuente.get("vertical_accuracy_m")
+        if le90_cand is None:
+            le90_cand = quality.get("vertical_accuracy_m")
+        if le90_cand is not None and le90_cand > 0:
+            vert_acc = round(float(le90_cand) / float(SUPUESTO_LE90_A_NMAD_FACTOR.valor), 3)
+        else:
+            vert_acc = float(SUPUESTO_DEPRESION_ACCURACY_NMAD_M.valor)
+
     z_cond, sink_depth_m, dep_id_grid, depressions = condition_dem(
         dem=dem,
         mascara_lote=mascara,
@@ -126,7 +155,25 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         max_fill_area_m2=params.max_fill_area_m2,
         burn_lines_lonlat=burn_lines,
         burn_depth_m=params.burn_depth_m,
+        vertical_accuracy_m=vert_acc,
     )
+
+    from geoprocessing.dem.quality import check_depression_artifacts
+
+    dep_warn = check_depression_artifacts(
+        depressions=depressions,
+        vertical_accuracy_m=vert_acc,
+        source_name=fuente.get("source_name", "Copernicus"),
+    )
+    if dep_warn:
+        existing_codes = {w.get("code") for w in terreno.get("quality", {}).get("warnings", [])}
+        if "depresiones_artefacto_dem" not in existing_codes:
+            terreno.setdefault("quality", {}).setdefault("warnings", []).append({
+                "code": dep_warn.code,
+                "level": dep_warn.level,
+                "message": dep_warn.message,
+            })
+            store.save_terrain(field_id, terreno)
 
     # Guardar el DEM acondicionado como archivo derivado sin tocar dem_utm.tif ni source/
     cond_path = carpeta / "dem_conditioned_utm.tif"
@@ -146,7 +193,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         dst.write(z_cond, 1)
         dst.update_tags(
             DERIVED_FROM="dem_utm.tif",
-            CONDITIONING_MODE=modo_efectivo,
+            CONDITIONING_MODE=params.conditioning_mode,
+            CONDITIONING_MODE_APPLIED=modo_efectivo,
             MAX_FILL_DEPTH_M=str(params.max_fill_depth_m),
             MAX_FILL_AREA_M2=str(params.max_fill_area_m2),
         )
@@ -175,7 +223,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     contours = contours_geojson(dem, interval_m=params.contour_interval_m)
 
     # Calcular índices topográficos TWI y SPI + Zonificación hidro-agronómica inicial (Fase 5)
-    pct_grid, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    # Pendiente filtrada para mitigar sobrestimación por ruido instrumental en llanura (Spec 014 / Auditoría Relieve)
+    pct_grid, _, _ = slope_for_hydrology(dem)
     twi_grid, spi_grid = compute_twi_and_spi(mfd_area_m2, pct_grid, dem.pixel)
     agro_zone_grid, agro_zonation = classify_hydro_agronomic_zones(
         z=dem.z,
@@ -204,28 +253,40 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     )
 
     deps_in_field = [d for d in depressions if d.in_field]
+    real_deps_in_field = [d for d in deps_in_field if d.is_real]
     deps_filled = [d for d in depressions if d.filled_in_run]
     mfd_in_field = mfd_area_m2[mascara & np.isfinite(mfd_area_m2)]
     d8_in_field = d8_area_m2[mascara & np.isfinite(d8_area_m2)]
-    sink_in_field = sink_depth_m[mascara & np.isfinite(sink_depth_m)]
 
     total_stream_len = sum(
         float(feat["properties"].get("length_m", 0.0)) for feat in network_geojson["features"]
     )
     ext_inflow_ha = sum(float(o["subbasin_external_inflow_ha"]) for o in outlets_info)
 
-    pendiente_pct, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
-    pendiente_lote = pendiente_pct[mascara & np.isfinite(pendiente_pct)]
-    mean_slope_in_field_pct = round(float(pendiente_lote.mean()), 3) if pendiente_lote.size else None
+    # Pendiente media del lote por plano ajustado (FAO T0231E / Spec 014); la cruda queda de diagnóstico
+    plane_res = fit_plane_to_field(dem, mascara)
+    pct_raw, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    raw_in_field = pct_raw[mascara & np.isfinite(pct_raw)]
+    raw_mean_slope_in_field_pct = round(float(raw_in_field.mean()), 3) if raw_in_field.size else None
+    mean_slope_in_field_pct = plane_res["slope_pct"]
 
     summary = {
         "mean_slope_in_field_pct": mean_slope_in_field_pct,
+        "raw_mean_slope_in_field_pct": raw_mean_slope_in_field_pct,
+        "plane_fit": plane_res,
         "depressions_count": len(depressions),
-        "depressions_in_field_count": len(deps_in_field),
+        "depressions_in_field_count": len(real_deps_in_field),
+        "raw_depressions_in_field_count": len(deps_in_field),
+        "real_depressions_in_field_count": len(real_deps_in_field),
         "depressions_filled_count": len(deps_filled),
-        "total_depression_area_in_field_ha": round(sum(d.area_ha for d in deps_in_field), 4),
-        "total_depression_volume_in_field_m3": round(sum(d.volume_m3 for d in deps_in_field), 1),
-        "max_depression_depth_in_field_m": round(float(sink_in_field.max()), 3) if sink_in_field.size else 0.0,
+        "conditioning_mode_applied": modo_efectivo,
+        "total_depression_area_in_field_ha": round(sum(d.area_ha for d in real_deps_in_field), 4),
+        "total_depression_volume_in_field_m3": round(sum(d.volume_m3 for d in real_deps_in_field), 1),
+        "max_depression_depth_in_field_m": (
+            round(float(max((d.max_depth_m for d in real_deps_in_field), default=0.0)), 3)
+            if real_deps_in_field
+            else 0.0
+        ),
         "max_mfd_area_in_field_ha": round(float(mfd_in_field.max()) / 10_000.0, 3) if mfd_in_field.size else 0.0,
         "max_d8_area_in_field_ha": round(float(d8_in_field.max()) / 10_000.0, 3) if d8_in_field.size else 0.0,
         "stream_segments_count": len(network_geojson["features"]),
@@ -236,6 +297,12 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     }
 
     avisos = [w["message"] for w in terreno["quality"]["warnings"] if w["level"] in ("critico", "advertencia")]
+    from geoprocessing.supuestos import SUPUESTO_PLANE_FIT_R2_MINIMO
+    r2_min = float(SUPUESTO_PLANE_FIT_R2_MINIMO.valor)
+    if plane_res.get("r_squared") is not None and plane_res["r_squared"] < r2_min:
+        avisos.append(
+            f"Relieve complejo multiescurrimiento (R² < {r2_min:.2f}); la pendiente del plano describe solo la tendencia macroscópica."
+        )
     if aviso_modo:
         avisos.append(aviso_modo)
     if params.conditioning_mode == "fill_all" and deps_in_field:
@@ -254,6 +321,7 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         "processed_at": store.now_iso(),
         "parameters": {
             "conditioning_mode": params.conditioning_mode,
+            "conditioning_mode_applied": modo_efectivo,
             "max_fill_depth_m": params.max_fill_depth_m,
             "max_fill_area_m2": params.max_fill_area_m2,
             "mfd_exponent": params.mfd_exponent,
@@ -551,13 +619,13 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
     terreno_src = terreno.get("source") or {}
     dem_source_id = terreno_src.get("source_id", "copernicus_glo30")
     dem_res_m = float(terreno_src.get("nominal_resolution_m", 30.0))
-    # Pendiente media real del lote (antes se leía de una clave inexistente y quedaba siempre en 1,0 %)
-    pct_run, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    # Pendiente filtrada para mitigar sobrestimación por ruido instrumental (Paso 2 / Spec 014)
+    pct_run, _, _ = slope_for_hydrology(dem)
     pendiente_guardada = hydro.get("summary", {}).get("mean_slope_in_field_pct")
     if pendiente_guardada is None:
         pct_run_lote = pct_run[mascara & np.isfinite(pct_run)]
         pendiente_guardada = float(pct_run_lote.mean()) if pct_run_lote.size else None
-    mean_slope_val = float(pendiente_guardada) if pendiente_guardada is not None else 1.0
+    mean_slope_val = float(pendiente_guardada) if pendiente_guardada is not None else None
     rain_type = rain_ev.get("source_type", "regional_design")
     confidence_obj = compute_confidence_indicator(
         source_id=dem_source_id,
@@ -577,8 +645,8 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
                 sand_p = s_info.get("sand_pct")
                 silt_p = s_info.get("silt_pct")
                 clay_p = s_info.get("clay_pct")
-    except Exception:
-        pass
+    except Exception as err:
+        warnings.append(f"No se pudieron leer las propiedades de textura de soil.json para el cálculo de K: {err}")
 
     # Erosión hídrica USLE real para el evento y condiciones del lote
     spi_grid = grids.get("spi")
@@ -781,7 +849,7 @@ def execute_hydrodynamic_2d_on_run(
         recession_minutes=params.recession_minutes,
     )
 
-    pct_grid, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    pct_grid, _, _ = slope_for_hydrology(dem)
     twi_grid = grids["twi"] if "twi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[0]
     spi_grid = grids["spi"] if "spi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[1]
 
@@ -848,7 +916,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
     grids = dict(load_hydrology_grids(field_id, hydro["processed_at"]))
     dem = Dem.open(carpeta / "dem_utm.tif")
     mascara = field_mask(field["geometry"], field["utm_epsg"], dem.transform, dem.z.shape)
-    pct_grid, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    pct_grid, _, _ = slope_for_hydrology(dem)
     twi_grid = grids["twi"] if "twi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[0]
     spi_grid = grids["spi"] if "spi" in grids else compute_twi_and_spi(grids["mfd_area_m2"], pct_grid, dem.pixel)[1]
     zone_grid = grids.get("agronomic_zone_id")
@@ -861,6 +929,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
     cn_storm = compute_nrcs_cn(params.storm_precipitation_mm, cn_ii, "medium", 0.2)
 
     sand_p, silt_p, clay_p = None, None, None
+    toolkit_warnings: list[str] = []
     try:
         ruta_suelo = store.field_dir(field_id) / "soil.json"
         if ruta_suelo.exists():
@@ -869,8 +938,8 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
                 sand_p = s_info.get("sand_pct")
                 silt_p = s_info.get("silt_pct")
                 clay_p = s_info.get("clay_pct")
-    except Exception:
-        pass
+    except Exception as err:
+        toolkit_warnings.append(f"No se pudieron leer las propiedades de textura de soil.json para el cálculo de K: {err}")
 
     # 1. Erosión USLE en escurrimiento y focos de cárcavas
     soil_loss_grid, erosion_summary = compute_usle_erosion_and_gullies(
@@ -980,7 +1049,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
     np.savez_compressed(carpeta / "hydrology_grids.npz", **grids)
     load_hydrology_grids.cache_clear()
 
-    all_warnings = list(climate_warnings)
+    all_warnings = toolkit_warnings + list(climate_warnings)
     if not daily_series:
         all_warnings.append("NASA POWER no disponible: balance hídrico y riesgo climático en modo degradado.")
     if ndvi_res["summary"].get("status") == "unavailable":
@@ -1104,11 +1173,11 @@ def get_runoff_timeline(field_id: str, run_id: str) -> dict:
             "limitations": LIMITACIONES_FASE3,
         }
 
-    from geoprocessing.dem.terrain import slope_aspect
+    from geoprocessing.dem.terrain import slope_for_hydrology
 
-    pct, _, _ = slope_aspect(dem.z, dem.pixel, dem.pixel)
+    pct, _, _ = slope_for_hydrology(dem)
     pct_in_field = pct[mascara & np.isfinite(pct)]
-    mean_slope = float(pct_in_field.mean()) if pct_in_field.size else 1.5
+    mean_slope = float(pct_in_field.mean()) if pct_in_field.size else None
 
     sim = simulate_temporal_runoff(
         intervals=rain_ev["intervals"],
@@ -1223,10 +1292,16 @@ def export_analysis_geojson(field_id: str) -> dict:
                 "geometry": feat["geometry"],
             })
         for dep in hydro.get("depressions", []):
-            if dep.get("in_field"):
+            if dep.get("in_field") and dep.get("is_real", True):
                 features.append({
                     "type": "Feature",
                     "properties": {"layer": "depression", **dep},
+                    "geometry": {"type": "Point", "coordinates": [dep["centroid_lon"], dep["centroid_lat"]]},
+                })
+            elif dep.get("in_field"):
+                features.append({
+                    "type": "Feature",
+                    "properties": {"layer": "depression_indistinguishable_from_error", **dep},
                     "geometry": {"type": "Point", "coordinates": [dep["centroid_lon"], dep["centroid_lat"]]},
                 })
         for out in hydro.get("outlets", []):
@@ -1353,7 +1428,7 @@ def export_technical_report_html(field_id: str) -> str:
 
   <h2>2. Hidrología Estática (Acondicionamiento, D8, MFD, Depresiones y Cuencas)</h2>
   {f'''<table>
-    <tr><th>Modo acondicionamiento</th><td>{esc(hydro['parameters']['conditioning_mode'])}</td>
+    <tr><th>Modo acondicionamiento</th><td>{esc(hydro['parameters'].get('conditioning_mode_applied', hydro['parameters']['conditioning_mode']))}{f" (solicitado: {esc(hydro['parameters']['conditioning_mode'])})" if hydro['parameters'].get('conditioning_mode_applied') and hydro['parameters'].get('conditioning_mode_applied') != hydro['parameters']['conditioning_mode'] else ""}</td>
         <th>Umbral red de drenaje</th><td>{esc(hydro['parameters']['stream_threshold_ha'])} ha ({esc(hydro['parameters']['routing_basis'])})</td></tr>
     <tr><th>Depresiones en lote</th><td>{hydro['summary']['depressions_in_field_count']} ({hydro['summary']['total_depression_area_in_field_ha']:.2f} ha · {hydro['summary']['total_depression_volume_in_field_m3']:.0f} m³)</td>
         <th>Aporte externo al lote</th><td>{hydro['summary']['external_inflow_ha']:.2f} ha</td></tr>

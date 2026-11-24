@@ -26,6 +26,9 @@ import numpy as np
 
 from geoprocessing.crs import WGS84, to_crs
 from geoprocessing.dem.terrain import Dem
+from geoprocessing.supuestos import (
+    SUPUESTO_BREACH_MAX_DIST_CELLS,
+)
 
 ConditioningMode = Literal["preserve", "fill_small", "fill_all", "breach"]
 
@@ -57,14 +60,19 @@ def whitebox_breach_and_smooth(
     z: np.ndarray,
     filter_size: int = 11,
     norm_diff: float = 12.0,
-    max_breach_depth_m: float = 0.8,
-    max_breach_dist_cells: int = 50,
+    max_breach_depth_m: float | None = None,
+    max_breach_dist_cells: int | None = None,
 ) -> np.ndarray:
     """Acondicionamiento de relieve para llanura con WhiteboxTools (spec 005).
 
     1. Feature-Preserving Smoothing (Sun et al. 2007) para reducir ruido e instrumental.
     2. Breach Depressions Least Cost (Lindsay 2016) para abrir canales a través de barreras.
     """
+    eff_breach_dist = (
+        int(max_breach_dist_cells)
+        if max_breach_dist_cells is not None
+        else int(SUPUESTO_BREACH_MAX_DIST_CELLS.valor)
+    )
     import tempfile
     from pathlib import Path
 
@@ -108,7 +116,7 @@ def whitebox_breach_and_smooth(
         wbt.breach_depressions_least_cost(
             str(smooth_tif),
             str(breached_tif),
-            dist=max_breach_dist_cells,
+            dist=eff_breach_dist,
             fill=True,
         )
 
@@ -139,6 +147,8 @@ class DepressionInfo:
     in_field: bool
     is_spurious_candidate: bool
     filled_in_run: bool
+    is_real: bool = True
+    classification: str = "real"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -234,15 +244,16 @@ def condition_dem(
     dem: Dem,
     mascara_lote: np.ndarray,
     mode: ConditioningMode = "fill_small",
-    max_fill_depth_m: float = 0.35,
-    max_fill_area_m2: float = 4500.0,
+    max_fill_depth_m: float | None = None,
+    max_fill_area_m2: float | None = None,
     burn_lines_lonlat: list[list[list[float]]] | None = None,
     burn_depth_m: float = 0.5,
-    min_depression_depth_m: float = 0.05,
+    min_depression_depth_m: float | None = None,
     filter_size: int = 11,
     norm_diff: float = 12.0,
-    max_breach_depth_m: float = 0.8,
-    max_breach_dist_cells: int = 50,
+    max_breach_depth_m: float | None = None,
+    max_breach_dist_cells: int | None = None,
+    vertical_accuracy_m: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[DepressionInfo]]:
     """Acondiciona el DEM según la estrategia elegida e identifica todas las depresiones cerradas.
 
@@ -252,6 +263,29 @@ def condition_dem(
         depression_id_grid: int32 (0 fuera de depresión, 1..N en cada depresión conectada)
         depressions: catálogo de depresiones ordenadas de mayor a menor volumen
     """
+    from geoprocessing import supuestos
+
+    eff_max_fill_depth_m = (
+        float(max_fill_depth_m)
+        if max_fill_depth_m is not None
+        else float(supuestos.SUPUESTO_DEPRESION_MAX_FILL_DEPTH_M.valor)
+    )
+    eff_max_fill_area_m2 = (
+        float(max_fill_area_m2)
+        if max_fill_area_m2 is not None
+        else float(supuestos.SUPUESTO_DEPRESION_MAX_FILL_AREA_M2.valor)
+    )
+    eff_min_depression_depth_m = (
+        float(min_depression_depth_m)
+        if min_depression_depth_m is not None
+        else float(supuestos.SUPUESTO_DEPRESION_MIN_DEPTH_M.valor)
+    )
+    vertical_threshold_m = (
+        float(vertical_accuracy_m)
+        if (vertical_accuracy_m is not None and vertical_accuracy_m > 0)
+        else float(supuestos.SUPUESTO_DEPRESION_ACCURACY_NMAD_M.valor)
+    )
+
     if mode == "breach" and not is_whitebox_available():
         # Sin WhiteboxTools no hay brecha posible: se usa el relleno de depresiones chicas,
         # que conserva los bajos reales (el servicio informa el cambio al usuario).
@@ -260,8 +294,8 @@ def condition_dem(
     z_full_filled = priority_flood_fill(z_work, eps=1e-4)
     diff = np.where(np.isfinite(z_work), np.maximum(0.0, z_full_filled - z_work), 0.0).astype("float32")
 
-    # Etiquetar componentes conexos (8-vecinos) donde diff > min_depression_depth_m
-    is_sink = diff > float(min_depression_depth_m)
+    # Etiquetar componentes conexos (8-vecinos) donde diff > eff_min_depression_depth_m
+    is_sink = diff > float(eff_min_depression_depth_m)
     alto, ancho = z_work.shape
     raw_labels = np.zeros((alto, ancho), dtype="int32")
     comps: list[list[tuple[int, int]]] = []
@@ -298,8 +332,10 @@ def condition_dem(
         mean_d = float(depths.mean())
         vol_m3 = float(depths.sum() * cell_area)
         in_fld = bool(mascara_lote[rs, cs].any())
-        spurious = (max_d <= max_fill_depth_m) and (area_m2 <= max_fill_area_m2)
+        spurious = (max_d <= eff_max_fill_depth_m) and (area_m2 <= eff_max_fill_area_m2)
         filled = (mode == "fill_all") or (mode == "fill_small" and spurious)
+        is_real = max_d >= vertical_threshold_m
+        classification = "real" if is_real else "no_distinguible_del_error_dem"
         x_c, y_c = dem.xy_of_cell(float(rs.mean()), float(cs.mean()))
         raw_infos.append((
             vol_m3,
@@ -318,6 +354,8 @@ def condition_dem(
                 "in_field": in_fld,
                 "is_spurious_candidate": spurious,
                 "filled_in_run": filled,
+                "is_real": is_real,
+                "classification": classification,
             },
         ))
 
@@ -366,6 +404,8 @@ def condition_dem(
                 in_field=info["in_field"],
                 is_spurious_candidate=info["is_spurious_candidate"],
                 filled_in_run=info["filled_in_run"],
+                is_real=info["is_real"],
+                classification=info["classification"],
             )
         )
 

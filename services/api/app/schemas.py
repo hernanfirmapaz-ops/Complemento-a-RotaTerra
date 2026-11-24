@@ -38,6 +38,7 @@ class DemSourceOut(BaseModel):
     vertical_datum: str | None
     vertical_accuracy_m: float | None
     vertical_accuracy_note: str | None
+    vertical_nmad_local_m: float | None = None
     acquisition_start: str | None
     acquisition_end: str | None
     acquisition_method: str | None
@@ -235,6 +236,8 @@ class DepressionOut(BaseModel):
     in_field: bool
     is_spurious_candidate: bool
     filled_in_run: bool
+    is_real: bool = True
+    classification: str = "real"
 
 
 class OutletOut(BaseModel):
@@ -253,9 +256,14 @@ class OutletOut(BaseModel):
 
 class HydrologySummaryOut(BaseModel):
     mean_slope_in_field_pct: float | None = None
+    raw_mean_slope_in_field_pct: float | None = None
+    plane_fit: dict | None = None
     depressions_count: int
     depressions_in_field_count: int
+    raw_depressions_in_field_count: int | None = None
+    real_depressions_in_field_count: int | None = None
     depressions_filled_count: int
+    conditioning_mode_applied: str | None = None
     total_depression_area_in_field_ha: float
     total_depression_volume_in_field_m3: float
     max_depression_depth_in_field_m: float
