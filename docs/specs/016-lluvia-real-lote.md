@@ -14,8 +14,8 @@
 La modelación del escurrimiento superficial, el anegamiento y la pérdida de suelo depende críticamente de la lámina y la intensidad de la precipitación caída **en el lote específico**.
 
 Hasta el momento, el sistema recurría principalmente a **NASA POWER**, cuya resolución espacial de $0.5^\circ \times 0.625^\circ$ (~55 km) proviene del modelo asimilado MERRA-2. En la región pampeana y cuyana (San Luis, Córdoba, La Pampa, Buenos Aires), la precipitación estival se produce predominantemente mediante **tormentas convectivas de mesoescala**:
-- Un evento severo puede descargar 80 mm en un establecimiento y apenas 5 mm a 15 km de distancia.
-- Un reanálisis de 55 km suaviza el pico de precipitación, diluyendo tormentas intensas y generando subestimaciones del escurrimiento de hasta un 300 %.
+- Como ejemplo ilustrativo del comportamiento convectivo estival, una tormenta intensa puede concentrar 80 mm en el núcleo de precipitación sobre un establecimiento rural y apenas 5 mm en un lote vecino a 15 km de distancia.
+- Un reanálisis de ~55 km promedia espacialmente el pico de precipitación sobre toda la celda, diluyendo tormentas intensas y conduciendo a una marcada subestimación del escurrimiento superficial y de los caudales máximos calculados.
 - Por el contrario, un reanálisis puede informar lluvia en una celda de 55 km cuando en el lote del productor no cayó una sola gota.
 
 **Objetivo:** Implementar una **jerarquía estricta en cascada** para seleccionar la mejor fuente pluviométrica disponible, mostrando siempre en la ficha técnica la procedencia exacta y la distancia al lote, e incorporar la funcionalidad interactiva **"Simular la lluvia de ayer"**.
@@ -74,8 +74,8 @@ En la interfaz de usuario (`LluviaTab.tsx` / `RainScenarioSelector.tsx`):
 
 | Constante | Valor | Unidad | Fuente / Justificación | Editable |
 |---|---|---|---|---|
-| `SUPUESTO_LLUVIA_REM_DISTANCIA_MAX_KM` | `40.0` | km | Decisión metodológica, Issue #23. Radio máximo de representatividad orográfica en llanura. | Sí |
-| `SUPUESTO_LLUVIA_SIGA_DISTANCIA_MAX_KM` | `50.0` | km | Decisión metodológica, Issue #94 para red INTA SIGA. | Sí |
+| `SUPUESTO_LLUVIA_REM_DISTANCIA_MAX_KM` | `40.0` | km | Supuesto metodológico calibrable (Issue #23). Radio máximo de representatividad orográfica en llanura pampeana-cuyana. | Sí |
+| `SUPUESTO_LLUVIA_SIGA_DISTANCIA_MAX_KM` | `50.0` | km | Supuesto metodológico calibrable (Issue #94). Distancia máxima de representatividad para red INTA SIGA. | Sí |
 | `SUPUESTO_LLUVIA_IMERG_LATENCIA_EARLY_HORAS` | `4.0` | horas | Especificación técnica NASA GPM IMERG Early Run. | No |
 
 ---
