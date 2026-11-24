@@ -56,36 +56,43 @@ def compute_robust_stats(errors: np.ndarray | list[float]) -> dict[str, float]:
     }
 
 
-def convert_vertical_datum(
+def assume_same_vertical_datum(
     z: np.ndarray | float,
     source_datum: str | None = None,
     target_datum: str | None = None,
-    lat: float | None = None,
-    lon: float | None = None,
-    from_datum: str | None = None,
 ) -> np.ndarray | float:
-    """Convierte cotas verticales a un datum común antes de contrastarlas.
+    """Adopta la equivalencia práctica de datum vertical bajo supuesto metodológico declarado.
 
-    Por omisión el datum de destino es EGM2008 (definido en SUPUESTO_DEM_DATUM_COMUN_VERTICAL).
+    IMPORTANTE (Limitación de datum vertical):
+    - Esta función NO realiza una transformación analítica de ondulación geoidal de grilla
+      (las grillas geoidales locales no se incluyen para mantener la suite 100% offline).
+    - Las cotas de los mojones del IGN están referidas al Sistema de Alturas Nacional
+      (alturas ortométricas sobre el mareógrafo de Mar del Plata 1968), NO a EGM2008 ni a EGM96.
+    - Copernicus GLO-30 está nativamente en EGM2008 y Google GEM-15 en EGM96.
+    - Se adopta el supuesto metodológico declarado (SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE)
+      de que la diferencia entre modelos geoidales en la zona es despreciable frente al sesgo
+      sistemático empírico (+3,1 m en GEM-15) y a la dispersión del sensor (~1,15 m NMAD en Copernicus).
 
-    Nota metodológica (Paso 4 / Spec 014 §1.2 y §3.1):
-    Copernicus GLO-30 está nativamente en EGM2008. Google GEM-15 DTM está en EGM96.
-    La diferencia teórica de ondulación geoidal entre EGM96 y EGM2008 en San Luis
-    (lat -34 a -33, lon -66 a -65) es inferior a 0,15 m. Por lo tanto, el sesgo sistemático
-    de +3,09 a +3,16 m medido en GEM-15 NO se atribuye a una discrepancia de datum,
-    sino que se trata rigurosamente como un sesgo empírico del producto a ser calibrado
-    contra los mojones de nivelación geométrica.
+    Regla de integridad:
+    - Sin datum declarado explícitamente (`source_datum`), NO se adopta un valor por omisión silencioso
+      con patrón 'or', sino que se eleva ValueError.
     """
-    src_raw = from_datum or source_datum or "EGM2008"
-    tgt_raw = target_datum or str(SUPUESTO_DEM_DATUM_COMUN_VERTICAL.valor)
-    src = src_raw.strip().upper()
-    tgt = tgt_raw.strip().upper()
+    if source_datum is None or not str(source_datum).strip():
+        raise ValueError(
+            "Sin datum declarado: no se puede asumir equivalencia de datum vertical sin 'source_datum'. "
+            "Especifique el datum de origen (ej. 'EGM96', 'EGM2008') o descarte la comparación."
+        )
+
+    tgt = str(target_datum if target_datum is not None else SUPUESTO_DEM_DATUM_COMUN_VERTICAL.valor).strip().upper()
+    src = str(source_datum).strip().upper()
     if src == tgt:
         return z
 
-    # Si se requiere en el futuro un modelo de ondulación geoidal de alta resolución
-    # o grilla N, se aplica aquí. El sesgo macroscópico de GEM-15 se mantiene empírico.
     return z
+
+
+# Alias para compatibilidad hacia atrás
+convert_vertical_datum = assume_same_vertical_datum
 
 
 def leave_one_out_validation(

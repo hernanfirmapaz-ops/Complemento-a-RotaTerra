@@ -13,13 +13,14 @@ from pathlib import Path
 import numpy as np
 
 from geoprocessing.dem.validation import (
+    assume_same_vertical_datum,
     compute_robust_stats,
-    convert_vertical_datum,
     leave_one_out_validation,
     validate_dem_against_reference_raster,
 )
 from geoprocessing.supuestos import (
     SUPUESTO_DEM_DATUM_COMUN_VERTICAL,
+    SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE,
     SUPUESTO_DEM_DIFERENCIA_DATUM_VERTICAL_M,
     SUPUESTO_DEM_DISCREPANCIA_UMBRAL_M,
     SUPUESTO_DEM_EXCLUIR_RED_TOPOGRAFICA,
@@ -204,16 +205,28 @@ def test_leave_one_out_excludes_topografica_automatically():
 
 
 def test_vertical_datum_conversion():
-    """Verifica conversión a datum común y que el sesgo de GEM-15 se preserve como empírico."""
+    """Verifica adopción de datum vertical bajo supuesto metodológico declarado."""
     z_cop = 500.0
     z_gem = 503.09
 
     # Copernicus en EGM2008 a EGM2008 es identidad
-    assert convert_vertical_datum(z_cop, from_datum="EGM2008", target_datum="EGM2008") == 500.0
+    assert assume_same_vertical_datum(z_cop, source_datum="EGM2008", target_datum="EGM2008") == 500.0
 
     # GEM-15 en EGM96: no se resta 3 m artificiales en el datum; el sesgo de +3.1 m es empírico
-    z_conv = convert_vertical_datum(z_gem, from_datum="EGM96", target_datum="EGM2008")
+    z_conv = assume_same_vertical_datum(z_gem, source_datum="EGM96", target_datum="EGM2008")
     assert z_conv == 503.09
+
+    # Sin datum declarado explícitamente se eleva ValueError (sin fallback silencioso 'or')
+    import pytest
+    with pytest.raises(ValueError, match="Sin datum declarado"):
+        assume_same_vertical_datum(z_cop, source_datum=None)
+
+    with pytest.raises(ValueError, match="Sin datum declarado"):
+        assume_same_vertical_datum(z_cop, source_datum="")
+
+    # Verifica que el supuesto metodológico declare la limitación de Mar del Plata
+    assert SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE.valor is True
+    assert "Mar del Plata" in SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE.motivo
 
 
 def test_validate_dem_against_reference_raster_missing_and_synthetic(tmp_path: Path):

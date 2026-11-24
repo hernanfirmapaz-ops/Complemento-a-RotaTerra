@@ -325,6 +325,15 @@ SUPUESTO_DEM_DATUM_COMUN_VERTICAL = Supuesto(
     editable=False,
 )
 
+SUPUESTO_DEM_DATUM_DIFERENCIA_DESPRECIABLE = Supuesto(
+    clave="dem_datum_diferencia_despreciable",
+    valor=True,
+    unidad="booleano",
+    motivo="Supuesto metodológico declarado: diferencia de datum no calculada analíticamente; se adopta el supuesto de discrepancia despreciable entre EGM96 y EGM2008 frente al sesgo sistemático empírico del producto (+3,1 m en GEM-15) y al error del sensor (~1,15 m NMAD en Copernicus). Las cotas IGN están en el Sistema de Alturas Nacional (datum Mar del Plata 1968).",
+    fuente_referencia="Decisión metodológica declarada (Paso 4, Refs #73 / Spec 014); calibrable.",
+    editable=True,
+)
+
 SUPUESTO_DEM_EXCLUIR_RED_TOPOGRAFICA = Supuesto(
     clave="dem_excluir_red_topografica",
     valor=True,
