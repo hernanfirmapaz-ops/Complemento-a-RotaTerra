@@ -316,6 +316,33 @@ SUPUESTO_DEM_DISCREPANCIA_UMBRAL_M = Supuesto(
     editable=True,
 )
 
+SUPUESTO_DEM_DATUM_COMUN_VERTICAL = Supuesto(
+    clave="dem_datum_comun_vertical",
+    valor="EGM2008",
+    unidad="código",
+    motivo="Datum vertical geoidal de referencia común para contrastar modelos de elevación satelitales (Copernicus GLO-30 nativo en EGM2008; GEM-15 nativo en EGM96). El sesgo sistemático de GEM-15 (+3,1 m) se trata como sesgo empírico de producto y no como offset de datum.",
+    fuente_referencia="Spec 014 §3.1-§3.2 / Auditoría de relieve (Paso 4)",
+    editable=False,
+)
+
+SUPUESTO_DEM_EXCLUIR_RED_TOPOGRAFICA = Supuesto(
+    clave="dem_excluir_red_topografica",
+    valor=True,
+    unidad="boolean",
+    motivo="Exclusión estricta de los mojones de la red de nivelación topográfica secundaria del IGN para calibración y validación altimétrica debido a su elevada dispersión (NMAD > 3,5 m) y cotas dudosas documentadas.",
+    fuente_referencia="Spec 014 §1.2 / Auditoría de relieve (Paso 4)",
+    editable=False,
+)
+
+SUPUESTO_DEM_RASTER_REFERENCIA_PATH = Supuesto(
+    clave="dem_raster_referencia_path",
+    valor="data/reference/mde_ign_5m_villa_mercedes_2014.tif",
+    unidad="ruta",
+    motivo="Ruta configurada para el MDE aerofotogramétrico de 5 m del IGN (Villa Mercedes 2014) como estándar raster de referencia para validación espacial de alta resolución.",
+    fuente_referencia="Auditoría de relieve (Paso 4) / Solicitud oficial IGN",
+    editable=True,
+)
+
 # --- Suavizado de Relieve y Pendiente Filtrada para Hidrología (Spec 014 / Auditoría Relieve) ---
 SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_FILTER = Supuesto(
     clave="slope_smoothing_whitebox_filter",
