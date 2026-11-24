@@ -31,14 +31,14 @@ Hoy el sistema informa un único valor exacto (por ejemplo: *"Superficie anegabl
 ### 2.1 Modelo de error espacialmente autocorrelacionado
 El ruido de un DEM satelital no es ruido blanco independiente celda a celda; presenta una marcada correlación espacial generada por el proceso de correlación interferométrica radar o filtrado espectral del sensor. Agregar ruido gaussiano puro celda a celda generaría un micro-relieve artificial con pozos y picos espurios ("efecto sal y pimienta").
 
-Siguiendo el método canónico de **Lindsay & Creed (2005)** (*"Sensitivity of raster-based drainage networks to DEM error"*, *Int. J. Geographical Information Science*, 19(10), 1129–1142):
+Siguiendo el método estocástico de simulación de error de relieve desarrollado por **Lindsay & Creed (2006)** (*"Distinguishing actual and artefact depressions in digital elevation data"*, *Computers & Geosciences*, 32(8), 1192–1204, DOI: 10.1016/j.cageo.2005.11.002; complementado por Lindsay & Creed 2005, *Hydrological Processes*, 19(16), 3113–3126):
 
 1. **Generación de campo aleatorio:**
    Se genera un campo de ruido blanco gaussiano independiente $\eta \sim \mathcal{N}(0, 1)$ con las dimensiones espaciales de la grilla del lote $(M \times N)$.
 2. **Filtrado espacial por convolución gaussiana (autocorrelación):**
    Se convoluciona $\eta$ con un kernel gaussiano 2D $K(r)$ cuya desviación espacial responde a la **longitud de correlación espacial** $L_{\text{corr}}$:
    $$K(r) = \frac{1}{2\pi \sigma_k^2} \exp\left(-\frac{r^2}{2\sigma_k^2}\right), \quad \sigma_k = \frac{L_{\text{corr}}}{2}$$
-   Donde $L_{\text{corr}} = 80\text{ m}$ por defecto (orden de 2 a 3 celdas de 30 m, calibrable en `supuestos.py`).
+   Donde $L_{\text{corr}} = 80\text{ m}$ por defecto (orden de 2 a 3 celdas de 30 m, supuesto calibrable en `supuestos.py`).
 3. **Escalado a la dispersión de la fuente:**
    El campo filtrado se normaliza a media cero y desviación unitaria, y se multiplica por la dispersión vertical robusta de la fuente activa ($\text{NMAD}_{\text{fuente}}$):
    $$\epsilon_k(x, y) = \text{NMAD}_{\text{fuente}} \cdot \frac{\eta * K}{\text{std}(\eta * K)}$$
@@ -83,7 +83,7 @@ $$P_{\text{anegamiento}}(i, j) = \frac{1}{N_{\text{sim}}} \sum_{k=1}^{N_{\text{s
 | `SUPUESTO_MONTECARLO_HABILITADO` | `True` | boolean | Habilita cálculo de rangos e incertidumbre. | Sí |
 | `SUPUESTO_MONTECARLO_N_REALIZACIONES` | `30` | entero | Compromiso óptimo entre convergencia estadística y tiempo de CPU ($N=30$). | Sí |
 | `SUPUESTO_MONTECARLO_N_REALIZACIONES_RAPIDO` | `10` | entero | Modo rápido para previsualización interactiva en frontend. | Sí |
-| `SUPUESTO_MONTECARLO_LONGITUD_CORRELACION_M` | `80.0` | m | Correlación espacial típica del error interferométrico (Lindsay & Creed 2005). | Sí |
+| `SUPUESTO_MONTECARLO_LONGITUD_CORRELACION_M` | `80.0` | m | Correlación espacial típica del error interferométrico satelital (Lindsay & Creed 2006); supuesto calibrable. | Sí |
 
 ---
 
