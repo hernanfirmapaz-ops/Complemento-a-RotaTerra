@@ -23,8 +23,8 @@ En la implementación actual (`App.tsx:261, 335, 404`, `flow.py:subbasin_externa
 
 ### 1.3 El fenómeno de "Ríos Nuevos" en San Luis
 En la cuenca del Río Quinto y la cuenca de El Morro (departamentos General Pedernera y Pringles, San Luis), la deforestación histórica y el reemplazo del pastizal/espinal por agricultura anual han inducido un ascenso regional de la capa freática. Cuando la napa superficial intersecta sedimentos loéssicos friables y ricos en sodio, se desencadena un proceso de **erosión interna por tubificación (*piping* / *sapping*)** y colapso súbito del terreno, dando origen a cañones y cauces fluviales permanentes donde antes no existían:
-- **Evidencia científica canónica comprobada:** Contreras, S., Santoni, C. S., & Jobbágy, E. G. (2013). *"Abrupt watercourse formation in a semiarid sedimentary landscape of central Argentina: The roles of forest clearing, rainfall variability and seismic activity"*. *Ecohydrology*, 6(5), 794–806. DOI: [10.1002/eco.1302](https://doi.org/10.1002/eco.1302).
-- Informes técnicos complementarios: Instituto Nacional del Agua - Centro de Investigaciones de la Región Semiárida (INA - CIRSA, 2015), *"Estudio hidrogeomorfológico de la cuenca del Río Nuevo - El Morro, Provincia de San Luis"*; y SEGEMAR Boletín 348 (Costa et al. 2005, p. 72).
+- **Evidencia científica canónica comprobada:** Contreras, S., Santoni, C. S., & Jobbágy, E. G. (2013). *"Abrupt watercourse formation in a semiarid sedimentary landscape of central Argentina: The roles of forest clearing, rainfall variability and seismic activity"*. *Ecohydrology*, 6(5), 794–805. DOI: [10.1002/eco.1302](https://doi.org/10.1002/eco.1302).
+- Evidencia geomorfológica regional complementaria: Hoja Geológica 3366-IV Villa Mercedes (Costa et al. 2005, SEGEMAR Boletín 348, p. 72).
 
 ---
 
@@ -158,7 +158,7 @@ El riesgo de formación súbita de cárcavas de gran escala (*gullies*) y nuevos
     "riesgo_rios_nuevos": {
       "nivel": "alto",
       "motivo": "Suelo loéssico en faldeo de El Morro con napa freática alta y tensión de corte > 15 N/m²",
-      "referencia_cientifica": "Contreras, Santoni & Jobbágy (2013, Ecohydrology 6(5): 794–806)"
+      "referencia_cientifica": "Contreras, Santoni & Jobbágy (2013, Ecohydrology 6(5): 794–805)"
     },
     "aviso_desvio_escurrimiento": "Cualquier diseño de terrazas (#79/#80) que altere el punto de salida OUT-01 hacia lotes linderos debe ser verificado agronómicamente (información descriptiva, sin consejo legal)."
   }
@@ -175,7 +175,7 @@ El riesgo de formación súbita de cárcavas de gran escala (*gullies*) y nuevos
 | `SUPUESTO_CUENCA_MARGEN_EXPANSION_KM` | `5.0` | km | Primera expansión si la divisoria está abierta. | Sí |
 | `SUPUESTO_CUENCA_MARGEN_MAXIMO_KM` | `10.0` | km | Límite máximo admisible para ráster de 30 m sin desbordar memoria. | Sí |
 | `SUPUESTO_CAUCE_AREA_APORTE_MIN_HA` | `50.0` | ha | Área de aporte para considerar vía de escurrimiento principal / cauce. | Sí |
-| `SUPUESTO_PIPING_TENSION_CORTE_CRITICA_N_M2` | `15.0` | $\text{N/m}^2$ | Tensión de arrastre para inicio de tubificación en loess (Contreras et al. 2013). | Sí |
+| `SUPUESTO_PIPING_TENSION_CORTE_CRITICA_N_M2` | `15.0` | $\text{N/m}^2$ | Supuesto metodológico, calibrable; umbral orientativo de tensión de arrastre para inicio de tubificación en loess. | Sí |
 
 ---
 
