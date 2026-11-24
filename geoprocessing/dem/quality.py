@@ -128,3 +128,34 @@ def build_quality_report(dem: np.ndarray, transform, crs: str, mascara_lote: np.
         nodata_pct_field=round(float(nodata_lote), 2), nodata_pct_area=round(float(nodata_area), 2),
         elevation_field=est_lote, elevation_area=est_area, field_area_ha=area_ha, warnings=avisos,
     )
+
+
+def check_depression_artifacts(
+    depressions: list[any],
+    vertical_accuracy_m: float | None = None,
+    source_name: str = "Copernicus",
+) -> QualityWarning | None:
+    """Si más del 50% de las depresiones detectadas están por debajo del umbral de error vertical,
+    genera advertencia indicando que podrían ser artefactos del DEM."""
+    if not depressions:
+        return None
+    if vertical_accuracy_m is not None and vertical_accuracy_m > 0:
+        umbral = float(vertical_accuracy_m)
+    else:
+        from geoprocessing.supuestos import SUPUESTO_DEPRESION_ACCURACY_NMAD_M
+        umbral = float(SUPUESTO_DEPRESION_ACCURACY_NMAD_M.valor)
+    n_artefactos = sum(
+        1
+        for d in depressions
+        if (getattr(d, "max_depth_m", None) if hasattr(d, "max_depth_m") else d.get("max_depth_m", 0.0)) < umbral
+    )
+    m_total = len(depressions)
+    if m_total > 0 and (n_artefactos / m_total > 0.5):
+        src_label = "Copernicus" if "copernicus" in source_name.lower() else source_name.strip()
+        return QualityWarning(
+            code="depresiones_artefacto_dem",
+            level="advertencia",
+            message=f"{n_artefactos} depresiones de {m_total} (<{umbral:g} m) podrían ser artefactos del DEM {src_label} (error vertical ±{umbral:g} m)",
+        )
+    return None
+

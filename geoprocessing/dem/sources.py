@@ -49,6 +49,7 @@ class DemSourceInfo:
     acquisition_start: str | None
     acquisition_end: str | None
     acquisition_method: str | None
+    vertical_nmad_local_m: float | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -65,10 +66,11 @@ def copernicus_info(toma: tuple[date, date] | None) -> DemSourceInfo:
         nominal_resolution_m=30.0,
         vertical_datum="EGM2008 (alturas ortométricas)",
         vertical_accuracy_m=4.0,
-        vertical_accuracy_note="Precisión vertical absoluta < 4 m (LE90) según la especificación del producto.",
+        vertical_accuracy_note="LE90 global < 4 m según ESA. Dispersión local NMAD ≈ 1,15 m en San Luis contra red IGN (Spec 014, tabla §1, n = 76, tesela S34 W066).",
         acquisition_start=toma[0].isoformat() if toma else None,
         acquisition_end=toma[1].isoformat() if toma else None,
         acquisition_method="Interferometría radar TanDEM-X",
+        vertical_nmad_local_m=1.15,
     )
 
 
@@ -206,10 +208,11 @@ def opentopography_info(demtype: str = "COP30") -> DemSourceInfo:
         nominal_resolution_m=30.0,
         vertical_datum="EGM2008 (alturas ortométricas)",
         vertical_accuracy_m=4.0,
-        vertical_accuracy_note="Precisión vertical absoluta < 4 m (LE90).",
+        vertical_accuracy_note="LE90 global < 4 m (ESA). Precisión vertical empírica ±1,15 m (NMAD) en San Luis contra red IGN (Spec 014, tabla §1, n = 76, tesela S34 W066).",
         acquisition_start="2010-12-12",
         acquisition_end="2015-01-16",
         acquisition_method="Interferometría radar TanDEM-X",
+        vertical_nmad_local_m=1.15,
     )
 
 
