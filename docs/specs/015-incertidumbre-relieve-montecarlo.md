@@ -83,7 +83,7 @@ $$P_{\text{anegamiento}}(i, j) = \frac{1}{N_{\text{sim}}} \sum_{k=1}^{N_{\text{s
 | `SUPUESTO_MONTECARLO_HABILITADO` | `True` | boolean | Habilita cálculo de rangos e incertidumbre. | Sí |
 | `SUPUESTO_MONTECARLO_N_REALIZACIONES` | `30` | entero | Compromiso óptimo entre convergencia estadística y tiempo de CPU ($N=30$). | Sí |
 | `SUPUESTO_MONTECARLO_N_REALIZACIONES_RAPIDO` | `10` | entero | Modo rápido para previsualización interactiva en frontend. | Sí |
-| `SUPUESTO_MONTECARLO_LONGITUD_CORRELACION_M` | `80.0` | m | Correlación espacial típica del error interferométrico satelital (Lindsay & Creed 2006); supuesto calibrable. | Sí |
+| `SUPUESTO_MONTECARLO_LONGITUD_CORRELACION_M` | `80.0` | m | Supuesto, calibrable (orden de 2–3 celdas de 30 m). | Sí |
 
 ---
 
