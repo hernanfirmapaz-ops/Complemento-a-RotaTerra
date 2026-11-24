@@ -126,20 +126,26 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
 
     fuente = terreno.get("source", {})
     quality = terreno.get("quality", {})
-    from geoprocessing.supuestos import SUPUESTO_DEPRESION_ACCURACY_NMAD_M
+    from geoprocessing.supuestos import (
+        SUPUESTO_DEPRESION_ACCURACY_NMAD_M,
+        SUPUESTO_LE90_A_NMAD_FACTOR,
+    )
 
     acc_cand = fuente.get("vertical_nmad_local_m")
     if acc_cand is None:
         acc_cand = quality.get("vertical_nmad_local_m")
-    if acc_cand is None:
-        acc_cand = fuente.get("vertical_accuracy_m")
-    if acc_cand is None:
-        acc_cand = quality.get("vertical_accuracy_m")
 
     if acc_cand is not None and acc_cand > 0:
         vert_acc = float(acc_cand)
     else:
-        vert_acc = float(SUPUESTO_DEPRESION_ACCURACY_NMAD_M.valor)
+        # Si no hay NMAD local medido contra mojones IGN, convertir LE90 a NMAD bajo distribución normal (LE90 / 1.645)
+        le90_cand = fuente.get("vertical_accuracy_m")
+        if le90_cand is None:
+            le90_cand = quality.get("vertical_accuracy_m")
+        if le90_cand is not None and le90_cand > 0:
+            vert_acc = round(float(le90_cand) / float(SUPUESTO_LE90_A_NMAD_FACTOR.valor), 3)
+        else:
+            vert_acc = float(SUPUESTO_DEPRESION_ACCURACY_NMAD_M.valor)
 
     z_cond, sink_depth_m, dep_id_grid, depressions = condition_dem(
         dem=dem,
@@ -619,7 +625,7 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
     if pendiente_guardada is None:
         pct_run_lote = pct_run[mascara & np.isfinite(pct_run)]
         pendiente_guardada = float(pct_run_lote.mean()) if pct_run_lote.size else None
-    mean_slope_val = float(pendiente_guardada) if pendiente_guardada is not None else 1.0
+    mean_slope_val = float(pendiente_guardada) if pendiente_guardada is not None else None
     rain_type = rain_ev.get("source_type", "regional_design")
     confidence_obj = compute_confidence_indicator(
         source_id=dem_source_id,
@@ -639,8 +645,8 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
                 sand_p = s_info.get("sand_pct")
                 silt_p = s_info.get("silt_pct")
                 clay_p = s_info.get("clay_pct")
-    except Exception:
-        pass
+    except Exception as err:
+        warnings.append(f"No se pudieron leer las propiedades de textura de soil.json para el cálculo de K: {err}")
 
     # Erosión hídrica USLE real para el evento y condiciones del lote
     spi_grid = grids.get("spi")
@@ -923,6 +929,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
     cn_storm = compute_nrcs_cn(params.storm_precipitation_mm, cn_ii, "medium", 0.2)
 
     sand_p, silt_p, clay_p = None, None, None
+    toolkit_warnings: list[str] = []
     try:
         ruta_suelo = store.field_dir(field_id) / "soil.json"
         if ruta_suelo.exists():
@@ -931,8 +938,8 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
                 sand_p = s_info.get("sand_pct")
                 silt_p = s_info.get("silt_pct")
                 clay_p = s_info.get("clay_pct")
-    except Exception:
-        pass
+    except Exception as err:
+        toolkit_warnings.append(f"No se pudieron leer las propiedades de textura de soil.json para el cálculo de K: {err}")
 
     # 1. Erosión USLE en escurrimiento y focos de cárcavas
     soil_loss_grid, erosion_summary = compute_usle_erosion_and_gullies(
@@ -1042,7 +1049,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
     np.savez_compressed(carpeta / "hydrology_grids.npz", **grids)
     load_hydrology_grids.cache_clear()
 
-    all_warnings = list(climate_warnings)
+    all_warnings = toolkit_warnings + list(climate_warnings)
     if not daily_series:
         all_warnings.append("NASA POWER no disponible: balance hídrico y riesgo climático en modo degradado.")
     if ndvi_res["summary"].get("status") == "unavailable":
@@ -1170,7 +1177,7 @@ def get_runoff_timeline(field_id: str, run_id: str) -> dict:
 
     pct, _, _ = slope_for_hydrology(dem)
     pct_in_field = pct[mascara & np.isfinite(pct)]
-    mean_slope = float(pct_in_field.mean()) if pct_in_field.size else 1.5
+    mean_slope = float(pct_in_field.mean()) if pct_in_field.size else None
 
     sim = simulate_temporal_runoff(
         intervals=rain_ev["intervals"],
