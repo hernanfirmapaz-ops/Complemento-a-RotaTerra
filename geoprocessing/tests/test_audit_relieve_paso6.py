@@ -103,6 +103,7 @@ def test_le90_to_nmad_conversion_supuesto():
     assert SUPUESTO_LE90_A_NMAD_FACTOR.valor == 1.645
     assert SUPUESTO_LE90_A_NMAD_FACTOR.unidad == "adimensional"
     assert "1.645" in SUPUESTO_LE90_A_NMAD_FACTOR.motivo
+    assert "1,645" in SUPUESTO_LE90_A_NMAD_FACTOR.fuente_referencia or "1.645" in SUPUESTO_LE90_A_NMAD_FACTOR.fuente_referencia
 
     # Copernicus GLO-30 LE90 nominal es 4.0 m -> NMAD equivalente es ~2.432 m
     le90 = 4.0
@@ -122,19 +123,23 @@ def test_supuestos_revisados_sin_llanura_pampeana():
     assert SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW.valor == 7
     assert "1/7" in SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW.motivo
     assert "0.4%" in SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW.motivo
+    assert "30 m" in SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW.motivo
 
 
 def test_breach_and_slope_length_supuestos():
     """Verifica los supuestos de brecha y longitud máxima de ladera."""
     assert SUPUESTO_BREACH_MAX_DEPTH_M.valor == 0.8
     assert SUPUESTO_BREACH_MAX_DEPTH_M.unidad == "m"
-    assert "Lindsay" in SUPUESTO_BREACH_MAX_DEPTH_M.fuente_referencia
+    assert SUPUESTO_BREACH_MAX_DEPTH_M.fuente_referencia == "supuesto, calibrable"
+    assert "846–857" in SUPUESTO_BREACH_MAX_DEPTH_M.motivo
 
     assert SUPUESTO_BREACH_MAX_DIST_CELLS.valor == 50
     assert SUPUESTO_BREACH_MAX_DIST_CELLS.unidad == "celdas"
+    assert SUPUESTO_BREACH_MAX_DIST_CELLS.fuente_referencia == "supuesto, calibrable"
 
     assert SUPUESTO_USLE_MAX_SLOPE_LENGTH_M.valor == 180.0
     assert SUPUESTO_USLE_MAX_SLOPE_LENGTH_M.unidad == "m"
+    assert SUPUESTO_USLE_MAX_SLOPE_LENGTH_M.fuente_referencia == "supuesto, calibrable"
 
 
 def test_nasadem_source_info_citation():
@@ -143,3 +148,31 @@ def test_nasadem_source_info_citation():
     note = info.vertical_accuracy_note
     assert note is not None
     assert "SRTM" in note or "Rodriguez" in note or "Buckley" in note
+
+
+def test_timeline_slope_quality_flag():
+    """Verifica que simulate_temporal_runoff marque slope_quality como 'estimada' si falta la pendiente."""
+    from geoprocessing.rainfall.timeline import simulate_temporal_runoff
+    sim_missing = simulate_temporal_runoff(
+        intervals=[{"timestamp": "2026-11-18T14:00:00-03:00", "precipitation_mm": 10.0, "interval_minutes": 15}],
+        cn_ii_base=80.0,
+        antecedent_moisture="medium",
+        lambda_ratio=0.2,
+        mfd_area_m2=np.ones((5, 5)) * 900.0,
+        mascara_lote=np.ones((5, 5), dtype=bool),
+        pixel_size_m=30.0,
+        mean_slope_pct=None,
+    )
+    assert sim_missing["slope_quality"] == "estimada"
+
+    sim_present = simulate_temporal_runoff(
+        intervals=[{"timestamp": "2026-11-18T14:00:00-03:00", "precipitation_mm": 10.0, "interval_minutes": 15}],
+        cn_ii_base=80.0,
+        antecedent_moisture="medium",
+        lambda_ratio=0.2,
+        mfd_area_m2=np.ones((5, 5)) * 900.0,
+        mascara_lote=np.ones((5, 5), dtype=bool),
+        pixel_size_m=30.0,
+        mean_slope_pct=1.8,
+    )
+    assert sim_present["slope_quality"] == "medida"

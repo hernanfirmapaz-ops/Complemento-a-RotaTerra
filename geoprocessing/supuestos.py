@@ -357,7 +357,7 @@ SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW = Supuesto(
     clave="slope_smoothing_fallback_window",
     valor=7,
     unidad="celdas",
-    motivo="Tamaño de ventana móvil WxW para el ajuste local de plano por mínimos cuadrados cuando WhiteboxTools no está disponible. Calibrado empíricamente en plano inclinado con ruido instrumental gaussiano (sigma = 1 m): una ventana de 7x7 celdas (105x105 m a resolución de 15 m) promedia 49 celdas y reduce la varianza del ruido en un factor 1/sqrt(49) = 1/7 (~0.14 m), recuperando la pendiente real de llanura (0.4% ± 0.15%) donde ventanas menores de 3x3 o 5x5 aún sobreestiman por ruido en los bordes.",
+    motivo="Tamaño de ventana móvil WxW para el ajuste local de plano por mínimos cuadrados cuando WhiteboxTools no está disponible. Calibrado empíricamente en plano inclinado con ruido instrumental gaussiano (sigma = 1 m): una ventana de 7x7 celdas (210x210 m a resolución de 30 m) promedia 49 celdas y reduce la varianza del ruido en un factor 1/sqrt(49) = 1/7 (~0.14 m), recuperando la pendiente real de llanura (0.4% ± 0.15%) donde ventanas menores de 3x3 o 5x5 aún sobreestiman por ruido en los bordes.",
     fuente_referencia="Auditoría de relieve (Paso 2) / Spec 014 §5.3; calibrable.",
     editable=True,
 )
@@ -377,7 +377,7 @@ SUPUESTO_LE90_A_NMAD_FACTOR = Supuesto(
     valor=1.645,
     unidad="adimensional",
     motivo="Factor de conversión de error lineal al 90 % de confianza (LE90) a desviación estándar robusta o NMAD bajo el supuesto declarado de distribución normal de errores verticales (z_0.95 = 1.645, donde LE90 = 1.645 * sigma = 1.645 * NMAD).",
-    fuente_referencia="NIMA (2000) TR8350.2 / Greenwalt & Schultz (1968, ACIC RP-15); supuesto de error normal declarado.",
+    fuente_referencia="z₀,₉₅ = 1,645 bajo error normal (supuesto declarado)",
     editable=True,
 )
 
@@ -404,8 +404,8 @@ SUPUESTO_BREACH_MAX_DEPTH_M = Supuesto(
     clave="breach_max_depth_m",
     valor=0.8,
     unidad="m",
-    motivo="Profundidad máxima de canal excavado por apertura de brechas de menor costo (Lindsay 2016) para conectar depresiones a través de terraplenes o albardones artificiales (caminos, vías) sin distorsionar el relieve natural.",
-    fuente_referencia="Lindsay (2016, Hydrological Processes 30:1072–1085) / Spec 005; calibrable.",
+    motivo="Profundidad máxima de canal excavado por apertura de brechas de menor costo (algoritmo de Lindsay 2016, Hydrol. Process. 30(6): 846–857, DOI 10.1002/hyp.10648) para conectar depresiones a través de terraplenes o albardones artificiales sin distorsionar el relieve natural.",
+    fuente_referencia="supuesto, calibrable",
     editable=True,
 )
 
@@ -413,8 +413,8 @@ SUPUESTO_BREACH_MAX_DIST_CELLS = Supuesto(
     clave="breach_max_dist_cells",
     valor=50,
     unidad="celdas",
-    motivo="Distancia máxima en celdas (750 m a 15 m de resolución) para abrir brechas topográficas a lo largo de un camino de menor costo.",
-    fuente_referencia="Lindsay (2016, Hydrological Processes 30:1072–1085) / Spec 005; calibrable.",
+    motivo="Distancia máxima en celdas (1500 m a 30 m de resolución) para abrir brechas topográficas a lo largo de un camino de menor costo (algoritmo de Lindsay 2016).",
+    fuente_referencia="supuesto, calibrable",
     editable=True,
 )
 
@@ -423,7 +423,7 @@ SUPUESTO_USLE_MAX_SLOPE_LENGTH_M = Supuesto(
     valor=180.0,
     unidad="m",
     motivo="Longitud máxima de ladera efectiva para el cálculo del factor LS de USLE/RUSLE en ausencia de terrazas, antes de que el escurrimiento concentrado forme flujo en cárcava.",
-    fuente_referencia="Wischmeier & Smith (1978, USDA AH-537) / Renard et al. (1997, USDA AH-703, pág. 87); editable por el usuario.",
+    fuente_referencia="supuesto, calibrable",
     editable=True,
 )
 

@@ -176,6 +176,7 @@ def simulate_temporal_runoff(
         "peak_transit_lamina_mm": round(max_transit_mm, 3),
         "peak_transit_volume_m3": round((max_transit_mm / 1000.0) * total_catchment_m2, 1),
         "max_mass_balance_error_mm": round(max_err, 6),
+        "slope_quality": "estimada" if mean_slope_pct is None else "medida",
         "frames": frames,
     }
 
