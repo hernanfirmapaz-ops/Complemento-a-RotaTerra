@@ -31,9 +31,9 @@ def simulate_temporal_runoff(
     mfd_area_m2: np.ndarray,
     mascara_lote: np.ndarray,
     pixel_size_m: float,
-    mean_slope_pct: float,
-    depression_volume_in_field_m3: float,
-    external_inflow_ha: float,
+    mean_slope_pct: float | None = None,
+    depression_volume_in_field_m3: float = 0.0,
+    external_inflow_ha: float = 0.0,
     recession_steps: int = 4,
 ) -> dict:
     """Simula el tránsito temporal por intervalos a partir de un hietograma y parámetros NRCS-CN.
@@ -58,7 +58,11 @@ def simulate_temporal_runoff(
     total_catchment_m2 = max(cell_area_m2, field_area_m2 + ext_area_m2)
 
     # Coeficiente de transferencia por intervalo según pendiente media y paso temporal (0.25 .. 0.70 por paso)
-    slope_factor = math.sqrt(max(0.2, float(mean_slope_pct)) / 2.0)
+    slope_factor = (
+        math.sqrt(max(0.2, float(mean_slope_pct)) / 2.0)
+        if mean_slope_pct is not None
+        else 1.0
+    )
     k_drain = float(np.clip(0.32 * (step_min / 15.0) * slope_factor, 0.22, 0.72))
 
     # Capacidad máxima de retención en depresiones expresada en mm equivalentes sobre la cuenca aportante al lote
