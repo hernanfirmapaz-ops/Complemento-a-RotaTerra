@@ -3,8 +3,11 @@
 Fórmula USLE / RUSLE (Wischmeier & Smith 1978 / Renard et al. 1997):
     A = R * K * LS * C * P_usle     [t / ha / año  o  t / ha / evento]
 
-Factor topográfico 2D (Moore & Burch 1986 / Desmet & Govers 1996) sobre la grilla UTM:
-    LS = ((a / 22.13) ** 0.4) * ((sin(beta) / 0.0896) ** 1.3)
+Factor topográfico 2D sobre la grilla UTM:
+    LS = L * S
+    L = ((a / 22.13) ** 0.4)
+    S = 10.8 * sin(beta) + 0.03        si pendiente < 9 %  (McCool et al. 1987, RUSLE AH-703 Ec. 4-4)
+    S = ((sin(beta) / 0.0896) ** 1.3)   si pendiente >= 9 % (Moore & Burch 1986 / Desmet & Govers 1996)
 donde `a` es el área contribuyente específica MFD por unidad de ancho (m²/m) acotada a longitud
 efectiva de ladera (máx. 180 m sin terrazas, o espaciamiento horizontal HI cuando hay terrazas).
 
@@ -26,9 +29,13 @@ from geoprocessing.supuestos import (
     SUPUESTO_I30_TOPE_MAX_MM_H,
     SUPUESTO_MATERIA_ORGANICA_PCT,
     SUPUESTO_USLE_ESTRUCTURA_CODIGO,
+    SUPUESTO_USLE_MAX_SLOPE_LENGTH_M,
+    SUPUESTO_USLE_MCCOOL_COEF_A,
+    SUPUESTO_USLE_MCCOOL_COEF_B,
     SUPUESTO_USLE_P_CONTOUR_DEFECTO,
     SUPUESTO_USLE_P_TERRAZAS,
     SUPUESTO_USLE_PERMEABILIDAD_CODIGO,
+    SUPUESTO_USLE_SLOPE_THRESHOLD_PCT,
     SUPUESTOS_USLE_C_FACTOR,
 )
 
@@ -94,25 +101,63 @@ def estimate_soil_erodibility_k(
     return round(float(k_si), 6)
 
 
+def compute_usle_s_factor(
+    slope_pct: np.ndarray | float,
+    threshold_pct: float | None = None,
+    mccool_a: float | None = None,
+    mccool_b: float | None = None,
+) -> np.ndarray | float:
+    """Calcula el factor topográfico de pendiente S en USLE/RUSLE.
+
+    Para pendientes < 9 % (s < 0.09):
+        S = 10.8 * sin(beta) + 0.03
+        (McCool et al., 1987, Trans. ASAE 30(5): 1387–1396;
+         Renard et al., 1997, USDA AH-703, pág. 89, Ecuación 4-4)
+
+    Para pendientes >= 9 % (s >= 0.09):
+        S = (sin(beta) / 0.0896) ** 1.3
+        (Moore & Burch, 1986, Trans. ASAE 29(6): 1624–1630)
+
+    donde beta = arctan(max(0.001, slope_pct / 100.0)).
+    """
+    thr = float(threshold_pct if threshold_pct is not None else SUPUESTO_USLE_SLOPE_THRESHOLD_PCT.valor)
+    a = float(mccool_a if mccool_a is not None else SUPUESTO_USLE_MCCOOL_COEF_A.valor)
+    b = float(mccool_b if mccool_b is not None else SUPUESTO_USLE_MCCOOL_COEF_B.valor)
+
+    is_scalar = isinstance(slope_pct, (int, float, np.floating, np.integer))
+    s_arr = np.asarray(slope_pct, dtype=float)
+
+    slope_rad = np.arctan(np.maximum(0.001, s_arr / 100.0))
+    sin_beta = np.sin(slope_rad)
+
+    with np.errstate(invalid="ignore"):
+        s_mccool = a * sin_beta + b
+        s_moore = np.power(sin_beta / 0.0896, 1.3)
+        s_res = np.where(s_arr < thr, s_mccool, s_moore)
+
+    if is_scalar:
+        return float(s_res.item())
+    return s_res
+
+
 def compute_ls_factor_grid(
     mfd_area_m2: np.ndarray,
     slope_pct: np.ndarray,
     pixel_size_m: float,
-    max_slope_length_m: float = 180.0,
+    max_slope_length_m: float | None = None,
 ) -> np.ndarray:
     """Calcula el factor topográfico LS por celda en UTM, acotando la longitud efectiva de ladera."""
+    max_len = float(max_slope_length_m if max_slope_length_m is not None else SUPUESTO_USLE_MAX_SLOPE_LENGTH_M.valor)
     valid = np.isfinite(mfd_area_m2) & np.isfinite(slope_pct)
     specific_a = np.where(
         valid,
-        np.clip(mfd_area_m2 / float(pixel_size_m), float(pixel_size_m), float(max_slope_length_m)),
+        np.clip(mfd_area_m2 / float(pixel_size_m), float(pixel_size_m), max_len),
         np.nan,
     )
-    slope_rad = np.arctan(np.maximum(0.001, slope_pct / 100.0))
-    sin_beta = np.sin(slope_rad)
 
     with np.errstate(invalid="ignore"):
         l_factor = np.power(specific_a / 22.13, 0.4)
-        s_factor = np.power(sin_beta / 0.0896, 1.3)
+        s_factor = compute_usle_s_factor(slope_pct)
         ls = l_factor * s_factor
 
     return np.where(valid, ls, np.nan).astype("float32")
@@ -261,7 +306,7 @@ def compute_usle_erosion_and_gullies(
     max_len = (
         float(terrace_horizontal_spacing_m)
         if terraces_active and terrace_horizontal_spacing_m
-        else 180.0
+        else float(SUPUESTO_USLE_MAX_SLOPE_LENGTH_M.valor)
     )
     ls_grid = compute_ls_factor_grid(mfd_area_m2, slope_pct, pixel_size_m, max_slope_length_m=max_len)
 
