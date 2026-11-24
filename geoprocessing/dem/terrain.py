@@ -151,10 +151,18 @@ def contours_geojson(dem: Dem, interval_m: float | None = None, max_levels: int 
         segs_utm: list[tuple[tuple[float, float], tuple[float, float]]] = []
         for r, c in zip(rs.tolist(), cs.tolist()):
             k = int(code[r, c])
-            pairs = edge_table.get(k)
+            v00, v10, v11, v01 = float(z00[r, c]), float(z10[r, c]), float(z11[r, c]), float(z01[r, c])
+            # Desambiguación de punto silla mediante el Asymptotic Decider (Nielson & Hamann 1991)
+            if k == 5:
+                v_center = 0.25 * (v00 + v10 + v11 + v01)
+                pairs = [(0, 1), (3, 2)] if v_center >= lvl_f else [(3, 0), (1, 2)]
+            elif k == 10:
+                v_center = 0.25 * (v00 + v10 + v11 + v01)
+                pairs = [(0, 3), (1, 2)] if v_center >= lvl_f else [(0, 1), (3, 2)]
+            else:
+                pairs = edge_table.get(k)
             if not pairs:
                 continue
-            v00, v10, v11, v01 = float(z00[r, c]), float(z10[r, c]), float(z11[r, c]), float(z01[r, c])
 
             def _edge_pt(e: int) -> tuple[float, float]:
                 if e == 0:  # arriba: (r, c) -> (r, c+1)
@@ -389,3 +397,244 @@ def field_rings_utm(geometria_utm) -> list[np.ndarray]:
         anillos.append(np.asarray(poligono.exterior.coords)[:, :2])
         anillos.extend(np.asarray(i.coords)[:, :2] for i in poligono.interiors)
     return anillos
+
+
+def smooth_dem_whitebox(
+    dem: Dem,
+    filter_size: int,
+    norm_diff: float,
+    num_iter: int,
+    max_diff: float | None = None,
+) -> np.ndarray:
+    """Suavizado con preservación de bordes (Feature-Preserving Smoothing) de WhiteboxTools."""
+    import tempfile
+
+    import rasterio
+    import whitebox
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        in_tif = tmp_path / "raw.tif"
+        out_tif = tmp_path / "smooth.tif"
+        alto, ancho = dem.z.shape
+        with rasterio.open(
+            in_tif,
+            "w",
+            driver="GTiff",
+            height=alto,
+            width=ancho,
+            count=1,
+            dtype="float32",
+            crs=dem.crs,
+            transform=dem.transform,
+            nodata=np.nan,
+        ) as dst:
+            dst.write(dem.z.astype("float32"), 1)
+
+        wbt = whitebox.WhiteboxTools()
+        wbt.verbose = False
+        args = {
+            "dem": str(in_tif),
+            "output": str(out_tif),
+            "filter": filter_size,
+            "norm_diff": norm_diff,
+            "num_iter": num_iter,
+        }
+        if max_diff is not None:
+            args["max_diff"] = max_diff
+        wbt.feature_preserving_smoothing(**args)
+        with rasterio.open(out_tif) as src:
+            return src.read(1).astype("float32")
+
+
+def _correlate1d_numpy(arr: np.ndarray, weights: np.ndarray, axis: int) -> np.ndarray:
+    """Correlación 1D en NumPy puro con modo reflect (evita dependencia de scipy)."""
+    k = len(weights) // 2
+    pad_width = [(0, 0), (0, 0)]
+    pad_width[axis] = (k, k)
+    padded = np.pad(arr, pad_width, mode="reflect")
+    out = np.zeros_like(arr, dtype=np.float64)
+    h, w = arr.shape
+    for idx, weight in enumerate(weights):
+        if weight == 0:
+            continue
+        if axis == 0:
+            out += float(weight) * padded[idx : idx + h, :]
+        else:
+            out += float(weight) * padded[:, idx : idx + w]
+    return out
+
+
+def moving_plane_slope(
+    z: np.ndarray,
+    dx: float,
+    dy: float,
+    window_size: int = 7,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Pendiente y aspecto por ajuste local de plano por mínimos cuadrados en ventana móvil WxW."""
+    w = int(window_size)
+    if w % 2 == 0:
+        w += 1
+    k = w // 2
+    weights_1d = np.arange(-k, k + 1, dtype=np.float64)
+    sum_sq = float(np.sum(weights_1d ** 2))
+    denom_x = float(w * sum_sq * dx)
+    denom_y = float(w * sum_sq * dy)
+
+    z_64 = z.astype(np.float64)
+    ones_w = np.ones(w, dtype=np.float64)
+    # dz/dx hacia el este
+    dzdx = _correlate1d_numpy(z_64, weights_1d, axis=1)
+    dzdx = _correlate1d_numpy(dzdx, ones_w, axis=0) / denom_x
+
+    # dz/dy hacia el sur (filas crecen al sur)
+    dzdy = _correlate1d_numpy(z_64, weights_1d, axis=0)
+    dzdy = _correlate1d_numpy(dzdy, ones_w, axis=1) / denom_y
+
+    grad = np.hypot(dzdx, dzdy)
+    pct = (100.0 * grad).astype(np.float32)
+    grados = np.degrees(np.arctan(grad)).astype(np.float32)
+    with np.errstate(invalid="ignore"):
+        aspecto = (np.degrees(np.arctan2(-dzdx, dzdy)) + 360.0) % 360.0
+    aspecto[grad < 1e-6] = np.nan
+    return pct, grados, aspecto.astype(np.float32)
+
+
+def slope_for_hydrology(
+    dem: Dem,
+    wbt_filter: int | None = None,
+    wbt_norm_diff: float | None = None,
+    wbt_num_iter: int | None = None,
+    wbt_max_diff: float | None = None,
+    fallback_window: int | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Calcula la pendiente (%) y orientación filtradas para procesos hidrológicos (LS, TWI, SPI, zonas).
+
+    Reduce la sobrestimación del gradiente por ruido instrumental en llanura (Spec 014 / Auditoría Relieve).
+    - Usa WhiteboxTools Feature-Preserving Smoothing si está disponible.
+    - Usa ajuste local de plano por mínimos cuadrados en ventana móvil como fallback.
+    """
+    from geoprocessing.hydrology.conditioning import is_whitebox_available
+    from geoprocessing.supuestos import (
+        SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW,
+        SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_FILTER,
+        SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_ITER,
+        SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_MAX_DIFF_M,
+        SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_NORM_DIFF,
+    )
+
+    if is_whitebox_available():
+        f_size = int(wbt_filter if wbt_filter is not None else SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_FILTER.valor)
+        n_diff = float(wbt_norm_diff if wbt_norm_diff is not None else SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_NORM_DIFF.valor)
+        n_iter = int(wbt_num_iter if wbt_num_iter is not None else SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_ITER.valor)
+        m_diff = float(wbt_max_diff if wbt_max_diff is not None else SUPUESTO_SLOPE_SMOOTHING_WHITEBOX_MAX_DIFF_M.valor)
+
+        z_smooth = smooth_dem_whitebox(
+            dem=dem,
+            filter_size=f_size,
+            norm_diff=n_diff,
+            num_iter=n_iter,
+            max_diff=m_diff,
+        )
+        return slope_aspect(z_smooth, dem.pixel, dem.pixel)
+
+    win = int(fallback_window if fallback_window is not None else SUPUESTO_SLOPE_SMOOTHING_FALLBACK_WINDOW.valor)
+    return moving_plane_slope(dem.z, dem.pixel, dem.pixel, window_size=win)
+
+
+def fit_plane_to_field(dem: Dem, field_mask: np.ndarray) -> dict:
+    """Ajusta un plano por mínimos cuadrados sobre las celdas del lote (FAO T0231E ec. 117 / Spec 014 §5.1).
+
+    Z(X, Y) = a + b*(X - X_bar) + c*(Y - Y_bar)
+    Donde b = dz/dx (Oeste-Este), c = dz/dy (Sur-Norte).
+    """
+    valid = field_mask & np.isfinite(dem.z)
+    if not np.any(valid):
+        return {
+            "slope_pct": None,
+            "aspect_deg": None,
+            "r_squared": None,
+            "z_mean_m": None,
+            "b_dz_dx": None,
+            "c_dz_dy": None,
+            "calidad": "descartada",
+            "description": "Sin datos de relieve en el lote (descartada)",
+        }
+
+    rows, cols = np.where(valid)
+    if len(rows) < 3:
+        z_val = float(dem.z[rows[0], cols[0]]) if len(rows) > 0 else None
+        return {
+            "slope_pct": None,
+            "aspect_deg": None,
+            "r_squared": None,
+            "z_mean_m": round(z_val, 2) if z_val is not None else None,
+            "b_dz_dx": None,
+            "c_dz_dy": None,
+            "calidad": "descartada",
+            "description": "Celdas insuficientes para ajustar plano (< 3 celdas, descartada)",
+        }
+
+    xs, ys = dem.xy_of_cell(rows, cols)
+    zs = dem.z[rows, cols].astype(np.float64)
+
+    x_mean = float(np.mean(xs))
+    y_mean = float(np.mean(ys))
+    z_mean = float(np.mean(zs))
+
+    dx = xs - x_mean
+    dy = ys - y_mean
+    dz = zs - z_mean
+
+    s_xx = float(np.sum(dx * dx))
+    s_yy = float(np.sum(dy * dy))
+    s_xy = float(np.sum(dx * dy))
+    s_xz = float(np.sum(dx * dz))
+    s_yz = float(np.sum(dy * dz))
+
+    det = s_xx * s_yy - s_xy * s_xy
+    if abs(det) < 1e-12:
+        return {
+            "slope_pct": None,
+            "aspect_deg": None,
+            "r_squared": None,
+            "z_mean_m": round(float(z_mean), 2),
+            "b_dz_dx": None,
+            "c_dz_dy": None,
+            "calidad": "descartada",
+            "description": "Plano indeterminado colineal (descartada)",
+        }
+
+    b = (s_yy * s_xz - s_xy * s_yz) / det
+    c = (s_xx * s_yz - s_xy * s_xz) / det
+
+    s_mag = float(np.hypot(b, c))
+    slope_pct = 100.0 * s_mag
+
+    # Rumbo de máximo descenso: vector (-b, -c)
+    aspect_deg = float((np.degrees(np.arctan2(-b, -c)) + 360.0) % 360.0)
+
+    z_pred = z_mean + b * dx + c * dy
+    ss_tot = float(np.sum((zs - z_mean) ** 2))
+    ss_res = float(np.sum((zs - z_pred) ** 2))
+    r2 = float(np.clip(1.0 - (ss_res / ss_tot), 0.0, 1.0)) if ss_tot > 1e-9 else None
+
+    direcciones = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"]
+    idx = int((aspect_deg + 22.5) // 45) % 8
+    rumbo_str = direcciones[idx]
+
+    if r2 is not None:
+        desc = f"{slope_pct:.1f} % hacia el {rumbo_str} (plano ajustado R² = {r2:.2f})".replace(".", ",")
+    else:
+        desc = f"{slope_pct:.1f} % hacia el {rumbo_str} (sin varianza altimétrica)".replace(".", ",")
+
+    return {
+        "slope_pct": round(float(slope_pct), 3),
+        "aspect_deg": round(float(aspect_deg), 1),
+        "r_squared": round(float(r2), 3) if r2 is not None else None,
+        "z_mean_m": round(float(z_mean), 2),
+        "b_dz_dx": float(b),
+        "c_dz_dy": float(c),
+        "calidad": "confiable",
+        "description": desc,
+    }

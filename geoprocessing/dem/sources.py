@@ -49,6 +49,7 @@ class DemSourceInfo:
     acquisition_start: str | None
     acquisition_end: str | None
     acquisition_method: str | None
+    vertical_nmad_local_m: float | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -65,10 +66,11 @@ def copernicus_info(toma: tuple[date, date] | None) -> DemSourceInfo:
         nominal_resolution_m=30.0,
         vertical_datum="EGM2008 (alturas ortométricas)",
         vertical_accuracy_m=4.0,
-        vertical_accuracy_note="Precisión vertical absoluta < 4 m (LE90) según la especificación del producto.",
+        vertical_accuracy_note="LE90 global < 4 m según ESA. Dispersión local NMAD ≈ 1,15 m en San Luis contra red IGN (Spec 014, tabla §1, n = 76, tesela S34 W066).",
         acquisition_start=toma[0].isoformat() if toma else None,
         acquisition_end=toma[1].isoformat() if toma else None,
         acquisition_method="Interferometría radar TanDEM-X",
+        vertical_nmad_local_m=1.15,
     )
 
 
@@ -192,7 +194,7 @@ def opentopography_info(demtype: str = "COP30") -> DemSourceInfo:
             nominal_resolution_m=30.0,
             vertical_datum="EGM96",
             vertical_accuracy_m=5.0,
-            vertical_accuracy_note="Precisión vertical absoluta estimada ~5 m en llanura.",
+            vertical_accuracy_note="Especificación formal SRTM LE90 ≤ 16 m (Rodriguez et al. 2005); evaluación empírica global de NASADEM reporta RMSE ~5 m frente a ICESat en llanura (Buckley et al. 2020, IEEE TGRS).",
             acquisition_start="2000-02-11",
             acquisition_end="2000-02-22",
             acquisition_method="SRTM re-procesado con ALOS PRISM y GDEM",
@@ -206,10 +208,11 @@ def opentopography_info(demtype: str = "COP30") -> DemSourceInfo:
         nominal_resolution_m=30.0,
         vertical_datum="EGM2008 (alturas ortométricas)",
         vertical_accuracy_m=4.0,
-        vertical_accuracy_note="Precisión vertical absoluta < 4 m (LE90).",
+        vertical_accuracy_note="LE90 global < 4 m (ESA). Precisión vertical empírica ±1,15 m (NMAD) en San Luis contra red IGN (Spec 014, tabla §1, n = 76, tesela S34 W066).",
         acquisition_start="2010-12-12",
         acquisition_end="2015-01-16",
         acquisition_method="Interferometría radar TanDEM-X",
+        vertical_nmad_local_m=1.15,
     )
 
 

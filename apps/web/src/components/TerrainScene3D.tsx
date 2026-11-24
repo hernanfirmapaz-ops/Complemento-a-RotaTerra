@@ -1065,7 +1065,7 @@ export function TerrainScene3D({
 
       const ptFeatures: GeoJSON.Feature[] = [
         ...hydrology.depressions
-          .filter((d) => d.in_field)
+          .filter((d) => d.in_field && (d.is_real ?? true))
           .map((d) => ({
             type: 'Feature' as const,
             properties: {

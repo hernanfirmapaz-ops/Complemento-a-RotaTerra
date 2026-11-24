@@ -13,6 +13,8 @@ Estado: **Integrada** = conectada y en uso · **Planificada** = aprobada, falta 
 | Capa | Fuente | Resolución / escala | Licencia | Acceso | Estado |
 |---|---|---|---|---|---|
 | Relieve | Relevamiento propio (dron RTK, LiDAR, GNSS) | 0,05–2 m | Del productor | Subida de GeoTIFF | Integrada |
+| Relieve | ICESat-2 ATL08 (LiDAR orbital de fotones) | Puntual (~11 m huella, 100 m paso) | Dominio público (NASA/NSIDC) | Earthdata / OpenAltimetry API | Planificada (spec 012) |
+| Relieve | Google GEM-15 DTM v1 | 15 m | CC BY 4.0 | Google Cloud Storage / COG | Planificada (spec 014) |
 | Relieve | IGN · MDT/MDE aerofotogramétrico | 5 m | IGN (citar fuente) | Descarga por hoja / Geoserver IGN | A verificar (cobertura en General Pedernera) |
 | Relieve | IGN · MDE-Ar v2.1 | 30 m | IGN (citar fuente) | Descarga por hoja / WCS | Planificada |
 | Relieve | Copernicus DEM GLO-30 | 30 m | Copernicus (libre con atribución) | AWS COG / OpenTopography | Integrada |
@@ -22,24 +24,30 @@ Estado: **Integrada** = conectada y en uso · **Planificada** = aprobada, falta 
 | Suelos | Perfiles SISINTA | Puntual | INTA, abierta | API SISINTA | Planificada |
 | Suelos | SoilGrids 2.0 (ISRIC) | 250 m | CC BY 4.0 | API REST `rest.isric.org` | Integrada (spec 004; falta verificación en vivo) |
 | Suelos | HYSOGs250m (NASA ORNL DAAC) | 250 m | Libre con cita | Earthdata | Planificada (spec 004) |
-| Lluvia | Pluviómetro del productor | Puntual | Del productor | CSV | Integrada |
-| Lluvia | Estaciones INTA (SIGA) | Puntual | INTA | Portal SIGA | A verificar |
+| Lluvia | Pluviómetro del productor | Puntual | Del productor | CSV / Carga manual | Integrada |
+| Lluvia | Red de Estaciones de San Luis (REM) | Puntual (~60 est.) | Pública provincial (ULP/San Luis) | API / CSV `clima.edu.ar` | Integrada (#23 / PR #100) |
+| Lluvia | Estaciones INTA (SIGA) | Puntual | INTA | Portal SIGA / series `.xls` | A verificar |
 | Lluvia | SMN · datos abiertos | Puntual | SMN | Portal de datos abiertos | A verificar (lluvia diaria por estación) |
-| Lluvia | CHIRPS | ~5 km, diaria | Dominio público | UCSB CHC | Planificada |
-| Lluvia | NASA GPM IMERG | ~10 km, 30 min | Dominio público | GES DISC (Earthdata) | Planificada |
+| Lluvia | CHIRPS v3 (v2 discontinúa 12/2026) | 0,05° (~5,3 km), diaria | Dominio público (UCSB CHC) | HTTP / FTP `data.chc.ucsb.edu` | Planificada (#21) |
+| Lluvia | NASA GPM IMERG (Early / Final) | 0,1° (~10 km), 30 min / 4 h | Dominio público | GES DISC (Earthdata) | Planificada |
 | Lluvia y clima | NASA POWER | ~55 km, diaria | Dominio público | API REST | Integrada |
 | Clima y humedad | ERA5-Land (Copernicus) | ~9 km, horaria | Copernicus | Climate Data Store | Planificada |
+| Humedad del suelo | SAOCOM 1A/1B (Humedad del perfil) | 50–100 m, penetración 10–50 cm | CONAE (abierta con registro) | Catálogo Abierto CONAE | Planificada (#22) |
+| Humedad del suelo | NISAR SME2 (Banda L/S) | ~200 m | Dominio público (NASA/ISRO) | Earthdata | En espera (lanzamiento) |
 | Humedad del suelo | NASA SMAP L4 | 9 km | Dominio público | Earthdata | Planificada |
-| Agua histórica | JRC Global Surface Water | 30 m, desde 1984 | Copernicus / CC BY 4.0 | Tiles / GEE | Planificada |
+| Agua histórica | JRC Global Surface Water | 30 m, desde 1984 | Copernicus / CC BY 4.0 | Tiles / GEE | Planificada (#41) |
 | Agua histórica | MapBiomas Argentina (agua) | 30 m | CC BY-SA | Plataforma MapBiomas | Planificada |
-| Agua actual | OPERA DSWx-HLS / DSWx-S1 | 30 m | Dominio público | PO.DAAC / AWS | Planificada |
+| Agua actual / Inundación | Copernicus GFM (Sentinel-1 SAR) | 20 m | Copernicus Open Access | API REST / WMS CEMS | Planificada (spec 012) |
+| Agua actual | OPERA DSWx-HLS | 30 m | Dominio público | PO.DAAC / AWS | Planificada |
 | Cobertura del suelo | ESA WorldCover · Dynamic World · MapBiomas | 10–30 m | CC BY 4.0 / CC BY-SA | Tiles / GEE | Planificada |
 | Caminos, canales y alcantarillas | OpenStreetMap | Vectorial | ODbL (citar) | Overpass API | Planificada |
 | Vigor del cultivo | Sentinel-2 L2A | 10 m | Copernicus | STAC Earth Search (AWS) | Integrada |
 | Vigor del cultivo | HLS (Landsat + Sentinel-2) | 30 m | Dominio público | LP DAAC | Planificada |
 | Rindes | Estimaciones agrícolas MAGyP | Departamento | Datos abiertos | datos.magyp.gob.ar | Planificada |
 | Precios | Bolsa de Cereales de Buenos Aires · Bolsa de Comercio de Rosario | Diaria | Uso con cita | Publicaciones / API | A verificar |
-| Napa | Freatímetro del productor · informes INTA San Luis | Puntual | Del productor / INTA | Carga manual | Planificada |
+| Napa | Freatímetro del productor · informes INTA San Luis | Puntual | Del productor / INTA | Carga manual | Planificada (#40) |
+| **Descarte explícito** | CLMS SSM 1 km (Copernicus Surface Soil Moisture) | 1 km | Copernicus | CDS | **Descartada** (solo Europa continental) |
+| **Descarte parcial** | OPERA DSWx-S1 (Sentinel-1 Water) | 30 m | Dominio público | PO.DAAC | **Descartada para intralote** (umbral > 3 ha y 200 m) |
 
 **Orden de integración acordado:** suelos (spec 004) → relieve IGN → lluvia de estaciones (INTA SIGA / SMN, tras verificar el acceso) → caminos de OpenStreetMap → agua histórica (JRC / MapBiomas).
 
@@ -143,4 +151,76 @@ Estado: **Integrada** = conectada y en uso · **Planificada** = aprobada, falta 
   - `apps/web/public/data/boundaries/departamentos.geojson` (761,8 KB, 529 features)
   - **Peso total combinado:** 929,1 KB (< 1 MB en disco).
 - **Uso en la aplicación:** Renderizado vectorial en cliente MapLibre GL sin depender de WMS ráster externo ni latencia de red, permitiendo estilos nítidos por nivel de zoom y geolocalización local rápida (point-in-polygon) para la ficha de ubicación sin consultas adicionales.
+
+---
+
+## 6. Observaciones Satelitales Avanzadas y Validación Empírica
+
+### 6.1 Copernicus Global Flood Monitoring (GFM)
+- **Proveedor:** Copernicus Emergency Management Service (CEMS) / European Commission.
+- **Sensor:** Sentinel-1 C-SAR (apertura sintética, microondas banda C, 5,4 GHz).
+- **Resolución espacial:** 20 m.
+- **Licencia:** Libre y gratuita (Copernicus Open Access).
+- **Acceso:** API REST OGC y WMS de CEMS (`https://emergency.copernicus.eu/mapping/ems/global-flood-monitoring`).
+- **Fecha de consulta:** 2026-11-23.
+- **Uso en el sistema (Spec 012):** Detección continua de agua superficial y anegamiento incluso bajo nubosidad persistente durante temporales. Sirve como estándar de verdad de terreno (*ground truth*) satelital para validar la extensión de áreas anegables simuladas en fechas de inundaciones históricas.
+
+### 6.2 ICESat-2 ATL08 (Land and Vegetation Height)
+- **Proveedor:** NASA / NSIDC (National Snow and Ice Data Center).
+- **Sensor:** ATLAS (Advanced Topographic Laser Altimeter System), lidar de conteo de fotones (532 nm, luz verde).
+- **Resolución espacial:** Huella circular de ~11 m de diámetro cada 0,7 m a lo largo de la traza, agrupada en segmentos geodésicos de 100 m.
+- **Precisión vertical:** $< 0,10\text{ m}$ en superficies planas o suavemente onduladas.
+- **Licencia:** Dominio público (NASA Open Data Policy).
+- **Acceso:** NASA Earthdata y OpenAltimetry API (`https://openaltimetry.org/data/api/v1/`).
+- **Fecha de consulta:** 2026-11-23.
+- **Uso en el sistema (Spec 012):** Perfilado altimétrico independiente de alta precisión para contrastar y validar la cota de modelos digitales regionales (Copernicus GLO-30 y Google GEM-15 DTM) a lo largo de las órbitas que cruzan la región pampeana y San Luis.
+
+### 6.3 CHIRPS v3 (Climate Hazards Center InfraRed Precipitation with Station data)
+- **Proveedor:** Climate Hazards Center, University of California Santa Barbara (UCSB CHC).
+- **Resolución espacial:** $0.05^\circ \times 0.05^\circ$ (~5,3 km).
+- **Resolución temporal:** Diaria (desde 1981 al presente).
+- **Licencia:** Dominio público.
+- **Acceso:** HTTP / FTP público (`https://data.chc.ucsb.edu/products/CHIRPS-3.0/`).
+- **Fecha de consulta:** 2026-11-23.
+- **Nota operativa crítica:** La versión CHIRPS v2 se discontinúa definitivamente tras diciembre de 2026. Todas las rutinas de series históricas y cálculo de anomalías pluviométricas de 6 meses (#21 y #42) deben conectarse directamente al catálogo de **CHIRPS v3**.
+
+### 6.4 SAOCOM 1A/1B (Humedad del Suelo en el Perfil)
+- **Proveedor:** Comisión Nacional de Actividades Espaciales (CONAE), Argentina.
+- **Sensor:** Radar de Apertura Sintética en Banda L (1,27 GHz, longitud de onda 23,6 cm, polarimétrico).
+- **Resolución espacial:** 50 m a 100 m.
+- **Penetración del suelo:** 10 a 50 cm de profundidad, dependiendo del contenido de humedad y textura.
+- **Licencia y términos de uso:** Catálogo Abierto CONAE, gratuito para usuarios registrados con fines de investigación, docencia, planificación agronómica y desarrollo tecnológico no comercial de exportación cerrada.
+- **Acceso:** Catálogo CONAE (`https://catalogos.conae.gov.ar/`).
+- **Fecha de consulta:** 2026-11-23.
+- **Verificación territorial:** Cobertura regular confirmada sobre Villa Mercedes y el departamento General Pedernera (San Luis). Aporta el mapa de agua útil del perfil para condicionar la infiltración previa (#22).
+
+### 6.5 Red de Estaciones Meteorológicas de San Luis (REM)
+- **Proveedor:** Universidad de La Punta (ULP) / Ministerio de Ciencia y Tecnología de San Luis.
+- **Cobertura:** Más de 60 estaciones telemétricas automáticas en el territorio provincial.
+- **Resolución temporal:** Registros horarios y acumulados diarios.
+- **Licencia:** Datos públicos abiertos de la provincia de San Luis.
+- **Acceso:** Endpoint web directo (`http://clima.edu.ar/ObtenerCsv.aspx?tipo=Mensual&estacion=ID...`, Windows-1252).
+- **Fecha de consulta:** 2026-11-23.
+- **Estado:** Integrada plenamente en el conector `geoprocessing/climate/rem_sanluis.py` (#23 / PR #100). Prioridad para el cálculo de humedad antecedente (AMC) en lotes ubicados a menos de 40 km de una estación provincial activa.
+
+### 6.6 NISAR SME2 (NASA-ISRO SAR Mission - Soil Moisture)
+- **Proveedor:** Misión conjunta NASA / ISRO.
+- **Sensor:** Radar Banda L (1,2 GHz) y Banda S polarimétrico.
+- **Resolución espacial:** 200 m.
+- **Licencia:** Dominio público (Open Science).
+- **Acceso:** NASA Earthdata / ASF DAAC.
+- **Fecha de consulta:** 2026-11-23.
+- **Estado:** En espera operativa (satélite en fase final de integración y lanzamiento programado).
+
+---
+
+## 7. Descarte Técnico de Fuentes Inadecuadas
+
+Para garantizar transparencia científica y evitar desarrollos fallidos, se documenta el descarte de las siguientes fuentes evaluadas:
+
+1. **CLMS SSM 1 km (Copernicus Land Monitoring Service - Surface Soil Moisture):**
+   - **Motivo de descarte:** Cobertura territorial nula en Argentina. El producto oficial opera exclusivamente sobre Europa continental y la cuenca mediterránea.
+2. **OPERA DSWx-S1 (Sentinel-1 Dynamic Surface Water - JPL / NASA):**
+   - **Motivo de descarte para anegamiento intralote:** La especificación técnica del producto satelital establece que fue diseñado para cuerpos de agua $\ge 3\text{ ha}$ y un ancho mínimo de canal $\ge 200\text{ m}$. En campos agrícolas de llanura, los encharcamientos temporarios en bajos y surcos son de escala sub-hectárea, por lo que OPERA DSWx-S1 produce omisiones sistemáticas (falsos negativos). Se reserva exclusivamente OPERA DSWx-HLS para lagunas mayores.
+
 
