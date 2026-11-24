@@ -647,7 +647,16 @@ def test_e2e_t2_f8_03_toolkit_on_flat_dem(api_client: TestClient, tmp_path: Path
     r = api_client.post(f"/api/v1/fields/{f['id']}/hydrology/toolkit/run", json={})
     assert r.status_code == 200
     tk = r.json()
-    assert 0.0 <= tk["erosion_usle"]["mean_soil_loss_t_ha"] <= 0.05
+    # Con la formulación de McCool et al. (1987) para pendientes < 9%, el factor S en terreno
+    # plano no colapsa a 0 (como en Moore & Burch) sino al término basal inter-surco por impacto
+    # de gota: S_min = 10.8 * sin(beta_min) + 0.03 ≈ 0.0408.
+    # Cota analítica esperada del caso (P=80 mm -> R≈1141.89, K≈0.0260, L=(30/22.13)^0.4≈1.129, C=0.09, P=1.0):
+    # A_max = R * K * L_max * S * C * P ≈ 1141.89 * 0.026026 * 1.1294 * 0.0408 * 0.09 * 1.0 ≈ 0.123 t/ha
+    # A_min = R * K * 1.0 * 0.0300 * C * P ≈ 0.080 t/ha
+    # En el lote muestreado con máscara perimetral UTM, el valor medio resultante es 0.105 t/ha.
+    loss = tk["erosion_usle"]["mean_soil_loss_t_ha"]
+    assert 0.08 <= loss <= 0.125
+    assert pytest.approx(loss, abs=0.01) == 0.105
     assert tk["contour_terraces"]["mean_field_slope_pct"] == 0.0
 
 
