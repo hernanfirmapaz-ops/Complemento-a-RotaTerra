@@ -10,10 +10,12 @@ import numpy as np
 
 from geoprocessing import PROCESSING_VERSION, supuestos
 from geoprocessing.dem import sources
-from geoprocessing.dem.prepare import prepare_dem
-from geoprocessing.dem.quality import build_quality_report, field_mask
+from geoprocessing.dem.prepare import MAX_CELDAS, prepare_dem
+from geoprocessing.dem.quality import QualityWarning, build_quality_report, field_mask
 from geoprocessing.dem.terrain import Dem, contours_geojson, field_rings_utm, hillshade, mesh, point_info, profile
 from geoprocessing.fields import field_utm_geometry
+from geoprocessing.hydrology.catchment import resolve_adaptive_margin_steps, trace_upslope_catchment
+from geoprocessing.hydrology.flow import d8_direction_and_accumulation
 from services.api.app.services import hydrology, store
 
 LIMITACIONES = [
@@ -56,8 +58,8 @@ def _find_sample_dem_backup(field: dict) -> tuple[Path, dict] | None:
     return None
 
 
-def process_terrain(field_id: str, source_id: str, buffer_m: float, upload_path: Path | None,
-                    upload_meta: dict) -> dict:
+def process_terrain(field_id: str, source_id: str, buffer_m: float = 3000.0, upload_path: Path | None = None,
+                    upload_meta: dict | None = None, adaptive_catchment: bool = True) -> dict:
     from datetime import date
 
     field = store.load_field(field_id)
@@ -67,10 +69,20 @@ def process_terrain(field_id: str, source_id: str, buffer_m: float, upload_path:
         shutil.rmtree(carpeta_fuente)
     carpeta_fuente.mkdir(parents=True)
 
+    # Determinar secuencia de pasos de margen adaptativo (Spec 032 §2 / Issue #114)
+    if adaptive_catchment:
+        margin_steps = resolve_adaptive_margin_steps()
+    else:
+        margin_steps = [float(buffer_m)]
+
+    fetch_buffer = max(margin_steps[-1], 10000.0) if source_id in (
+        sources.COPERNICUS_ID, sources.OPENTOPOGRAPHY_COP30_ID, sources.OPENTOPOGRAPHY_NASADEM_ID
+    ) else margin_steps[-1]
+
     if source_id == sources.COPERNICUS_ID:
         original = carpeta_fuente / "copernicus_glo30_window.tif"
         try:
-            info = sources.fetch_copernicus(_buffer_bbox_4326(field, buffer_m), original)
+            info = sources.fetch_copernicus(_buffer_bbox_4326(field, fetch_buffer), original)
         except sources.DemSourceError:
             sample_backup = _find_sample_dem_backup(field)
             if sample_backup:
@@ -86,10 +98,10 @@ def process_terrain(field_id: str, source_id: str, buffer_m: float, upload_path:
                 raise
     elif source_id == sources.OPENTOPOGRAPHY_COP30_ID:
         original = carpeta_fuente / "opentopography_cop30.tif"
-        info = sources.fetch_opentopography(_buffer_bbox_4326(field, buffer_m), original, demtype="COP30")
+        info = sources.fetch_opentopography(_buffer_bbox_4326(field, fetch_buffer), original, demtype="COP30")
     elif source_id == sources.OPENTOPOGRAPHY_NASADEM_ID:
         original = carpeta_fuente / "opentopography_nasadem.tif"
-        info = sources.fetch_opentopography(_buffer_bbox_4326(field, buffer_m), original, demtype="NASADEM")
+        info = sources.fetch_opentopography(_buffer_bbox_4326(field, fetch_buffer), original, demtype="NASADEM")
     elif source_id == sources.UPLOAD_ID:
         if upload_path is None:
             raise sources.DemSourceError("Falta el archivo GeoTIFF del DEM.")
@@ -100,24 +112,117 @@ def process_terrain(field_id: str, source_id: str, buffer_m: float, upload_path:
     else:
         raise sources.DemSourceError(f"Fuente de DEM desconocida: {source_id}")
 
-    preparado = prepare_dem(original, field["geometry"], field["utm_epsg"], buffer_m, carpeta / "dem_utm.tif")
-    if info is None:
-        info = sources.upload_info(upload_meta, round(max(preparado.source_pixel_size_m), 2))
+    # Evaluación y recorte adaptativo (3 km -> 5 km -> 10 km)
+    preparado = None
+    dem = None
+    mascara = None
+    catchment_res = None
+    chosen_margin = margin_steps[0]
 
-    dem = Dem.open(preparado.path)
-    mascara = field_mask(field["geometry"], field["utm_epsg"], dem.transform, dem.z.shape)
+    for step_m in margin_steps:
+        try:
+            prep_cand = prepare_dem(
+                original,
+                field["geometry"],
+                field["utm_epsg"],
+                step_m,
+                carpeta / "dem_utm.tif",
+            )
+            dem_cand = Dem.open(prep_cand.path)
+            masc_cand = field_mask(field["geometry"], field["utm_epsg"], dem_cand.transform, dem_cand.z.shape)
+
+            if not np.isfinite(dem_cand.z[masc_cand]).any():
+                break
+
+            d8_code_cand, _, _, _ = d8_direction_and_accumulation(dem_cand.z, dem_cand.pixel)
+            c_res = trace_upslope_catchment(
+                d8_code=d8_code_cand,
+                mascara_lote=masc_cand,
+                pixel_size_m=dem_cand.pixel,
+                current_margin_km=round(step_m / 1000.0, 1),
+                max_margin_km=round(margin_steps[-1] / 1000.0, 1),
+            )
+            preparado = prep_cand
+            dem = dem_cand
+            mascara = masc_cand
+            catchment_res = c_res
+            chosen_margin = step_m
+
+            # Si la cuenca aguas arriba no toca el límite exterior del ráster, queda delimitada
+            if not c_res.touches_border:
+                break
+        except Exception:
+            if preparado is not None:
+                break
+            raise
+
+    if preparado is None or dem is None or mascara is None:
+        # Fallback al primer paso directo
+        preparado = prepare_dem(original, field["geometry"], field["utm_epsg"], chosen_margin, carpeta / "dem_utm.tif")
+        dem = Dem.open(preparado.path)
+        mascara = field_mask(field["geometry"], field["utm_epsg"], dem.transform, dem.z.shape)
+        d8_code_cand, _, _, _ = d8_direction_and_accumulation(dem.z, dem.pixel)
+        catchment_res = trace_upslope_catchment(
+            d8_code=d8_code_cand,
+            mascara_lote=mascara,
+            pixel_size_m=dem.pixel,
+            current_margin_km=round(chosen_margin / 1000.0, 1),
+            max_margin_km=round(margin_steps[-1] / 1000.0, 1),
+        )
+
+    if info is None:
+        info = sources.upload_info(upload_meta or {}, round(max(preparado.source_pixel_size_m), 2))
+
     calidad = build_quality_report(dem.z, dem.transform, dem.crs, mascara, field["area_ha"], info,
-                                   preparado.source_pixel_size_m, buffer_m)
+                                   preparado.source_pixel_size_m, chosen_margin)
+
+    # Declarar remuestreo fuera del lote si se aplicó para respetar MAX_CELDAS
+    if preparado.resampling_outside_field:
+        calidad.warnings.append(
+            QualityWarning(
+                code="remuestreo_fuera_de_lote",
+                level="info",
+                message=f"Se aplicó remuestreo a {preparado.pixel_size_m:.1f} m fuera del lote para respetar el límite de celdas ({MAX_CELDAS}).",
+            )
+        )
+
+    # Aviso visible si la cuenca vertiente quedó truncada
+    if catchment_res and catchment_res.is_truncated and catchment_res.warning:
+        calidad.warnings.append(
+            QualityWarning(
+                code="cuenca_truncada",
+                level="advertencia",
+                message=catchment_res.warning,
+            )
+        )
+
     terreno = {
         "field_id": field_id,
         "processing_version": PROCESSING_VERSION,
         "processed_at": store.now_iso(),
-        "parameters": {"source_id": source_id, "buffer_m": buffer_m, "resampling": "bilinear",
-                       "target_crs": dem.crs, "pixel_size_m": preparado.pixel_size_m},
+        "parameters": {
+            "source_id": source_id,
+            "buffer_m": chosen_margin,
+            "resampling": "bilinear",
+            "resampling_outside_field": preparado.resampling_outside_field,
+            "resampled_resolution_m": preparado.resampled_resolution_m,
+            "adaptive_catchment": adaptive_catchment,
+            "target_crs": dem.crs,
+            "pixel_size_m": preparado.pixel_size_m,
+        },
         "source": info.to_dict(),
         "quality": calidad.to_dict(),
         "files": {"original": f"source/{original.name}", "working_dem": "dem_utm.tif"},
         "limitations": LIMITACIONES,
+        "catchment": {
+            "touches_border": catchment_res.touches_border if catchment_res else False,
+            "is_truncated": catchment_res.is_truncated if catchment_res else False,
+            "margin_km": catchment_res.margin_km if catchment_res else round(chosen_margin / 1000.0, 1),
+            "total_area_ha": catchment_res.total_area_ha if catchment_res else 0.0,
+            "external_area_ha": catchment_res.external_area_ha if catchment_res else 0.0,
+            "in_field_area_ha": catchment_res.in_field_area_ha if catchment_res else 0.0,
+            "warning": catchment_res.warning if catchment_res else None,
+        },
     }
     store.save_terrain(field_id, terrain_data := terreno)
     # Invalidar corridas hidrológicas previas si se reprocesó el DEM base

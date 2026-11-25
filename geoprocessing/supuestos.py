@@ -514,3 +514,40 @@ SUPUESTO_DEPRESION_ACCURACY_NMAD_M = Supuesto(
     editable=True,
 )
 
+# --- Delimitación de Cuenca Adaptativa (Spec 032 §8 / Issue #114) ---
+SUPUESTO_CUENCA_MARGEN_INICIAL_KM = Supuesto(
+    clave="cuenca_margen_inicial_km",
+    valor=3.0,
+    unidad="km",
+    motivo="Margen inicial de recorte para análisis de cuenca vertiente de aporte al lote.",
+    fuente_referencia="Spec 032 §8; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_CUENCA_MARGEN_EXPANSION_KM = Supuesto(
+    clave="cuenca_margen_expansion_km",
+    valor=5.0,
+    unidad="km",
+    motivo="Margen intermedio de expansión adaptativa si la cuenca vertiente toca el borde del recorte inicial.",
+    fuente_referencia="Spec 032 §8; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_CUENCA_MARGEN_MAXIMO_KM = Supuesto(
+    clave="cuenca_margen_maximo_km",
+    valor=10.0,
+    unidad="km",
+    motivo="Límite máximo admisible de expansión de cuenca vertiente (10 km) para ráster de 30 m sin agotar memoria.",
+    fuente_referencia="Spec 032 §8; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_CUENCA_TRUNCADA_PENALIZACION_CONFIANZA = Supuesto(
+    clave="cuenca_truncada_penalizacion_confianza",
+    valor=0.15,
+    unidad="adimensional",
+    motivo="Descuento en el indicador de confianza hidrológica cuando la cuenca vertiente excede los 10 km y queda truncada.",
+    fuente_referencia="Spec 032 §2.1; supuesto calibrable",
+    editable=True,
+)
+

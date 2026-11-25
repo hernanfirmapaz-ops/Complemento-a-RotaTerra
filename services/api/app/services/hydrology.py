@@ -270,6 +270,17 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     raw_mean_slope_in_field_pct = round(float(raw_in_field.mean()), 3) if raw_in_field.size else None
     mean_slope_in_field_pct = plane_res["slope_pct"]
 
+    # Delimitación de cuenca de aporte completa aguas arriba (Spec 032 §2 / Issue #114)
+    from geoprocessing.hydrology.catchment import trace_upslope_catchment
+    buffer_val = float(terreno.get("parameters", {}).get("buffer_m", 3000.0))
+    catchment_res = trace_upslope_catchment(
+        d8_code=d8_code,
+        mascara_lote=mascara,
+        pixel_size_m=dem.pixel,
+        current_margin_km=round(buffer_val / 1000.0, 1),
+        max_margin_km=10.0,
+    )
+
     summary = {
         "mean_slope_in_field_pct": mean_slope_in_field_pct,
         "raw_mean_slope_in_field_pct": raw_mean_slope_in_field_pct,
@@ -294,6 +305,12 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         "outlets_count": len(outlets_info),
         "external_inflow_ha": round(ext_inflow_ha, 3),
         "mfd_mass_balance_error": round(float(mfd_balance["relative_error"]), 8),
+        "upstream_catchment_truncated": catchment_res.is_truncated,
+        "upstream_catchment_margin_km": catchment_res.margin_km,
+        "upstream_catchment_touches_border": catchment_res.touches_border,
+        "upstream_catchment_total_ha": catchment_res.total_area_ha,
+        "upstream_catchment_external_ha": catchment_res.external_area_ha,
+        "upstream_catchment_warning": catchment_res.warning,
     }
 
     avisos = [w["message"] for w in terreno["quality"]["warnings"] if w["level"] in ("critico", "advertencia")]
@@ -314,6 +331,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         avisos.append(
             f"Se detectan ~{ext_inflow_ha:.1f} ha de área contribuyente externa que ingresa al lote desde aguas arriba."
         )
+    if catchment_res.warning and catchment_res.warning not in avisos:
+        avisos.append(catchment_res.warning)
 
     hydro_doc = {
         "field_id": field_id,
@@ -633,6 +652,7 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         mean_slope_pct=mean_slope_val,
         soil_source=payload.soil_source or "default",
         rain_source_type=rain_type,
+        upstream_catchment_truncated=bool(hydro.get("summary", {}).get("upstream_catchment_truncated", False)),
     )
 
     # Textura del suelo si está disponible (SoilGrids 2.0 ya consultado) para cálculo de K por Wischmeier

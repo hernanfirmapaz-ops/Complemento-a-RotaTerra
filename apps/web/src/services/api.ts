@@ -76,7 +76,8 @@ export async function getTerrain(fieldId: string): Promise<TerrainOut> {
 
 export interface ProcessTerrainParams {
   sourceId: 'copernicus_glo30' | 'upload'
-  bufferM: number
+  bufferM?: number
+  adaptiveCatchment?: boolean
   file?: File | null
   sourceName?: string
   surfaceType?: 'DTM' | 'DSM' | 'desconocido'
@@ -92,7 +93,10 @@ export async function processTerrain(
 ): Promise<TerrainOut> {
   const form = new FormData()
   form.append('source_id', params.sourceId)
-  form.append('buffer_m', String(params.bufferM))
+  form.append('buffer_m', String(params.bufferM ?? 3000))
+  if (params.adaptiveCatchment !== undefined) {
+    form.append('adaptive_catchment', String(params.adaptiveCatchment))
+  }
   if (params.file) form.append('file', params.file)
   if (params.sourceName) form.append('source_name', params.sourceName)
   if (params.surfaceType) form.append('surface_type', params.surfaceType)

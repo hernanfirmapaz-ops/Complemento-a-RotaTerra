@@ -198,6 +198,26 @@ export function ResultStep({
         </div>
       </div>
 
+      {/* Aviso prominente de cuenca truncada (Spec 032 §2.1 / Issue #114) */}
+      {(terrain?.quality?.warnings?.some((w) => w.code === 'cuenca_truncada') ||
+        confidence?.reasons?.some((r) => r.toLowerCase().includes('truncada'))) && (
+        <div
+          className="alert alert-advertencia cuenca-truncada-banner"
+          style={{
+            margin: '10px 0 14px 0',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            background: 'rgba(217, 119, 6, 0.12)',
+            border: '1px solid var(--amber, #d97706)',
+            color: 'var(--ink, #1f2937)',
+            fontSize: '13px',
+            lineHeight: 1.4,
+          }}
+        >
+          <strong>⚠️ Aviso:</strong> Cuenca de aporte externa truncada a 10 km: el caudal y volumen calculados representan un piso mínimo.
+        </div>
+      )}
+
       {/* 3 Métricas destacadas */}
       <div className="result-metrics-grid">
         <Metric

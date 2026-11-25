@@ -86,6 +86,7 @@ class TerrainOut(BaseModel):
     quality: QualityReportOut
     files: dict
     limitations: list[str]
+    catchment: dict | None = None
 
 
 class MeshOut(BaseModel):
@@ -274,6 +275,12 @@ class HydrologySummaryOut(BaseModel):
     outlets_count: int
     external_inflow_ha: float
     mfd_mass_balance_error: float
+    upstream_catchment_truncated: bool | None = None
+    upstream_catchment_margin_km: float | None = None
+    upstream_catchment_touches_border: bool | None = None
+    upstream_catchment_total_ha: float | None = None
+    upstream_catchment_external_ha: float | None = None
+    upstream_catchment_warning: str | None = None
 
 
 class HydrologyOut(BaseModel):
