@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -692,3 +692,34 @@ class ObservacionOut(BaseModel):
     resolucion_m: int
     calidad: Literal["buena", "dudosa", "descartada"]
     nota: str = ""
+
+
+# --- Escalera Precalculada de Lluvia y Curva de Anegamiento (Spec 031 / Issue #113) ---
+class RainfallLadderStepOut(BaseModel):
+    precipitation_mm: float
+    ponded_area_ha: float
+    ponded_area_pct: float
+    outflow_volume_m3: float
+    soil_loss_t_ha_yr: float
+
+
+class ReturnPeriodsStationOut(BaseModel):
+    station_id: int
+    station_name: str
+    distance_km: float
+    method: str
+    milimetros: dict[str, float]
+    source_citation: str | None = None
+
+
+class RainfallLadderOut(BaseModel):
+    field_id: str
+    status: str
+    parameters: dict[str, Any]
+    benchmark_timing_ms: float
+    step_size_mm: int
+    critical_ponding_threshold_mm: float
+    return_periods_station: ReturnPeriodsStationOut | None = None
+    ladder: list[RainfallLadderStepOut]
+    from_cache: bool = False
+

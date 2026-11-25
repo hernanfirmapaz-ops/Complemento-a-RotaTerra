@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { StepNav, type FlowStep } from '../StepNav'
 import { LotStep } from '../LotStep'
 import { RainStep } from '../RainStep'
+import { RainfallSlider } from '../RainfallSlider'
 import { ResultStep } from '../ResultStep'
 import type {
   FieldOut,
@@ -481,6 +482,79 @@ describe('Flujo Lote -> Lluvia -> Resultado', () => {
       const backBtn = screen.getByRole('button', { name: /Cambiar de lote/i })
       fireEvent.click(backBtn)
       expect(onBack).toHaveBeenCalledTimes(1)
+    })
+
+    it('integra RainfallSlider con entrada numérica sincronizada y formato con coma decimal', () => {
+      const onSelectMm = vi.fn()
+      render(
+        <RainfallSlider
+          value={60}
+          onChange={onSelectMm}
+        />,
+      )
+
+      const numberInput = screen.getByRole('textbox')
+      expect(numberInput).toHaveValue('60')
+
+      // Cambiamos el valor mediante el input numérico
+      fireEvent.change(numberInput, { target: { value: '75,5' } })
+      expect(onSelectMm).toHaveBeenCalledWith(75.5)
+    })
+
+    it('muestra marcas T2 a T50 de la REM citando estrictamente "en un día"', () => {
+      const mockLadder: any = {
+        field_id: 'field-1',
+        status: 'ok',
+        parameters: {
+          soil_id: 'B',
+          amc: 'medium',
+          cover_type: 'soja_maiz_sd_buena',
+          cn_base: 70,
+        },
+        benchmark_timing_ms: 25.0,
+        step_size_mm: 10,
+        critical_ponding_threshold_mm: 50.0,
+        ladder: [
+          { precipitation_mm: 10, ponded_area_ha: 0.0, ponded_area_pct: 0.0, outflow_volume_m3: 0.0, soil_loss_t_ha_yr: 0.0 },
+          { precipitation_mm: 50, ponded_area_ha: 1.2, ponded_area_pct: 0.8, outflow_volume_m3: 9400.0, soil_loss_t_ha_yr: 0.2 },
+          { precipitation_mm: 100, ponded_area_ha: 4.8, ponded_area_pct: 3.3, outflow_volume_m3: 50900.0, soil_loss_t_ha_yr: 0.8 },
+        ],
+        return_periods_station: {
+          station_id: 42,
+          station_name: 'REM San Luis · Villa Mercedes',
+          distance_km: 14.5,
+          method: 'Gumbel 2008–2025 (precipitación máxima diaria, "en un día")',
+          milimetros: {
+            T2: 52.1,
+            T10: 76.8,
+            T25: 88.9,
+            T50: 98.4,
+          },
+          source_citation: 'Red de Estaciones Meteorológicas (REM) de San Luis. Ajuste Gumbel 2008–2025.',
+        },
+      }
+
+      render(
+        <RainfallSlider
+          value={50}
+          onChange={vi.fn()}
+          ladderData={mockLadder}
+        />,
+      )
+
+      expect(screen.getByText('T2')).toBeInTheDocument()
+      expect(screen.getByText('T10')).toBeInTheDocument()
+      expect(screen.getByText('T25')).toBeInTheDocument()
+      expect(screen.getByText('T50')).toBeInTheDocument()
+
+      // Hover sobre T2 para desplegar el tooltip explicativo con fuente
+      fireEvent.mouseEnter(screen.getByText('T2'))
+
+      expect(screen.getByText(/Villa Mercedes/i)).toBeInTheDocument()
+      expect(screen.getByText(/en un día/i)).toBeInTheDocument()
+      expect(screen.queryByText(/en 24 h/i)).toBeNull()
+      expect(screen.getByText(/Umbral crítico de anegamiento/i)).toBeInTheDocument()
+      expect(screen.getByText(/P ≈ 50 mm/i)).toBeInTheDocument()
     })
   })
 
