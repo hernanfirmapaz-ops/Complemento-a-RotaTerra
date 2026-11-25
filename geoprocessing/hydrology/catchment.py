@@ -15,6 +15,8 @@ import numpy as np
 
 from geoprocessing.hydrology.flow import D8_TABLE
 from geoprocessing.supuestos import (
+    SUPUESTO_CUENCA_DILATACION_CELDAS,
+    SUPUESTO_CUENCA_DOWNSTREAM_BUFFER_M,
     SUPUESTO_CUENCA_MARGEN_EXPANSION_KM,
     SUPUESTO_CUENCA_MARGEN_INICIAL_KM,
     SUPUESTO_CUENCA_MARGEN_MAXIMO_KM,
@@ -132,13 +134,18 @@ def build_active_catchment_mask(
     mascara_lote: np.ndarray,
     d8_code: np.ndarray,
     pixel_size_m: float = 30.0,
-    downstream_buffer_m: float = 500.0,
-    dilation_cells: int = 2,
+    downstream_buffer_m: float | None = None,
+    dilation_cells: int | None = None,
 ) -> np.ndarray:
     """Construye la máscara booleana del dominio hidrológico activo:
     Cuenca de aporte aguas arriba + Lote + Franja aguas abajo + Dilatación lateral.
     Permite restringir el motor 2D y el cálculo hidrológico sin procesar celdas irrelevantes.
     """
+    if downstream_buffer_m is None:
+        downstream_buffer_m = float(SUPUESTO_CUENCA_DOWNSTREAM_BUFFER_M.valor)
+    if dilation_cells is None:
+        dilation_cells = int(SUPUESTO_CUENCA_DILATACION_CELDAS.valor)
+
     alto, ancho = d8_code.shape
     max_steps = max(1, int(round(downstream_buffer_m / max(1.0, pixel_size_m))))
 

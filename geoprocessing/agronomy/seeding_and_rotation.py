@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from geoprocessing.agronomy.erosion_usle import compute_usle_erosion_and_gullies
 from geoprocessing.rainfall.nrcs_cn import CN_II_LOOKUP, SoilGroup, compute_nrcs_cn, lookup_cn_ii
 
@@ -249,6 +251,7 @@ def compare_triennial_rotations(
     clay_pct: float | None = None,
     organic_matter_pct: float | None = None,
     k_factor: float | None = None,
+    active_mask: np.ndarray | None = None,
 ) -> dict:
     """Herramienta 6: Compara lado a lado escurrimiento, erosión y cobertura de 2 rotaciones trienales."""
     COVER_PCT_BY_CODE = {
@@ -283,6 +286,7 @@ def compare_triennial_rotations(
                 clay_pct=clay_pct,
                 organic_matter_pct=organic_matter_pct,
                 k_factor=k_factor,
+                active_mask=active_mask,
             )
             years_out.append({
                 "year": yr_idx,

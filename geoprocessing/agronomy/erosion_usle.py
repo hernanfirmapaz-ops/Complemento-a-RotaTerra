@@ -441,6 +441,7 @@ def design_and_simulate_contour_terraces(
     clay_pct: float | None = None,
     organic_matter_pct: float | None = None,
     k_factor: float | None = None,
+    active_mask: np.ndarray | None = None,
 ) -> dict:
     """Herramienta 4: Traza curvas a nivel / terrazas dentro del lote y simula cómo frenan el agua y la erosión.
 
@@ -490,6 +491,7 @@ def design_and_simulate_contour_terraces(
         clay_pct=clay_pct,
         organic_matter_pct=organic_matter_pct,
         k_factor=k_factor,
+        active_mask=active_mask,
     )
 
     # Capacidad de intercepción hidráulica de las terrazas
@@ -519,6 +521,7 @@ def design_and_simulate_contour_terraces(
         clay_pct=clay_pct,
         organic_matter_pct=organic_matter_pct,
         k_factor=k_factor,
+        active_mask=active_mask,
     )
 
     runoff_before_m3 = (runoff_q_mm / 1000.0) * field_area_m2

@@ -551,3 +551,21 @@ SUPUESTO_CUENCA_TRUNCADA_PENALIZACION_CONFIANZA = Supuesto(
     editable=True,
 )
 
+SUPUESTO_CUENCA_DOWNSTREAM_BUFFER_M = Supuesto(
+    clave="cuenca_downstream_buffer_m",
+    valor=500.0,
+    unidad="m",
+    motivo="Longitud de franja aguas abajo del lote trazada sobre la red de flujo para permitir la salida libre del agua en el motor 2D.",
+    fuente_referencia="Spec 032 §2.1; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_CUENCA_DILATACION_CELDAS = Supuesto(
+    clave="cuenca_dilatacion_celdas",
+    valor=2,
+    unidad="celdas",
+    motivo="Número de celdas de dilatación morfológica del dominio activo para cubrir márgenes de ribera y transferencias laterales.",
+    fuente_referencia="Spec 032 §2.1; supuesto calibrable",
+    editable=True,
+)
+

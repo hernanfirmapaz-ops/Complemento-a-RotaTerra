@@ -206,12 +206,29 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         build_active_catchment_mask,
         trace_upslope_catchment,
     )
-    from geoprocessing.supuestos import SUPUESTO_CUENCA_MARGEN_MAXIMO_KM
+    from geoprocessing.supuestos import (
+        SUPUESTO_CUENCA_DILATACION_CELDAS,
+        SUPUESTO_CUENCA_DOWNSTREAM_BUFFER_M,
+        SUPUESTO_CUENCA_MARGEN_MAXIMO_KM,
+    )
 
     buffer_cand = terreno.get("parameters", {}).get("buffer_m")
     if buffer_cand is None:
-        raise ValueError("Falta el parámetro 'buffer_m' en los metadatos del terreno procesado.")
-    buffer_val = float(buffer_cand)
+        margin_km = terreno.get("catchment", {}).get("margin_km")
+        if margin_km is not None:
+            buffer_val = float(margin_km) * 1000.0
+        else:
+            # Si falta buffer_m en los metadatos del terreno, se marca la calidad como descartada (Spec 014 / #114)
+            terreno.setdefault("quality", {})["calidad"] = "descartada"
+            terreno.setdefault("quality", {}).setdefault("warnings", []).append({
+                "code": "falta_buffer_terreno",
+                "level": "error",
+                "message": "Falta el parámetro 'buffer_m' en los metadatos del terreno procesado; calidad marcada como descartada.",
+            })
+            store.save_terrain(field_id, terreno)
+            buffer_val = 0.0
+    else:
+        buffer_val = float(buffer_cand)
 
     catchment_res = trace_upslope_catchment(
         d8_code=d8_code,
@@ -225,8 +242,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         mascara_lote=mascara,
         d8_code=d8_code,
         pixel_size_m=dem.pixel,
-        downstream_buffer_m=500.0,
-        dilation_cells=2,
+        downstream_buffer_m=float(SUPUESTO_CUENCA_DOWNSTREAM_BUFFER_M.valor),
+        dilation_cells=int(SUPUESTO_CUENCA_DILATACION_CELDAS.valor),
     )
 
     mfd_cells, mfd_area_m2, mfd_balance = mfd_accumulation(

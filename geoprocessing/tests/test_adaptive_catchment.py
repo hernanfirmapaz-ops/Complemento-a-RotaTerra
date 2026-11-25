@@ -13,15 +13,23 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from affine import Affine
 
+from geoprocessing.agronomy.erosion_usle import compute_usle_erosion_and_gullies
 from geoprocessing.dem.prepare import prepare_dem
+from geoprocessing.dem.terrain import Dem, slope_aspect
 from geoprocessing.hydrology.catchment import (
     build_active_catchment_mask,
     resolve_adaptive_margin_steps,
     trace_upslope_catchment,
 )
 from geoprocessing.hydrology.confidence import compute_confidence_indicator
+from geoprocessing.hydrology.flow import d8_direction_and_accumulation, mfd_accumulation
+from geoprocessing.hydrology.shallow_water_2d import run_2d_diffusive_wave_simulation
+from geoprocessing.rainfall.nrcs_cn import compute_nrcs_cn, distribute_event_runoff_mfd
 from geoprocessing.supuestos import (
+    SUPUESTO_CUENCA_DILATACION_CELDAS,
+    SUPUESTO_CUENCA_DOWNSTREAM_BUFFER_M,
     SUPUESTO_CUENCA_MARGEN_EXPANSION_KM,
     SUPUESTO_CUENCA_MARGEN_INICIAL_KM,
     SUPUESTO_CUENCA_MARGEN_MAXIMO_KM,
@@ -56,7 +64,7 @@ def test_catchment_closed_does_not_touch_border():
         mascara_lote=mascara_lote,
         pixel_size_m=30.0,
         current_margin_km=3.0,
-        max_margin_km=10.0,
+        max_margin_km=float(SUPUESTO_CUENCA_MARGEN_MAXIMO_KM.valor),
     )
 
     assert not res.touches_border
@@ -82,26 +90,27 @@ def test_catchment_open_touches_border_and_truncates_at_max_margin():
         mascara_lote=mascara_lote,
         pixel_size_m=30.0,
         current_margin_km=3.0,
-        max_margin_km=10.0,
+        max_margin_km=float(SUPUESTO_CUENCA_MARGEN_MAXIMO_KM.valor),
     )
     assert res_3k.touches_border
     assert not res_3k.is_truncated
     assert res_3k.warning is None
     assert res_3k.external_area_ha > 0.0
 
-    # 2. A 10 km (margen máximo) sigue tocando el borde -> is_truncated=True y genera advertencia
-    res_10k = trace_upslope_catchment(
+    # 2. A margen máximo sigue tocando el borde -> is_truncated=True y genera advertencia
+    max_m_km = float(SUPUESTO_CUENCA_MARGEN_MAXIMO_KM.valor)
+    res_max = trace_upslope_catchment(
         d8_code=d8,
         mascara_lote=mascara_lote,
         pixel_size_m=30.0,
-        current_margin_km=10.0,
-        max_margin_km=10.0,
+        current_margin_km=max_m_km,
+        max_margin_km=max_m_km,
     )
-    assert res_10k.touches_border
-    assert res_10k.is_truncated
-    assert res_10k.warning is not None
-    assert "truncada a 10 km" in res_10k.warning
-    assert "piso mínimo" in res_10k.warning
+    assert res_max.touches_border
+    assert res_max.is_truncated
+    assert res_max.warning is not None
+    assert f"truncada a {int(max_m_km)} km" in res_max.warning
+    assert "piso mínimo" in res_max.warning
 
 
 def test_confidence_indicator_penalizes_truncated_catchment():
@@ -165,6 +174,161 @@ def test_build_active_catchment_mask_includes_catchment_lot_and_downstream():
     assert not active[29, 29]
     assert not active[0, 29]
     assert not active[29, 0]
+
+
+def test_catchment_active_mask_hydraulic_and_erosion_equivalence():
+    """Test de equivalencia: verifica que enmascarar el dominio activo (cuenca de aporte + lote + aguas abajo)
+    reproduce con exactitud (< 1 % de diferencia) los resultados hidrológicos y agronómicos dentro del lote:
+    - ha anegadas (con bajo activo encharcable > 0 ha),
+    - volumen retenido y volumen que entra por escorrentía externa (> 0 m³),
+    - pérdida de suelo USLE (t/ha > 0).
+    """
+    alto, ancho = 40, 40
+    r, c = np.indices((alto, ancho), dtype=float)
+
+    # Valle central con fondo en fila 20, con pendiente suave hacia el este (c * 0.5)
+    # Divisoria topográfica norte en fila 8 y sur en fila 32
+    z = 520.0 - c * 0.5 + np.abs(r - 20.0) * 1.5
+
+    # Al norte de fila 8 cae hacia el borde exterior norte (fuera de la cuenca del lote)
+    z[0:9, :] = 520.0 - c[0:9, :] * 0.5 + (20.0 - 8.0) * 1.5 + (8.0 - r[0:9, :]) * 2.0
+    # Al sur de fila 32 cae hacia el borde exterior sur (fuera de la cuenca del lote)
+    z[32:40, :] = 520.0 - c[32:40, :] * 0.5 + (32.0 - 20.0) * 1.5 + (r[32:40, :] - 32.0) * 2.0
+
+    # Lote en el centro del valle (filas 15..25, columnas 20..30)
+    mascara_lote = np.zeros((alto, ancho), dtype=bool)
+    mascara_lote[15:26, 20:31] = True
+
+    # Bajo o cubeta encharcable dentro del lote (filas 18..22, columnas 23..27)
+    z[18:22, 23:27] -= 2.5
+
+    transform = Affine.translation(300000.0, 6330000.0) @ Affine.scale(30.0, -30.0)
+    dem = Dem(z=z.astype("float32"), transform=transform, crs="EPSG:32720")
+
+    # Dirección y acumulación D8
+    d8_code, _, _, _ = d8_direction_and_accumulation(z, 30.0)
+
+    # Trazado de cuenca vertiente completa aguas arriba
+    max_m_km = float(SUPUESTO_CUENCA_MARGEN_MAXIMO_KM.valor)
+    catch = trace_upslope_catchment(
+        d8_code=d8_code,
+        mascara_lote=mascara_lote,
+        pixel_size_m=30.0,
+        current_margin_km=3.0,
+        max_margin_km=max_m_km,
+    )
+    assert catch.external_area_ha > 0.0, "Debe existir área de aporte externa drenando al lote."
+
+    # Construcción de la máscara de dominio activo usando supuestos calibrables
+    downstream_m = float(SUPUESTO_CUENCA_DOWNSTREAM_BUFFER_M.valor)
+    dilation_c = int(SUPUESTO_CUENCA_DILATACION_CELDAS.valor)
+    active = build_active_catchment_mask(
+        catchment_mask=catch.mask,
+        mascara_lote=mascara_lote,
+        d8_code=d8_code,
+        pixel_size_m=30.0,
+        downstream_buffer_m=downstream_m,
+        dilation_cells=dilation_c,
+    )
+
+    # La máscara reduce el dominio descartando laderas exteriores no aportantes
+    assert active.sum() < z.size
+    assert active.sum() > mascara_lote.sum()
+
+    # Tormenta de diseño para activar escorrentía e inundar la cubeta
+    intervals = [{"timestamp": "2026-11-18T14:00:00-03:00", "precipitation_mm": 60.0, "interval_minutes": 30}]
+
+    # 1. Simulación hidrodinámica 2D: Sin máscara (dominio completo) vs Con active_mask
+    s_full = run_2d_diffusive_wave_simulation(
+        dem=dem,
+        z_cond=z,
+        mascara_lote=mascara_lote,
+        intervals=intervals,
+        cn_ii_base=78.0,
+        antecedent_moisture="average",
+        lambda_ratio=0.2,
+        active_mask=None,
+        ponding_threshold_m=0.05,
+        manning_n=0.04,
+        solver_mode="diffusive",
+    )
+    s_mask = run_2d_diffusive_wave_simulation(
+        dem=dem,
+        z_cond=z,
+        mascara_lote=mascara_lote,
+        intervals=intervals,
+        cn_ii_base=78.0,
+        antecedent_moisture="average",
+        lambda_ratio=0.2,
+        active_mask=active,
+        ponding_threshold_m=0.05,
+        manning_n=0.04,
+        solver_mode="diffusive",
+    )
+
+    ha_full = s_full["summary"]["ponded_area_in_field_ha"]
+    ha_mask = s_mask["summary"]["ponded_area_in_field_ha"]
+    vol_full = s_full["summary"]["ponded_retained_volume_in_field_m3"]
+    vol_mask = s_mask["summary"]["ponded_retained_volume_in_field_m3"]
+
+    # El bajo en el lote debe registrar anegamiento positivo
+    assert ha_full > 0.0, "El lote con cubeta debe registrar hectáreas anegadas."
+    assert vol_full > 0.0, "El lote con cubeta debe registrar volumen de agua retenido."
+
+    # Tolerancia estricta < 1% entre corrida completa y corrida enmascarada
+    rel_diff_ha = abs(ha_full - ha_mask) / ha_full
+    rel_diff_vol = abs(vol_full - vol_mask) / vol_full
+    assert rel_diff_ha < 0.01, f"Diferencia en ha anegadas ({rel_diff_ha:.4%}) supera el 1 %."
+    assert rel_diff_vol < 0.01, f"Diferencia en volumen retenido ({rel_diff_vol:.4%}) supera el 1 %."
+
+    # 2. Volumen de escorrentía externa que entra al lote
+    cn_res = compute_nrcs_cn(precipitation_mm=60.0, cn_ii_base=78.0, antecedent_moisture="average")
+    _, mfd_area, _ = mfd_accumulation(z, 30.0)
+    _, _, dist_full = distribute_event_runoff_mfd(
+        cn_result=cn_res,
+        mfd_area_m2=mfd_area,
+        mascara_lote=mascara_lote,
+        pixel_size_m=30.0,
+        depression_volume_in_field_m3=vol_full,
+        external_inflow_ha=catch.external_area_ha,
+    )
+    assert dist_full["external_runoff_inflow_m3"] > 0.0
+
+    # 3. Erosión hídrica USLE dentro del lote: Sin máscara vs Con active_mask
+    slopes, _, _ = slope_aspect(z, 30.0, 30.0)
+    spi = np.zeros_like(z)
+    _, e_full = compute_usle_erosion_and_gullies(
+        mfd_area_m2=mfd_area,
+        slope_pct=slopes,
+        spi=spi,
+        mascara_lote=mascara_lote,
+        pixel_size_m=30.0,
+        precipitation_mm=60.0,
+        runoff_q_mm=cn_res.runoff_q_mm,
+        sand_pct=40.0,
+        silt_pct=40.0,
+        clay_pct=20.0,
+        active_mask=None,
+    )
+    _, e_mask = compute_usle_erosion_and_gullies(
+        mfd_area_m2=mfd_area,
+        slope_pct=slopes,
+        spi=spi,
+        mascara_lote=mascara_lote,
+        pixel_size_m=30.0,
+        precipitation_mm=60.0,
+        runoff_q_mm=cn_res.runoff_q_mm,
+        sand_pct=40.0,
+        silt_pct=40.0,
+        clay_pct=20.0,
+        active_mask=active,
+    )
+
+    loss_full = e_full["mean_soil_loss_t_ha"]
+    loss_mask = e_mask["mean_soil_loss_t_ha"]
+    assert loss_full > 0.0, "Debe registrarse pérdida de suelo positiva."
+    rel_diff_loss = abs(loss_full - loss_mask) / loss_full
+    assert rel_diff_loss < 0.01, f"Diferencia en USLE ({rel_diff_loss:.4%}) supera el 1 %."
 
 
 def test_prepare_dem_respects_max_celdas_and_declares_resampling(tmp_path: Path):
