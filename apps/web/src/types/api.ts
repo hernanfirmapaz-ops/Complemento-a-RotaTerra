@@ -80,6 +80,7 @@ export interface TerrainOut {
   quality: QualityReportOut
   files: Record<string, string>
   limitations: string[]
+  catchment?: Record<string, unknown> | null
 }
 
 export interface MeshOut {
@@ -256,6 +257,12 @@ export interface HydrologySummaryOut {
   outlets_count: number
   external_inflow_ha: number
   mfd_mass_balance_error: number
+  upstream_catchment_truncated?: boolean | null
+  upstream_catchment_margin_km?: number | null
+  upstream_catchment_touches_border?: boolean | null
+  upstream_catchment_total_ha?: number | null
+  upstream_catchment_external_ha?: number | null
+  upstream_catchment_warning?: string | null
 }
 
 export interface ContoursOut {

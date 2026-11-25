@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+from geoprocessing.supuestos import SUPUESTO_CUENCA_TRUNCADA_PENALIZACION_CONFIANZA
+
 
 def compute_confidence_indicator(
     source_id: str = "copernicus_glo30",
@@ -16,6 +18,7 @@ def compute_confidence_indicator(
     mean_slope_pct: float | None = 1.0,
     soil_source: str | None = "default",
     rain_source_type: str = "manual",
+    upstream_catchment_truncated: bool = False,
 ) -> dict:
     """Calcula el índice de confianza (Alto / Medio / Bajo) según SDD-003 §3.1.
 
@@ -89,8 +92,13 @@ def compute_confidence_indicator(
     # Ponderación global
     final_score = round(0.40 * score_relief + 0.30 * score_soil + 0.30 * score_rain, 2)
 
+    if upstream_catchment_truncated:
+        penalty = float(SUPUESTO_CUENCA_TRUNCADA_PENALIZACION_CONFIANZA.valor)
+        final_score = max(0.10, round(final_score - penalty, 2))
+        reasons.append("Cuenca de aporte externa truncada al límite de 10 km (caudal y volumen entrante son un piso mínimo)")
+
     level: Literal["alto", "medio", "bajo"]
-    if final_score >= 0.80 and score_relief >= 0.60:
+    if final_score >= 0.80 and score_relief >= 0.60 and not upstream_catchment_truncated:
         level = "alto"
     elif final_score >= 0.55 and not (is_flat_plain and not is_high_res_dem):
         level = "medio"

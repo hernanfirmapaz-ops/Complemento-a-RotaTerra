@@ -43,7 +43,7 @@ def obtener_terreno(field_id: str):
 async def procesar_terreno(
     field_id: str,
     source_id: str = Form(COPERNICUS_ID),
-    buffer_m: float = Form(DEFAULT_BUFFER_M),
+    buffer_m: float | None = Form(None),
     file: UploadFile | None = File(None),
     source_name: str | None = Form(None),
     source_url: str | None = Form(None),
@@ -53,13 +53,17 @@ async def procesar_terreno(
     vertical_accuracy_m: str | None = Form(None),
     acquisition_date: str | None = Form(None),
     acquisition_method: str | None = Form(None),
+    adaptive_catchment: bool | None = Form(None),
 ):
     try:
         store.load_field(field_id)
     except store.NotFound as error:
         raise HTTPException(status_code=404, detail="Lote no encontrado.") from error
 
-    if not (0 <= buffer_m <= BUFFER_MAX_M):
+    eff_adaptive = adaptive_catchment if adaptive_catchment is not None else (buffer_m is None)
+    eff_buffer = buffer_m if buffer_m is not None else DEFAULT_BUFFER_M
+
+    if not (0 <= eff_buffer <= BUFFER_MAX_M):
         raise HTTPException(
             status_code=422,
             detail=f"La zona de aporte (buffer_m) debe estar entre 0 y {BUFFER_MAX_M:.0f} m.",
@@ -114,7 +118,7 @@ async def procesar_terreno(
             "acquisition_date": acquisition_date,
             "acquisition_method": acquisition_method,
         }
-        return terrain.process_terrain(field_id, source_id, buffer_m, temp_path, meta)
+        return terrain.process_terrain(field_id, source_id, eff_buffer, temp_path, meta, adaptive_catchment=eff_adaptive)
     except (DemSourceError, DemPreparationError) as error:
         err_msg = str(error)
         if "Sin conexión" in err_msg:

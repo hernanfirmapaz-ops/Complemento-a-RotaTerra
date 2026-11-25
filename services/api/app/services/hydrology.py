@@ -200,6 +200,52 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         )
 
     d8_code, d8_az, d8_cells, d8_area_m2 = d8_direction_and_accumulation(z_cond, dem.pixel)
+
+    # Delimitación de cuenca de aporte aguas arriba y dominio activo (Spec 032 §2 / Issue #114)
+    from geoprocessing.hydrology.catchment import (
+        build_active_catchment_mask,
+        trace_upslope_catchment,
+    )
+    from geoprocessing.supuestos import (
+        SUPUESTO_CUENCA_DILATACION_CELDAS,
+        SUPUESTO_CUENCA_DOWNSTREAM_BUFFER_M,
+        SUPUESTO_CUENCA_MARGEN_MAXIMO_KM,
+    )
+
+    buffer_cand = terreno.get("parameters", {}).get("buffer_m")
+    if buffer_cand is None:
+        margin_km = terreno.get("catchment", {}).get("margin_km")
+        if margin_km is not None:
+            buffer_val = float(margin_km) * 1000.0
+        else:
+            # Si falta buffer_m en los metadatos del terreno, se marca la calidad como descartada (Spec 014 / #114)
+            terreno.setdefault("quality", {})["calidad"] = "descartada"
+            terreno.setdefault("quality", {}).setdefault("warnings", []).append({
+                "code": "falta_buffer_terreno",
+                "level": "error",
+                "message": "Falta el parámetro 'buffer_m' en los metadatos del terreno procesado; calidad marcada como descartada.",
+            })
+            store.save_terrain(field_id, terreno)
+            buffer_val = 0.0
+    else:
+        buffer_val = float(buffer_cand)
+
+    catchment_res = trace_upslope_catchment(
+        d8_code=d8_code,
+        mascara_lote=mascara,
+        pixel_size_m=dem.pixel,
+        current_margin_km=round(buffer_val / 1000.0, 1),
+        max_margin_km=float(SUPUESTO_CUENCA_MARGEN_MAXIMO_KM.valor),
+    )
+    active_mask = build_active_catchment_mask(
+        catchment_mask=catchment_res.mask,
+        mascara_lote=mascara,
+        d8_code=d8_code,
+        pixel_size_m=dem.pixel,
+        downstream_buffer_m=float(SUPUESTO_CUENCA_DOWNSTREAM_BUFFER_M.valor),
+        dilation_cells=int(SUPUESTO_CUENCA_DILATACION_CELDAS.valor),
+    )
+
     mfd_cells, mfd_area_m2, mfd_balance = mfd_accumulation(
         z_cond, dem.pixel, exponent_p=params.mfd_exponent
     )
@@ -250,6 +296,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         twi=twi_grid,
         spi=spi_grid,
         agronomic_zone_id=agro_zone_grid,
+        active_mask=active_mask,
+        catchment_mask=catchment_res.mask,
     )
 
     deps_in_field = [d for d in depressions if d.in_field]
@@ -294,6 +342,12 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         "outlets_count": len(outlets_info),
         "external_inflow_ha": round(ext_inflow_ha, 3),
         "mfd_mass_balance_error": round(float(mfd_balance["relative_error"]), 8),
+        "upstream_catchment_truncated": catchment_res.is_truncated,
+        "upstream_catchment_margin_km": catchment_res.margin_km,
+        "upstream_catchment_touches_border": catchment_res.touches_border,
+        "upstream_catchment_total_ha": catchment_res.total_area_ha,
+        "upstream_catchment_external_ha": catchment_res.external_area_ha,
+        "upstream_catchment_warning": catchment_res.warning,
     }
 
     avisos = [w["message"] for w in terreno["quality"]["warnings"] if w["level"] in ("critico", "advertencia")]
@@ -314,6 +368,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         avisos.append(
             f"Se detectan ~{ext_inflow_ha:.1f} ha de área contribuyente externa que ingresa al lote desde aguas arriba."
         )
+    if catchment_res.warning and catchment_res.warning not in avisos:
+        avisos.append(catchment_res.warning)
 
     hydro_doc = {
         "field_id": field_id,
@@ -633,6 +689,7 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         mean_slope_pct=mean_slope_val,
         soil_source=payload.soil_source or "default",
         rain_source_type=rain_type,
+        upstream_catchment_truncated=bool(hydro.get("summary", {}).get("upstream_catchment_truncated", False)),
     )
 
     # Textura del suelo si está disponible (SoilGrids 2.0 ya consultado) para cálculo de K por Wischmeier
@@ -665,6 +722,7 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         sand_pct=sand_p,
         silt_pct=silt_p,
         clay_pct=clay_p,
+        active_mask=grids.get("active_mask") if "active_mask" in grids else None,
     )
 
     run_doc = {
@@ -835,6 +893,8 @@ def execute_hydrodynamic_2d_on_run(
     )
     observations = store.list_observations(field_id)
 
+    active_mask = grids.get("active_mask") if "active_mask" in grids else None
+
     sim2d = run_2d_diffusive_wave_simulation(
         dem=dem,
         z_cond=grids["z_cond"],
@@ -847,6 +907,7 @@ def execute_hydrodynamic_2d_on_run(
         ponding_threshold_m=params.ponding_threshold_m,
         observations=observations,
         recession_minutes=params.recession_minutes,
+        active_mask=active_mask,
     )
 
     pct_grid, _, _ = slope_for_hydrology(dem)
@@ -955,6 +1016,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         sand_pct=sand_p,
         silt_pct=silt_p,
         clay_pct=clay_p,
+        active_mask=grids.get("active_mask") if "active_mask" in grids else None,
     )
 
     # 4. Curvas de nivel y Terrazas (simulación antes vs. después)
@@ -971,6 +1033,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         sand_pct=sand_p,
         silt_pct=silt_p,
         clay_pct=clay_p,
+        active_mask=grids.get("active_mask") if "active_mask" in grids else None,
     )
 
     # 5. Calculadora de Siembra y Fertilizante (Tablas INTA)
@@ -998,6 +1061,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         sand_pct=sand_p,
         silt_pct=silt_p,
         clay_pct=clay_p,
+        active_mask=grids.get("active_mask") if "active_mask" in grids else None,
     )
 
     # 2, 3 y 8. Clima diario NASA POWER -> Balance hídrico mensual, Riesgo de anegamiento real y Heladas

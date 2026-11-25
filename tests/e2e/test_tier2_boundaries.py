@@ -224,7 +224,7 @@ def test_e2e_t2_f2_05_buffer_bounds(api_client: TestClient, tmp_path: Path):
     dem_path = write_sloped_plane_dem(tmp_path / "dem_b.tif")
     assert _upload_dem(api_client, f["id"], dem_path, buffer_m=0.0)["quality"]["buffer_m"] == 0.0
 
-    for bad_buf in ("-1", "5001"):
+    for bad_buf in ("-1", "10001"):
         with dem_path.open("rb") as fh:
             r = api_client.post(
                 f"/api/v1/fields/{f['id']}/terrain/process",

@@ -18,7 +18,7 @@ import numpy as np
 
 from geoprocessing.fields import field_utm_geometry
 
-BUFFER_MAX_M = 5000.0
+BUFFER_MAX_M = 10000.0
 MAX_CELDAS = 4000 * 4000  # límite de seguridad para no agotar memoria en Fase 0 (medir con datos reales)
 
 
@@ -36,6 +36,8 @@ class PreparedDem:
     bounds: tuple[float, float, float, float]  # en UTM
     buffer_m: float
     source_pixel_size_m: tuple[float, float]
+    resampling_outside_field: bool = False
+    resampled_resolution_m: float | None = None
 
 
 def source_pixel_size_m(src) -> tuple[float, float]:
@@ -68,10 +70,19 @@ def prepare_dem(source_path: Path, geometry_4326: dict, epsg: int, buffer_m: flo
         oeste, sur = math.floor(oeste / res) * res, math.floor(sur / res) * res
         este, norte = math.ceil(este / res) * res, math.ceil(norte / res) * res
         ancho, alto = int(round((este - oeste) / res)), int(round((norte - sur) / res))
+        resampling_outside_field = False
+        resampled_res_m = None
+
         if ancho * alto > MAX_CELDAS:
-            raise DemPreparationError(
-                f"El área (lote + aporte) requiere {ancho}×{alto} celdas a {res} m: reducí la zona de aporte "
-                "o usá un DEM de menor resolución para esta fase.")
+            # Respetar MAX_CELDAS adaptando la resolución efectiva y declarando el remuestreo fuera del lote
+            factor = math.ceil(math.sqrt((ancho * alto) / MAX_CELDAS))
+            res = round(res * factor, 1)
+            oeste, sur = math.floor(oeste / res) * res, math.floor(sur / res) * res
+            este, norte = math.ceil(este / res) * res, math.ceil(norte / res) * res
+            ancho, alto = int(round((este - oeste) / res)), int(round((norte - sur) / res))
+            resampling_outside_field = True
+            resampled_res_m = res
+
         transform = from_origin(oeste, norte, res, res)
         datos = np.full((alto, ancho), np.nan, dtype="float32")
         nodata_src = src.nodata if src.nodata is not None else np.nan
@@ -90,6 +101,9 @@ def prepare_dem(source_path: Path, geometry_4326: dict, epsg: int, buffer_m: flo
         etiquetas["DERIVED_FROM"] = source_path.name
         etiquetas["BUFFER_M"] = str(buffer_m)
         etiquetas["RESAMPLING"] = "bilinear"
+        if resampling_outside_field:
+            etiquetas["RESAMPLING_OUTSIDE_FIELD"] = "bilinear"
+            etiquetas["PIXEL_SIZE_OUTSIDE_FIELD_M"] = str(res)
 
     if not np.isfinite(datos).any():
         raise DemPreparationError("El DEM no cubre el lote ni su zona de aporte.")
@@ -102,4 +116,6 @@ def prepare_dem(source_path: Path, geometry_4326: dict, epsg: int, buffer_m: flo
 
     return PreparedDem(path=destino, crs=crs_dst, pixel_size_m=res, width=ancho, height=alto,
                        bounds=(oeste, sur, este, norte), buffer_m=buffer_m,
-                       source_pixel_size_m=(round(px, 3), round(py, 3)))
+                       source_pixel_size_m=(round(px, 3), round(py, 3)),
+                       resampling_outside_field=resampling_outside_field,
+                       resampled_resolution_m=resampled_res_m)

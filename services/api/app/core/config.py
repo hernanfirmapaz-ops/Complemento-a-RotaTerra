@@ -25,6 +25,6 @@ MAX_GEOJSON_BYTES = int(os.environ.get("ROTATERRA_MAX_GEOJSON_MB", "5")) * 1024 
 MAX_DEM_BYTES = int(os.environ.get("ROTATERRA_MAX_DEM_MB", "300")) * 1024 * 1024
 MAX_FIELD_AREA_HA = float(os.environ.get("ROTATERRA_MAX_FIELD_AREA_HA", "2000.0"))
 MAX_UNCOMPRESSED_ZIP_BYTES = int(os.environ.get("ROTATERRA_MAX_UNCOMPRESSED_ZIP_MB", "50")) * 1024 * 1024
-DEFAULT_BUFFER_M = 300.0
+DEFAULT_BUFFER_M = 3000.0
 CORS_ORIGINS = [o for o in os.environ.get("ROTATERRA_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o]
 OPENTOPOGRAPHY_API_KEY = os.environ.get("OPENTOPOGRAPHY_API_KEY", "")

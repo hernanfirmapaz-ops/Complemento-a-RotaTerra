@@ -258,7 +258,8 @@ export function App() {
       if (!terrain) {
         await processTerrain(activeField.id, {
           sourceId: 'copernicus_glo30',
-          bufferM: 300,
+          bufferM: 3000,
+          adaptiveCatchment: true,
         })
       }
       let presetLabel = `Lluvia ${mm} mm`
@@ -332,7 +333,8 @@ export function App() {
       if (!terrain) {
         await processTerrain(activeField.id, {
           sourceId: 'copernicus_glo30',
-          bufferM: 300,
+          bufferM: 3000,
+          adaptiveCatchment: true,
         })
       }
       const res = await simulateDailyRainfall(activeField.id, {
@@ -401,7 +403,8 @@ export function App() {
         )
         await processTerrain(fld.id, {
           sourceId: 'copernicus_glo30',
-          bufferM: 300,
+          bufferM: 3000,
+          adaptiveCatchment: true,
         })
         setBusy(
           'Paso 3/4: Calculando pendientes, vaguadas y red de drenaje MFD...',
