@@ -296,6 +296,7 @@ def compute_usle_erosion_and_gullies(
     clay_pct: float | None = None,
     organic_matter_pct: float | None = None,
     k_factor: float | None = None,
+    active_mask: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Calcula la pérdida potencial de suelo por tormenta (t/ha) y localiza focos de cárcavas.
 
@@ -330,6 +331,8 @@ def compute_usle_erosion_and_gullies(
     r_storm = estimate_storm_erosivity_r(precipitation_mm, max_intensity_mm_h)
 
     valid = np.isfinite(ls_grid)
+    if active_mask is not None:
+        valid = valid & active_mask
     in_field = mascara_lote & valid
     cell_area_ha = (float(pixel_size_m) ** 2) / 10_000.0
     ls_field = ls_grid[in_field]

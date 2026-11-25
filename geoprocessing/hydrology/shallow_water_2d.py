@@ -430,6 +430,7 @@ def run_2d_diffusive_wave_simulation(
     z_bed: np.ndarray | None = None,
     solver_mode: Literal["inertial", "diffusive"] = "inertial",
     is_closed: bool = False,
+    active_mask: np.ndarray | None = None,
 ) -> dict:
     """Ejecuta el solver 2D de onda difusiva con ley de Manning sobre la grilla UTM del lote.
 
@@ -444,6 +445,8 @@ def run_2d_diffusive_wave_simulation(
     cell_area_m2 = dx * dx
     alto, ancho = z_cond.shape
     valid = np.isfinite(z_cond)
+    if active_mask is not None:
+        valid = valid & active_mask
     n_valid = int(valid.sum())
     if n_valid == 0:
         raise ValueError("El DEM no tiene celdas válidas para la simulación hidrodinámica 2D.")

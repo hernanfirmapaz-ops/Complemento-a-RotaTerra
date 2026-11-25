@@ -9,15 +9,14 @@ Verifica:
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from geoprocessing.dem.prepare import MAX_CELDAS, PreparedDem, prepare_dem
+from geoprocessing.dem.prepare import prepare_dem
 from geoprocessing.hydrology.catchment import (
-    CatchmentResult,
+    build_active_catchment_mask,
     resolve_adaptive_margin_steps,
     trace_upslope_catchment,
 )
@@ -133,6 +132,41 @@ def test_confidence_indicator_penalizes_truncated_catchment():
     assert any("truncada" in r.lower() for r in conf_trunc["reasons"])
 
 
+def test_build_active_catchment_mask_includes_catchment_lot_and_downstream():
+    """Verifica que la máscara activa una la cuenca aguas arriba, el lote y la franja aguas abajo."""
+    alto, ancho = 30, 30
+    d8 = np.ones((alto, ancho), dtype=np.uint8)  # todo fluye hacia el este (código 1)
+
+    # Lote en columnas 10..14, filas 12..16
+    mascara_lote = np.zeros((alto, ancho), dtype=bool)
+    mascara_lote[12:17, 10:15] = True
+
+    # Cuenca de aporte (columnas 5..9 fluyen hacia el lote)
+    catchment_mask = np.zeros((alto, ancho), dtype=bool)
+    catchment_mask[12:17, 5:10] = True
+
+    active = build_active_catchment_mask(
+        catchment_mask=catchment_mask,
+        mascara_lote=mascara_lote,
+        d8_code=d8,
+        pixel_size_m=30.0,
+        downstream_buffer_m=150.0,  # ~5 celdas aguas abajo
+        dilation_cells=1,
+    )
+
+    # El lote completo debe estar activo
+    assert np.all(active[mascara_lote])
+    # La cuenca de aporte completa debe estar activa
+    assert np.all(active[catchment_mask])
+    # Debe haber celdas aguas abajo (este de columna 14) activas
+    assert np.any(active[12:17, 15:20])
+    # Las esquinas distantes deben estar inactivas (enmascaradas)
+    assert not active[0, 0]
+    assert not active[29, 29]
+    assert not active[0, 29]
+    assert not active[29, 0]
+
+
 def test_prepare_dem_respects_max_celdas_and_declares_resampling(tmp_path: Path):
     """Verifica que prepare_dem remuestree fuera del lote cuando se superaría MAX_CELDAS."""
     import rasterio
@@ -197,6 +231,7 @@ def test_api_terrain_process_adaptive_catchment_integration(tmp_path: Path, monk
     """Verifica la integración completa API de terreno e hidrología con cuenca adaptativa."""
     import httpx
     from fastapi.testclient import TestClient
+
     from geoprocessing import net as geonet
     from services.api.app.core import config
     from services.api.app.main import app

@@ -10,18 +10,17 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 
 from geoprocessing.hydrology.flow import D8_TABLE
-
-D8_OFFSETS = {code: (dr, dc) for dr, dc, code, *_ in D8_TABLE}
 from geoprocessing.supuestos import (
     SUPUESTO_CUENCA_MARGEN_EXPANSION_KM,
     SUPUESTO_CUENCA_MARGEN_INICIAL_KM,
     SUPUESTO_CUENCA_MARGEN_MAXIMO_KM,
 )
+
+D8_OFFSETS = {code: (dr, dc) for dr, dc, code, *_ in D8_TABLE}
 
 
 @dataclass
@@ -126,3 +125,54 @@ def resolve_adaptive_margin_steps() -> list[float]:
         float(SUPUESTO_CUENCA_MARGEN_EXPANSION_KM.valor) * 1000.0,
         float(SUPUESTO_CUENCA_MARGEN_MAXIMO_KM.valor) * 1000.0,
     ]
+
+
+def build_active_catchment_mask(
+    catchment_mask: np.ndarray,
+    mascara_lote: np.ndarray,
+    d8_code: np.ndarray,
+    pixel_size_m: float = 30.0,
+    downstream_buffer_m: float = 500.0,
+    dilation_cells: int = 2,
+) -> np.ndarray:
+    """Construye la máscara booleana del dominio hidrológico activo:
+    Cuenca de aporte aguas arriba + Lote + Franja aguas abajo + Dilatación lateral.
+    Permite restringir el motor 2D y el cálculo hidrológico sin procesar celdas irrelevantes.
+    """
+    alto, ancho = d8_code.shape
+    max_steps = max(1, int(round(downstream_buffer_m / max(1.0, pixel_size_m))))
+
+    # 1. Rastro aguas abajo desde las celdas del lote
+    downstream = np.zeros((alto, ancho), dtype=bool)
+    current_cells = set(zip(*np.nonzero(mascara_lote)))
+
+    for _ in range(max_steps):
+        next_cells = set()
+        for r, c in current_cells:
+            code = int(d8_code[r, c])
+            if code in D8_OFFSETS:
+                dr, dc = D8_OFFSETS[code]
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < alto and 0 <= nc < ancho and not mascara_lote[nr, nc] and not downstream[nr, nc]:
+                    downstream[nr, nc] = True
+                    next_cells.add((nr, nc))
+        if not next_cells:
+            break
+        current_cells = next_cells
+
+    # 2. Unión de cuenca de aporte + lote + franja aguas abajo
+    active = catchment_mask | mascara_lote | downstream
+
+    # 3. Dilatación morfológica para márgenes de ribera y transferencias laterales
+    if dilation_cells > 0:
+        for _ in range(dilation_cells):
+            padded = np.pad(active, 1, mode="constant", constant_values=False)
+            new_active = active.copy()
+            for dr in (-1, 0, 1):
+                for dc in (-1, 0, 1):
+                    if dr == 0 and dc == 0:
+                        continue
+                    new_active |= padded[1 + dr : 1 + dr + alto, 1 + dc : 1 + dc + ancho]
+            active = new_active
+
+    return active

@@ -200,6 +200,35 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         )
 
     d8_code, d8_az, d8_cells, d8_area_m2 = d8_direction_and_accumulation(z_cond, dem.pixel)
+
+    # Delimitación de cuenca de aporte aguas arriba y dominio activo (Spec 032 §2 / Issue #114)
+    from geoprocessing.hydrology.catchment import (
+        build_active_catchment_mask,
+        trace_upslope_catchment,
+    )
+    from geoprocessing.supuestos import SUPUESTO_CUENCA_MARGEN_MAXIMO_KM
+
+    buffer_cand = terreno.get("parameters", {}).get("buffer_m")
+    if buffer_cand is None:
+        raise ValueError("Falta el parámetro 'buffer_m' en los metadatos del terreno procesado.")
+    buffer_val = float(buffer_cand)
+
+    catchment_res = trace_upslope_catchment(
+        d8_code=d8_code,
+        mascara_lote=mascara,
+        pixel_size_m=dem.pixel,
+        current_margin_km=round(buffer_val / 1000.0, 1),
+        max_margin_km=float(SUPUESTO_CUENCA_MARGEN_MAXIMO_KM.valor),
+    )
+    active_mask = build_active_catchment_mask(
+        catchment_mask=catchment_res.mask,
+        mascara_lote=mascara,
+        d8_code=d8_code,
+        pixel_size_m=dem.pixel,
+        downstream_buffer_m=500.0,
+        dilation_cells=2,
+    )
+
     mfd_cells, mfd_area_m2, mfd_balance = mfd_accumulation(
         z_cond, dem.pixel, exponent_p=params.mfd_exponent
     )
@@ -250,6 +279,8 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
         twi=twi_grid,
         spi=spi_grid,
         agronomic_zone_id=agro_zone_grid,
+        active_mask=active_mask,
+        catchment_mask=catchment_res.mask,
     )
 
     deps_in_field = [d for d in depressions if d.in_field]
@@ -269,17 +300,6 @@ def run_static_hydrology(field_id: str, params: HydrologyRunIn) -> dict:
     raw_in_field = pct_raw[mascara & np.isfinite(pct_raw)]
     raw_mean_slope_in_field_pct = round(float(raw_in_field.mean()), 3) if raw_in_field.size else None
     mean_slope_in_field_pct = plane_res["slope_pct"]
-
-    # Delimitación de cuenca de aporte completa aguas arriba (Spec 032 §2 / Issue #114)
-    from geoprocessing.hydrology.catchment import trace_upslope_catchment
-    buffer_val = float(terreno.get("parameters", {}).get("buffer_m", 3000.0))
-    catchment_res = trace_upslope_catchment(
-        d8_code=d8_code,
-        mascara_lote=mascara,
-        pixel_size_m=dem.pixel,
-        current_margin_km=round(buffer_val / 1000.0, 1),
-        max_margin_km=10.0,
-    )
 
     summary = {
         "mean_slope_in_field_pct": mean_slope_in_field_pct,
@@ -685,6 +705,7 @@ def execute_runoff_run(field_id: str, payload: RunoffRunIn) -> dict:
         sand_pct=sand_p,
         silt_pct=silt_p,
         clay_pct=clay_p,
+        active_mask=grids.get("active_mask") if "active_mask" in grids else None,
     )
 
     run_doc = {
@@ -855,6 +876,8 @@ def execute_hydrodynamic_2d_on_run(
     )
     observations = store.list_observations(field_id)
 
+    active_mask = grids.get("active_mask") if "active_mask" in grids else None
+
     sim2d = run_2d_diffusive_wave_simulation(
         dem=dem,
         z_cond=grids["z_cond"],
@@ -867,6 +890,7 @@ def execute_hydrodynamic_2d_on_run(
         ponding_threshold_m=params.ponding_threshold_m,
         observations=observations,
         recession_minutes=params.recession_minutes,
+        active_mask=active_mask,
     )
 
     pct_grid, _, _ = slope_for_hydrology(dem)
@@ -975,6 +999,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         sand_pct=sand_p,
         silt_pct=silt_p,
         clay_pct=clay_p,
+        active_mask=grids.get("active_mask") if "active_mask" in grids else None,
     )
 
     # 4. Curvas de nivel y Terrazas (simulación antes vs. después)
@@ -991,6 +1016,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         sand_pct=sand_p,
         silt_pct=silt_p,
         clay_pct=clay_p,
+        active_mask=grids.get("active_mask") if "active_mask" in grids else None,
     )
 
     # 5. Calculadora de Siembra y Fertilizante (Tablas INTA)
@@ -1018,6 +1044,7 @@ def run_agronomic_toolkit(field_id: str, params: AgronomicToolkitIn) -> dict:
         sand_pct=sand_p,
         silt_pct=silt_p,
         clay_pct=clay_p,
+        active_mask=grids.get("active_mask") if "active_mask" in grids else None,
     )
 
     # 2, 3 y 8. Clima diario NASA POWER -> Balance hídrico mensual, Riesgo de anegamiento real y Heladas
