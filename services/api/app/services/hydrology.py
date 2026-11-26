@@ -1672,19 +1672,14 @@ def get_or_compute_rainfall_ladder(
 
     # Leer textura de suelo si existe
     sand_p, silt_p, clay_p = None, None, None
-    ruta_suelo = carpeta / "soil.json"
+    s_info = store.load_soil(field_id)
     effective_soil_group = soil_group
-    if ruta_suelo.exists():
-        try:
-            s_info = json.loads(ruta_suelo.read_text(encoding="utf-8"))
-            if s_info and s_info.get("quality") != "descartada":
-                sand_p = s_info.get("sand_pct")
-                silt_p = s_info.get("silt_pct")
-                clay_p = s_info.get("clay_pct")
-                if not effective_soil_group and s_info.get("soil_group"):
-                    effective_soil_group = s_info.get("soil_group")
-        except Exception:
-            pass
+    if s_info and s_info.get("quality") != "descartada":
+        sand_p = s_info.get("sand_pct")
+        silt_p = s_info.get("silt_pct")
+        clay_p = s_info.get("clay_pct")
+        if not effective_soil_group and s_info.get("soil_group"):
+            effective_soil_group = s_info.get("soil_group")
 
     final_soil = effective_soil_group or "B"
     final_amc = amc or "medium"
@@ -1695,7 +1690,6 @@ def get_or_compute_rainfall_ladder(
     ext_inflow = float(hydro.get("summary", {}).get("external_inflow_ha", 0.0))
 
     from geoprocessing.rainfall.ladder import compute_rainfall_ladder
-    from geoprocessing.rainfall.rem_sanluis import get_rem_return_periods
 
     ladder_dict = compute_rainfall_ladder(
         field_id=field_id,
@@ -1717,10 +1711,6 @@ def get_or_compute_rainfall_ladder(
         step_size_override_mm=step_size_mm,
     )
 
-    # Períodos de retorno reales de la estación meteorológica más cercana (< 40 km)
-    lon_c, lat_c = field["centroid"]
-    rp_station = get_rem_return_periods(lon_c, lat_c)
-    ladder_dict["return_periods_station"] = rp_station
-
+    ladder_dict["return_periods_station"] = None
     return ladder_dict
 

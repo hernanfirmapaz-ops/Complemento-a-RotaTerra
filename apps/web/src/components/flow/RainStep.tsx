@@ -1,9 +1,8 @@
-import type { AntecedentMoisture, DailyRainfallContextOut, RainfallLadderOut, SoilOut } from '../../types/api'
+import type { AntecedentMoisture, DailyRainfallContextOut, SoilOut } from '../../types/api'
 import { Button } from '../ui/Button'
 import { Segmented } from '../ui/Segmented'
 import { Details } from '../ui/Details'
 import { SourceNote } from '../ui/SourceNote'
-import { RainfallSlider } from './RainfallSlider'
 
 interface RainStepProps {
   stormMm: number
@@ -20,8 +19,6 @@ interface RainStepProps {
   onBack: () => void
   busy: boolean
   soilInfo?: SoilOut | null
-  ladderData?: RainfallLadderOut | null
-  loadingLadder?: boolean
   className?: string
 }
 
@@ -40,14 +37,12 @@ export function RainStep({
   onBack,
   busy,
   soilInfo = null,
-  ladderData = null,
-  loadingLadder = false,
   className = '',
 }: RainStepProps) {
   const rainOptions = [
     { value: '30', label: 'Conservador 30 mm', sublabel: 'Lluvia suave' },
-    { value: '80', label: 'Medio 80 mm', sublabel: 'Lluvia moderada' },
-    { value: '130', label: 'Crítico 130 mm', sublabel: 'Lluvia severa' },
+    { value: '80', label: 'Medio 80 mm', sublabel: 'Tormenta de diseño' },
+    { value: '130', label: 'Crítico 130 mm', sublabel: 'Crecida extraordinaria' },
   ]
 
   return (
@@ -55,23 +50,12 @@ export function RainStep({
       <div className="step-header">
         <h2 className="step-heading">¿Cuánto llueve?</h2>
         <p className="step-subtext">
-          Deslizá la barra de 5 a 150 mm o elegí un acceso rápido para evaluar el escurrimiento y los bajos de retención del lote.
+          Elegí el escenario de tormenta de diseño (Conservador, Medio o Crítico) para simular el escurrimiento y los bajos de retención.
         </p>
       </div>
 
-      {/* Barra de milímetros con escalera precalculada, marcas T2..T50 y curva ha vs mm */}
-      <RainfallSlider
-        value={stormMm}
-        onChange={onSelectMm}
-        ladderData={ladderData}
-        loadingLadder={loadingLadder}
-        disabled={busy}
-      />
-
-      <div className="rain-presets-block" style={{ marginTop: '0.5rem' }}>
-        <label className="field-label-text" style={{ fontSize: '0.82rem', color: '#64748b' }}>
-          Accesos directos recomendados:
-        </label>
+      <div className="rain-presets-block">
+        <label className="field-label-text">Intensidad de tormenta:</label>
         <Segmented
           value={String(stormMm)}
           onChange={(val) => onSelectMm(Number(val))}
@@ -197,7 +181,7 @@ export function RainStep({
         />
         <SourceNote
           source="Curva Número (USDA-NRCS) y flujo MFD"
-          details="Escenario hipotético de precipitación acumulada, no un evento medido"
+          details="Tormenta de diseño: escenario hipotético, no un evento medido"
         />
       </div>
     </div>

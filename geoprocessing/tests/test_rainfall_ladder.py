@@ -26,10 +26,11 @@ from geoprocessing.hydrology.catchment import (
 )
 from geoprocessing.hydrology.flow import d8_direction_and_accumulation, mfd_accumulation
 from geoprocessing.rainfall.ladder import (
+    LadderStepResult,
     clear_ladder_cache,
     compute_rainfall_ladder,
+    detect_critical_ponding_threshold,
 )
-from geoprocessing.rainfall.rem_sanluis import get_rem_return_periods
 from geoprocessing.supuestos import (
     SUPUESTO_CUENCA_MARGEN_MAXIMO_KM,
     SUPUESTO_ESCALERA_LLUVIA_MAX_MM,
@@ -223,10 +224,42 @@ def test_rainfall_ladder_critical_knee_point():
     )
 
     crit_mm = res["critical_ponding_threshold_mm"]
+    assert crit_mm is not None
     assert float(SUPUESTO_ESCALERA_LLUVIA_MIN_MM.valor) <= crit_mm <= float(SUPUESTO_ESCALERA_LLUVIA_MAX_MM.valor)
-    # A partir del umbral crítico, debe haber retención significativa en la cubeta
+    # A partir del umbral crítico, debe haber retención en la cubeta
     step_crit = next(s for s in res["ladder"] if s["precipitation_mm"] == crit_mm)
     assert step_crit["ponded_area_ha"] > 0.0
+
+
+def test_detect_critical_threshold_returns_none_when_no_ponding():
+    """Verifica que detect_critical_ponding_threshold retorne None si no hay anegamiento o hay < 3 peldaños (sin 50.0 ni peldaño del medio)."""
+    # Caso 1: menos de 3 peldaños -> None
+    few_steps = [
+        LadderStepResult(10.0, 0.0, 0.0, 0.0, None),
+        LadderStepResult(20.0, 0.5, 0.2, 10.0, None),
+    ]
+    assert detect_critical_ponding_threshold(few_steps) is None
+
+    # Caso 2: terreno sin anegamiento (0.0 ha en todos los peldaños) -> None
+    zero_pond_steps = [
+        LadderStepResult(float(p), 0.0, 0.0, float(p * 50), 0.1)
+        for p in range(10, 160, 10)
+    ]
+    assert detect_critical_ponding_threshold(zero_pond_steps) is None
+
+    # Caso 3: anegamiento despreciable (< 0.05 ha) -> None
+    trace_steps = [
+        LadderStepResult(float(p), 0.01, 0.01, float(p * 50), 0.1)
+        for p in range(10, 160, 10)
+    ]
+    assert detect_critical_ponding_threshold(trace_steps) is None
+
+
+def test_soil_loss_propagates_none_when_unavailable():
+    """Verifica que si no hay cálculo USLE disponible, soil_loss_t_ha_yr se propague como None (sin 'or 0.0')."""
+    step_none = LadderStepResult(30.0, 1.2, 0.5, 100.0, None)
+    d = step_none.to_dict()
+    assert d["soil_loss_t_ha_yr"] is None
 
 
 def test_rainfall_ladder_benchmark_with_real_catchment():
@@ -258,28 +291,6 @@ def test_rainfall_ladder_benchmark_with_real_catchment():
     assert res["benchmark_timing_ms"] > 0.0
     assert len(res["ladder"]) == 15
     print(f"\n[BENCHMARK] Escalera 15 peldaños (10 a 150 mm) sobre recorte lote+cuenca: {t_elapsed:.3f} s ({res['benchmark_timing_ms']:.1f} ms)")
-
-
-def test_rem_return_periods_in_one_day_label():
-    """Verifica que los períodos de retorno T2..T50 citen estrictamente 'en un día' (no 'en 24 h')."""
-    # Coordenadas cercanas a Villa Mercedes (-65.50, -33.68)
-    rp = get_rem_return_periods(lon=-65.50, lat=-33.68)
-    assert rp is not None
-    assert rp["station_name"] == "REM San Luis · Villa Mercedes"
-    assert "en un día" in rp["method"]
-    assert "en 24 h" not in rp["method"]
-    assert "T2" in rp["milimetros"]
-    assert "T10" in rp["milimetros"]
-    assert "T25" in rp["milimetros"]
-    assert "T50" in rp["milimetros"]
-    assert rp["milimetros"]["T2"] == 52.1
-    assert rp["milimetros"]["T10"] == 76.8
-    assert rp["milimetros"]["T25"] == 88.9
-    assert rp["milimetros"]["T50"] == 98.4
-
-    # Coordenadas lejanas (> 40 km, ej. Buenos Aires): no debe fabricar marcas sin estación
-    rp_far = get_rem_return_periods(lon=-58.38, lat=-34.60)
-    assert rp_far is None
 
 
 def test_rainfall_ladder_api_route(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -334,11 +345,4 @@ def test_rainfall_ladder_api_route(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert len(data["ladder"]) == 15
     assert data["critical_ponding_threshold_mm"] >= 10.0
     assert data["step_size_mm"] == 10
-
-    # Si el lote está en San Luis (< 40 km de una REM), debe incluir return_periods_station
-    if data["return_periods_station"]:
-        st = data["return_periods_station"]
-        assert "en un día" in st["method"]
-        assert "en 24 h" not in st["method"]
-        assert "T2" in st["milimetros"]
-        assert "T50" in st["milimetros"]
+    assert data["return_periods_station"] is None

@@ -615,3 +615,21 @@ SUPUESTO_ESCALERA_MAX_TIEMPO_COMPUTO_S = Supuesto(
     editable=True,
 )
 
+SUPUESTO_ESCALERA_RATIO_SENSIBILIDAD_CODO = Supuesto(
+    clave="escalera_ratio_sensibilidad_codo",
+    valor=0.15,
+    unidad="adimensional",
+    motivo="Fracción del gradiente marginal máximo (dHa/dP) por debajo de la cual se considera alcanzada la saturación de cubetas del lote.",
+    fuente_referencia="Spec 031 §3.2; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_ESCALERA_MIN_SUPERFICIE_ANEGADA_HA = Supuesto(
+    clave="escalera_min_superficie_anegada_ha",
+    valor=0.05,
+    unidad="ha",
+    motivo="Superficie anegada mínima en el lote para justificar la identificación de un codo o umbral crítico de anegamiento.",
+    fuente_referencia="Spec 031 §3.2; supuesto calibrable",
+    editable=True,
+)
+

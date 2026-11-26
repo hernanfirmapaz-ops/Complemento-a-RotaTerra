@@ -17,7 +17,6 @@ import type {
   ProfileOut,
   RainfallEventManualIn,
   RainfallEventOut,
-  RainfallLadderOut,
   RunoffRunIn,
   RunoffRunOut,
   RunoffTimelineOut,
@@ -179,25 +178,6 @@ export async function runStaticHydrology(
     body: JSON.stringify(payload),
   })
   return check<HydrologyOut>(res)
-}
-
-export async function fetchRainfallLadder(
-  fieldId: string,
-  params?: {
-    soilId?: string
-    amc?: string
-    coverType?: string
-    stepSizeMm?: number
-  },
-): Promise<RainfallLadderOut> {
-  const q = new URLSearchParams()
-  if (params?.soilId) q.append('soil_id', params.soilId)
-  if (params?.amc) q.append('amc', params.amc)
-  if (params?.coverType) q.append('cover_type', params.coverType)
-  if (params?.stepSizeMm) q.append('step_size_mm', String(params.stepSizeMm))
-  const qs = q.toString() ? `?${q.toString()}` : ''
-  const res = await fetch(`${BASE}/fields/${fieldId}/hydrology/rainfall-ladder${qs}`)
-  return check<RainfallLadderOut>(res)
 }
 
 export async function listRainfallEvents(

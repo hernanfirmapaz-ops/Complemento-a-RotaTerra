@@ -6,7 +6,6 @@ import {
   executeRunoffRun,
   exportGeoJsonUrl,
   exportReportUrl,
-  fetchRainfallLadder,
   getAgronomicToolkit,
   getDailyRainfallContext,
   getFieldSoil,
@@ -38,7 +37,6 @@ import type {
   MeshOut,
   PointOut,
   RainfallEventOut,
-  RainfallLadderOut,
   RunoffRunOut,
   RunoffTimelineOut,
   SoilGroup,
@@ -130,8 +128,6 @@ export function App() {
   const [selectedDailyDate, setSelectedDailyDate] = useState<string>('')
   const [exaggeration, setExaggeration] = useState<number>(2.5)
   const [selectedPoint, setSelectedPoint] = useState<PointOut | null>(null)
-  const [ladderData, setLadderData] = useState<RainfallLadderOut | null>(null)
-  const [loadingLadder, setLoadingLadder] = useState(false)
 
   // Estados de carga y error
   const [busy, setBusy] = useState<string | null>(null)
@@ -185,7 +181,6 @@ export function App() {
     setSelectedDailyDate('')
     setSelectedPoint(null)
     setSoilInfo(null)
-    setLadderData(null)
     if (!activeField) return
     void loadFieldSoil(activeField.id)
     if (!activeField.has_terrain) return
@@ -235,37 +230,6 @@ export function App() {
       .finally(() => setBusy(null))
   }, [activeField?.id, activeField?.has_terrain, activeField?.has_hydrology])
 
-  // Escalera precalculada de lluvia (Issue #113 / Spec 031) en segundo plano
-  useEffect(() => {
-    if (!activeField?.id || (!activeField.has_hydrology && !hydrology)) {
-      setLadderData(null)
-      return
-    }
-    let cancelled = false
-    setLoadingLadder(true)
-    fetchRainfallLadder(activeField.id, {
-      soilId: quickSoilGroup,
-      amc: quickAmc,
-      coverType: quickCover,
-    })
-      .then((data) => {
-        if (!cancelled) {
-          setLadderData(data)
-        }
-      })
-      .catch((err) => {
-        console.warn('Error fetching rainfall ladder:', err)
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoadingLadder(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [activeField?.id, activeField?.has_hydrology, Boolean(hydrology), quickSoilGroup, quickAmc, quickCover])
-
   /** Simulación de tormenta de diseño sobre el terreno 3D */
   const handleQuickSimulateRain = async (
     mmOverride?: number,
@@ -300,8 +264,8 @@ export function App() {
       }
       let presetLabel = `Lluvia ${mm} mm`
       if (mm === 30) presetLabel = 'Conservador (30 mm) · Lluvia suave'
-      else if (mm === 80) presetLabel = 'Medio (80 mm) · Lluvia moderada'
-      else if (mm === 130) presetLabel = 'Crítico (130 mm) · Lluvia severa'
+      else if (mm === 80) presetLabel = 'Medio (80 mm) · Tormenta de diseño'
+      else if (mm === 130) presetLabel = 'Crítico (130 mm) · Crecida extraordinaria'
 
       const ev = await createManualRainfallEvent(activeField.id, {
         name: presetLabel,
@@ -707,8 +671,6 @@ export function App() {
                 onSimulate={() => handleQuickSimulateRain()}
                 onBack={() => setFlowStep('lote')}
                 soilInfo={soilInfo}
-                ladderData={ladderData}
-                loadingLadder={loadingLadder}
                 busy={Boolean(busy)}
               />
             )}
@@ -808,9 +770,7 @@ export function App() {
                     setSheetSnap('half')
                   }}
                   onBack={() => setFlowStep('lote')}
-                  soilInfo={soilInfo}
-                  ladderData={ladderData}
-                  loadingLadder={loadingLadder}
+                soilInfo={soilInfo}
                   busy={Boolean(busy)}
                 />
               )}

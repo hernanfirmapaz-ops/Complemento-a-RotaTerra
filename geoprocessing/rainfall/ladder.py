@@ -26,6 +26,8 @@ from geoprocessing.supuestos import (
     SUPUESTO_ESCALERA_LLUVIA_PASO_DEFAULT_MM,
     SUPUESTO_ESCALERA_LLUVIA_PASO_DEGRADADO_MM,
     SUPUESTO_ESCALERA_MAX_TIEMPO_COMPUTO_S,
+    SUPUESTO_ESCALERA_MIN_SUPERFICIE_ANEGADA_HA,
+    SUPUESTO_ESCALERA_RATIO_SENSIBILIDAD_CODO,
 )
 
 # Caché en memoria para respuesta sub-milisegundo en sliders interactivos
@@ -38,7 +40,7 @@ class LadderStepResult:
     ponded_area_ha: float
     ponded_area_pct: float
     outflow_volume_m3: float
-    soil_loss_t_ha_yr: float
+    soil_loss_t_ha_yr: float | None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -67,34 +69,54 @@ def clear_ladder_cache(field_id: str | None = None) -> None:
             _LADDER_MEMORY_CACHE.pop(k, None)
 
 
-def detect_critical_ponding_threshold(steps: list[LadderStepResult]) -> float:
-    """Identifica el umbral crítico de anegamiento del lote (knee point de la curva ha vs mm).
+def detect_critical_ponding_threshold(steps: list[LadderStepResult]) -> float | None:
+    """Identifica el umbral crítico de saturación y anegamiento del lote (codo / knee point).
 
-    Calcula la segunda derivada discreta d2(ha)/dP2 para encontrar el quiebre donde
-    la capacidad de retención en micro-depresiones se satura y se desata el escurrimiento generalizado.
+    Evalúa la tasa marginal de anegamiento d(ha)/dP. Cuando las micro-depresiones alcanzan
+    su capacidad máxima de retención y comienzan a desbordar hacia vías de escurrimiento,
+    la tasa de crecimiento de área anegada disminuye bruscamente.
+
+    Criterio:
+    1. Si hay menos de 3 peldaños o la superficie anegada máxima es inferior a
+       SUPUESTO_ESCALERA_MIN_SUPERFICIE_ANEGADA_HA, se retorna None (sin anegamiento apreciable).
+    2. Se localiza el peldaño de máxima tasa de llenado marginal (g_max = max(dHa/dP)).
+    3. Se identifica el primer peldaño posterior a g_max donde el incremento marginal cae
+       por debajo de SUPUESTO_ESCALERA_RATIO_SENSIBILIDAD_CODO * g_max (saturación de cubetas).
+    4. Si no se verifica una desaceleración clara o la curva es estrictamente lineal,
+       retorna None (sin codo evidente).
     """
     if len(steps) < 3:
-        return float(steps[-1].precipitation_mm if steps else 50.0)
+        return None
+
+    ha_max_lote = max(s.ponded_area_ha for s in steps)
+    min_ha = float(SUPUESTO_ESCALERA_MIN_SUPERFICIE_ANEGADA_HA.valor)
+    if ha_max_lote < min_ha:
+        return None
 
     p_vals = [s.precipitation_mm for s in steps]
     ha_vals = [s.ponded_area_ha for s in steps]
 
-    # Derivadas discretas
-    d1 = [ha_vals[i + 1] - ha_vals[i] for i in range(len(ha_vals) - 1)]
-    d2 = [d1[i + 1] - d1[i] for i in range(len(d1) - 1)]
+    # Pendientes marginales dHa / dP
+    slopes: list[float] = []
+    for i in range(len(steps) - 1):
+        dp = p_vals[i + 1] - p_vals[i]
+        dha = ha_vals[i + 1] - ha_vals[i]
+        slopes.append(dha / dp if dp > 0 else 0.0)
 
-    # Buscar el índice con máxima curvatura positiva (aceleración de anegamiento)
-    max_d2_idx = int(np.argmax(d2)) if d2 else 0
+    max_slope = max(slopes)
+    if max_slope <= 0.0:
+        return None
 
-    # Si todas las derivadas son cero (sin anegamiento), buscar el primer peldaño con escurrimiento
-    if max(d1) <= 0.0:
-        for s in steps:
-            if s.outflow_volume_m3 > 0.0:
-                return float(s.precipitation_mm)
-        return float(p_vals[len(p_vals) // 2])
+    max_slope_idx = slopes.index(max_slope)
+    ratio_sens = float(SUPUESTO_ESCALERA_RATIO_SENSIBILIDAD_CODO.valor)
+    threshold_slope = ratio_sens * max_slope
 
-    crit_p = p_vals[max_d2_idx + 1]
-    return float(round(crit_p, 1))
+    # Buscar el punto donde la pendiente decae tras el máximo (saturación de bajos)
+    for i in range(max_slope_idx, len(slopes)):
+        if slopes[i] <= threshold_slope:
+            return float(round(p_vals[i + 1], 1))
+
+    return None
 
 
 def compute_rainfall_ladder(
@@ -221,7 +243,8 @@ def compute_rainfall_ladder(
             k_factor=k_factor,
             active_mask=active_mask,
         )
-        soil_loss_tha = float(ero_sum.get("mean_soil_loss_t_ha") or 0.0)
+        mean_loss = ero_sum.get("mean_soil_loss_t_ha")
+        soil_loss_tha = round(float(mean_loss), 2) if mean_loss is not None else None
 
         ladder_steps.append(
             LadderStepResult(
@@ -229,7 +252,7 @@ def compute_rainfall_ladder(
                 ponded_area_ha=round(ponded_ha, 3),
                 ponded_area_pct=ponded_pct,
                 outflow_volume_m3=round(outflow_m3, 1),
-                soil_loss_t_ha_yr=round(soil_loss_tha, 2),
+                soil_loss_t_ha_yr=soil_loss_tha,
             )
         )
 

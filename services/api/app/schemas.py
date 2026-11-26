@@ -700,7 +700,7 @@ class RainfallLadderStepOut(BaseModel):
     ponded_area_ha: float
     ponded_area_pct: float
     outflow_volume_m3: float
-    soil_loss_t_ha_yr: float
+    soil_loss_t_ha_yr: float | None = None
 
 
 class ReturnPeriodsStationOut(BaseModel):
@@ -718,7 +718,7 @@ class RainfallLadderOut(BaseModel):
     parameters: dict[str, Any]
     benchmark_timing_ms: float
     step_size_mm: int
-    critical_ponding_threshold_mm: float
+    critical_ponding_threshold_mm: float | None = None
     return_periods_station: ReturnPeriodsStationOut | None = None
     ladder: list[RainfallLadderStepOut]
     from_cache: bool = False
