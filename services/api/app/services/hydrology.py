@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
+from typing import Any
 
 import numpy as np
 import rasterio
@@ -1646,3 +1647,70 @@ def simulate_field_daily_rainfall(
         "event": event,
         "runoff_run": runoff_res,
     }
+
+
+def get_or_compute_rainfall_ladder(
+    field_id: str,
+    soil_group: str | None = None,
+    amc: str | None = None,
+    cover_code: str | None = None,
+    step_size_mm: int | None = None,
+) -> dict[str, Any]:
+    """Obtiene o computa la escalera precalculada de respuesta hidrológica (Spec 031 / Issue #113)."""
+    field = store.load_field(field_id)
+    _terreno = store.load_terrain(field_id)
+    hydro = store.load_hydrology(field_id)
+    grids = load_hydrology_grids(field_id, hydro["processed_at"])
+
+    carpeta = store.field_dir(field_id)
+    dem = Dem.open(carpeta / "dem_utm.tif")
+    mascara = field_mask(field["geometry"], field["utm_epsg"], dem.transform, dem.z.shape)
+    pct_grid, _, _ = slope_for_hydrology(dem)
+    spi_grid = grids["spi"]
+    mfd_area = grids["mfd_area_m2"]
+    active_mask = grids.get("active_mask")
+
+    # Leer textura de suelo si existe
+    sand_p, silt_p, clay_p = None, None, None
+    s_info = store.load_soil(field_id)
+    effective_soil_group = soil_group
+    if s_info and s_info.get("quality") != "descartada":
+        sand_p = s_info.get("sand_pct")
+        silt_p = s_info.get("silt_pct")
+        clay_p = s_info.get("clay_pct")
+        if not effective_soil_group and s_info.get("soil_group"):
+            effective_soil_group = s_info.get("soil_group")
+
+    final_soil = effective_soil_group or "B"
+    final_amc = amc or "medium"
+    final_cover = cover_code or "soja_maiz_sd_buena"
+
+    dep_vol = float(hydro.get("summary", {}).get("total_depression_volume_in_field_m3", 0.0))
+    dep_area = float(hydro.get("summary", {}).get("total_depression_area_in_field_ha", 0.0))
+    ext_inflow = float(hydro.get("summary", {}).get("external_inflow_ha", 0.0))
+
+    from geoprocessing.rainfall.ladder import compute_rainfall_ladder
+
+    ladder_dict = compute_rainfall_ladder(
+        field_id=field_id,
+        mascara_lote=mascara,
+        mfd_area_m2=mfd_area,
+        slope_pct=pct_grid,
+        spi=spi_grid,
+        pixel_size_m=dem.pixel,
+        depression_volume_in_field_m3=dep_vol,
+        depression_area_in_field_ha=dep_area,
+        external_inflow_ha=ext_inflow,
+        soil_group=final_soil,
+        cover_code=final_cover,
+        amc=final_amc,
+        sand_pct=sand_p,
+        silt_pct=silt_p,
+        clay_pct=clay_p,
+        active_mask=active_mask,
+        step_size_override_mm=step_size_mm,
+    )
+
+    ladder_dict["return_periods_station"] = None
+    return ladder_dict
+

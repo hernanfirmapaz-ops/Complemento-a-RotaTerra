@@ -18,6 +18,7 @@ from services.api.app.schemas import (
     HydrologyRunIn,
     RainfallEventManualIn,
     RainfallEventOut,
+    RainfallLadderOut,
     RunoffRunIn,
     RunoffRunOut,
     RunoffTimelineOut,
@@ -287,4 +288,32 @@ def simular_lluvia_diaria_estimada(
         raise HTTPException(status_code=404, detail=f"Recurso no encontrado: {error}") from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/rainfall-ladder", response_model=RainfallLadderOut)
+def obtener_escalera_lluvia(
+    field_id: str,
+    soil_id: str | None = Query(None, description="Grupo hidrológico de suelo (A, B, C, D)"),
+    amc: str | None = Query(None, description="Condición de humedad antecedente (dry, medium, wet)"),
+    cover_type: str | None = Query(None, description="Código de cobertura vegetal"),
+    step_size_mm: int | None = Query(None, description="Paso de milímetros opcional"),
+):
+    """Retorna la escalera precalculada de respuesta hidrológica (10 a 150 mm) con marcas T2..T50 (Spec 031 / Issue #113)."""
+    try:
+        store.load_field(field_id)
+        return hydrology.get_or_compute_rainfall_ladder(
+            field_id=field_id,
+            soil_group=soil_id,
+            amc=amc,
+            cover_code=cover_type,
+            step_size_mm=step_size_mm,
+        )
+    except store.NotFound as error:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Recurso no encontrado: {error}. Debe procesar el terreno y la hidrología estática primero.",
+        ) from error
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=f"Error al calcular la escalera de lluvia: {error}") from error
+
 
