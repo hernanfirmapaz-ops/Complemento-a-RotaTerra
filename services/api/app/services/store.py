@@ -37,7 +37,20 @@ def new_id() -> str:
 def field_dir(field_id: str) -> Path:
     if not _ID.match(field_id):  # evita rutas arbitrarias (../) armadas con el id
         raise NotFound(field_id)
-    return DATA_DIR / field_id
+    safe_path = (DATA_DIR / Path(field_id).name).resolve()
+    if not safe_path.is_relative_to(DATA_DIR.resolve()):
+        raise NotFound(field_id)
+    return safe_path
+
+
+def load_soil(field_id: str) -> dict | None:
+    ruta = field_dir(field_id) / "soil.json"
+    if not ruta.exists():
+        return None
+    try:
+        return json.loads(ruta.read_text(encoding="utf-8"))
+    except Exception:
+        return None
 
 
 def save_field(data: dict) -> dict:

@@ -420,3 +420,140 @@ def get_rem_antecedent_rainfall_5d(
         "days_evaluated": prior_days,
         "quality_flag": "medicion_estacion_rem_oficial",
     }
+
+
+def fit_gumbel_moments(
+    annual_maxima_mm: list[float],
+    return_periods: list[int] | None = None,
+) -> dict[str, float]:
+    """Ajusta una distribución de Gumbel (Tipo I / EV1) por el Método de Momentos (Gumbel 1958).
+
+    Dada una serie de máximos diarios anuales de precipitación en milímetros:
+    - Media muestral: x_bar = sum(x) / N
+    - Desviación estándar muestral (con N - 1 grados de libertad): s = sqrt(sum((x - x_bar)^2) / (N - 1))
+    - Parámetro de escala beta = (sqrt(6) / pi) * s
+    - Constante de Euler-Mascheroni gamma = 0.5772156649
+    - Parámetro de posición mu = x_bar - gamma * beta
+    - Para un período de retorno T (años):
+        Probabilidad de no excedencia: p = 1 - 1/T
+        Variable reducida: y_T = -ln(-ln(p))
+        Magnitud estimada: x_T = mu + beta * y_T
+
+    Retorna un diccionario con claves como 'T2', 'T10', 'T25', 'T50' redondeadas a 1 decimal.
+    """
+    if return_periods is None:
+        return_periods = [2, 10, 25, 50]
+
+    valid = [float(x) for x in annual_maxima_mm if x is not None and not math.isnan(x) and x > 0]
+    n = len(valid)
+    if n < 5:
+        raise ValueError(f"Se requieren al menos 5 años de datos para ajuste Gumbel, se recibieron {n}.")
+
+    mean = sum(valid) / n
+    variance = sum((x - mean) ** 2 for x in valid) / (n - 1)
+    std = math.sqrt(variance)
+
+    euler_gamma = 0.5772156649015329
+    beta = (math.sqrt(6.0) / math.pi) * std
+    mu = mean - euler_gamma * beta
+
+    out: dict[str, float] = {}
+    for t in return_periods:
+        if t <= 1:
+            continue
+        p = 1.0 - 1.0 / t
+        y_t = -math.log(-math.log(p))
+        x_t = mu + beta * y_t
+        out[f"T{t}"] = round(x_t, 1)
+
+    return out
+
+
+def load_rem_annual_maxima_station(station_id: int | str) -> list[dict[str, Any]] | None:
+    """Carga los máximos diarios anuales de precipitación para una estación REM.
+
+    Actualmente solo la estación 42 (Villa Mercedes) cuenta con la serie histórica
+    empírica (2008-2025) verificada y descargada.
+    Para otras estaciones retorna None (sin datos inventados).
+    """
+    st_id = str(station_id).strip()
+    candidates = [
+        Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "rainfall" / f"rem_maximos_anuales_villa_mercedes_estacion{st_id}.csv",
+        DATA_DIR / "rem_sanluis" / f"rem_maximos_anuales_estacion{st_id}.csv",
+        DATA_DIR / "cache" / "rem_sanluis" / f"rem_maximos_anuales_estacion{st_id}.csv",
+    ]
+    target_path = None
+    for c in candidates:
+        if c.exists():
+            target_path = c
+            break
+
+    if target_path is None:
+        return None
+
+    try:
+        content = target_path.read_bytes().decode("cp1252")
+    except Exception:
+        return None
+
+    rows = []
+    reader = csv.reader(io.StringIO(content))
+    for r in reader:
+        if not r or r[0].startswith("#") or "anio" in r[0].lower() or "año" in r[0].lower():
+            continue
+        try:
+            anio = int(r[0].strip())
+            fecha = r[1].strip() if len(r) > 1 else ""
+            pp = float(r[2].strip().replace(",", ".")) if len(r) > 2 else float(r[1].strip().replace(",", "."))
+            rows.append({"anio": anio, "fecha": fecha, "precipitacion_mm": pp})
+        except (ValueError, IndexError):
+            continue
+
+    return rows if rows else None
+
+
+def get_rem_return_periods_for_station(
+    station_id: int | str,
+    distance_km: float = 0.0,
+) -> dict[str, Any] | None:
+    """Calcula las recurrencias T2..T50 para una estación REM si posee serie histórica observada.
+
+    Si no se dispone de la serie histórica empírica de la estación, retorna None ("sin datos").
+    """
+    rows = load_rem_annual_maxima_station(station_id)
+    if not rows:
+        return None
+
+    stations = load_rem_stations()
+    st_match = next((s for s in stations if str(s.get("id")) == str(station_id)), None)
+    st_name = st_match["name"] if st_match else f"Estación {station_id}"
+
+    series_pp = [r["precipitacion_mm"] for r in rows]
+    milimetros = fit_gumbel_moments(series_pp, return_periods=[2, 10, 25, 50])
+
+    return {
+        "station_id": int(station_id),
+        "station_name": st_name,
+        "distance_km": round(distance_km, 1),
+        "method": "Gumbel (Método de Momentos)",
+        "milimetros": milimetros,
+        "source_citation": (
+            f"Red de Estaciones Meteorológicas (REM) – Universidad de La Punta. "
+            f"Ajuste Gumbel sobre serie observada de {len(series_pp)} años ({rows[0]['anio']}–{rows[-1]['anio']}). "
+            f"Descarga oficial: 2026-11-25."
+        ),
+    }
+
+
+def get_rem_return_periods(lon: float, lat: float) -> dict[str, Any] | None:
+    """Determina los períodos de retorno REM para las coordenadas del lote si hay estación cercana con serie observada.
+
+    Si la estación más cercana no está en rango (< 40 km) o no posee serie anual descargada, retorna None.
+    """
+    nearest = find_nearest_rem_station(lon, lat)
+    if not nearest.get("in_range"):
+        return None
+
+    st_id = nearest["id"]
+    return get_rem_return_periods_for_station(st_id, distance_km=nearest["distance_km"])
+

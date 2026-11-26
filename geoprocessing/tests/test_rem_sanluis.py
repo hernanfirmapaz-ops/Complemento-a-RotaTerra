@@ -172,3 +172,65 @@ def test_rem_tag_provenance_only_when_data_available():
     )
     rem_tag_present = f" · {rem_st['label']}" if rem_used_true else ""
     assert rem_tag_present == " · REM Villa Mercedes (12.0 km)"
+
+
+def test_gumbel_fit_moments_reproduces_villa_mercedes_recurrences():
+    """Verifica que el ajuste Gumbel por método de momentos sobre la serie de máximos diarios anuales
+    de Villa Mercedes (estación 42, 2008-2025) reproduzca T2 ≈ 52, T10 ≈ 77, T25 ≈ 89, T50 ≈ 98 mm (±1 mm).
+    """
+    from geoprocessing.rainfall.rem_sanluis import (
+        fit_gumbel_moments,
+        load_rem_annual_maxima_station,
+    )
+
+    records = load_rem_annual_maxima_station(42)
+    assert records is not None
+    assert len(records) == 18
+    assert records[0]["anio"] == 2008
+    assert records[-1]["anio"] == 2025
+
+    series = [r["precipitacion_mm"] for r in records]
+    res = fit_gumbel_moments(series, return_periods=[2, 10, 25, 50])
+
+    assert "T2" in res
+    assert "T10" in res
+    assert "T25" in res
+    assert "T50" in res
+
+    # Verificación estricta de tolerancia ±1 mm respecto a los valores esperados
+    assert abs(res["T2"] - 52.0) <= 1.0, f"T2 esperado ≈ 52 mm, obtenido {res['T2']}"
+    assert abs(res["T10"] - 77.0) <= 1.0, f"T10 esperado ≈ 77 mm, obtenido {res['T10']}"
+    assert abs(res["T25"] - 89.0) <= 1.0, f"T25 esperado ≈ 89 mm, obtenido {res['T25']}"
+    assert abs(res["T50"] - 98.0) <= 1.0, f"T50 esperado ≈ 98 mm, obtenido {res['T50']}"
+
+
+def test_get_rem_return_periods_in_range_and_other_stations():
+    """Verifica que la estación 42 devuelva recurrencias con datos reales y otras estaciones devuelvan None."""
+    from geoprocessing.rainfall.rem_sanluis import (
+        get_rem_return_periods,
+        get_rem_return_periods_for_station,
+    )
+
+    # 1. Villa Mercedes (-65.5046, -33.6786) -> Tiene serie 2008-2025
+    vm_rp = get_rem_return_periods(-65.5046, -33.6786)
+    assert vm_rp is not None
+    assert vm_rp["station_id"] == 42
+    assert vm_rp["station_name"] == "Villa Mercedes"
+    assert "Gumbel" in vm_rp["method"]
+    assert "2026-11-25" in vm_rp["source_citation"]
+    assert "T2" in vm_rp["milimetros"]
+    assert "T50" in vm_rp["milimetros"]
+
+    # 2. Otra estación sin serie descargada (por ej. Concarán id=31 o El Trapiche id=47)
+    # Debe retornar None ("sin datos", sin inventar marcas)
+    trapiche_rp = get_rem_return_periods_for_station(47)
+    assert trapiche_rp is None
+
+    # Coordenadas en El Trapiche (-66.0647, -33.1086)
+    trapiche_coords_rp = get_rem_return_periods(-66.0647, -33.1086)
+    assert trapiche_coords_rp is None
+
+    # 3. Coordenadas fuera de rango de San Luis
+    out_rp = get_rem_return_periods(-60.58, -33.91)
+    assert out_rp is None
+

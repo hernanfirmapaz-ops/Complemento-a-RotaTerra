@@ -569,3 +569,67 @@ SUPUESTO_CUENCA_DILATACION_CELDAS = Supuesto(
     editable=True,
 )
 
+# --- Escalera Precalculada de Lluvia y Curva de Anegamiento (Spec 031 / Issue #113) ---
+SUPUESTO_ESCALERA_LLUVIA_MIN_MM = Supuesto(
+    clave="escalera_lluvia_min_mm",
+    valor=10,
+    unidad="mm",
+    motivo="Lámina mínima de precipitación simulada en la escalera precalculada de respuesta hidrológica.",
+    fuente_referencia="Spec 031 §5; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_ESCALERA_LLUVIA_MAX_MM = Supuesto(
+    clave="escalera_lluvia_max_mm",
+    valor=150,
+    unidad="mm",
+    motivo="Lámina máxima de precipitación simulada en la escalera precalculada de respuesta hidrológica.",
+    fuente_referencia="Spec 031 §5; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_ESCALERA_LLUVIA_PASO_DEFAULT_MM = Supuesto(
+    clave="escalera_lluvia_paso_default_mm",
+    valor=10,
+    unidad="mm",
+    motivo="Paso estándar entre peldaños de lluvia para la escalera (15 peldaños de 10 a 150 mm).",
+    fuente_referencia="Spec 031 §5; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_ESCALERA_LLUVIA_PASO_DEGRADADO_MM = Supuesto(
+    clave="escalera_lluvia_paso_degradado_mm",
+    valor=20,
+    unidad="mm",
+    motivo="Paso degradado de la escalera (8 peldaños) si la proyección de cómputo supera el presupuesto máximo.",
+    fuente_referencia="Spec 031 §5; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_ESCALERA_MAX_TIEMPO_COMPUTO_S = Supuesto(
+    clave="escalera_max_tiempo_computo_s",
+    valor=60.0,
+    unidad="s",
+    motivo="Límite máximo admisible de tiempo de CPU para resolver la escalera de simulaciones en segundo plano.",
+    fuente_referencia="Spec 031 §5; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_ESCALERA_RATIO_SENSIBILIDAD_CODO = Supuesto(
+    clave="escalera_ratio_sensibilidad_codo",
+    valor=0.15,
+    unidad="adimensional",
+    motivo="Fracción del gradiente marginal máximo (dHa/dP) por debajo de la cual se considera alcanzada la saturación de cubetas del lote.",
+    fuente_referencia="Spec 031 §3.2; supuesto calibrable",
+    editable=True,
+)
+
+SUPUESTO_ESCALERA_MIN_SUPERFICIE_ANEGADA_HA = Supuesto(
+    clave="escalera_min_superficie_anegada_ha",
+    valor=0.05,
+    unidad="ha",
+    motivo="Superficie anegada mínima en el lote para justificar la identificación de un codo o umbral crítico de anegamiento.",
+    fuente_referencia="Spec 031 §3.2; supuesto calibrable",
+    editable=True,
+)
+
