@@ -1711,6 +1711,9 @@ def get_or_compute_rainfall_ladder(
         step_size_override_mm=step_size_mm,
     )
 
-    ladder_dict["return_periods_station"] = None
+    from geoprocessing.rainfall.rem_sanluis import get_rem_return_periods
+
+    lon, lat = field.get("centroid", (-65.5046, -33.6786))
+    ladder_dict["return_periods_station"] = get_rem_return_periods(lon, lat)
     return ladder_dict
 

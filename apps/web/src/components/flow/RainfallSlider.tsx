@@ -165,7 +165,7 @@ export function RainfallSlider({
         />
 
         {/* Ticks de retorno T2..T50 */}
-        {ticks.length > 0 && (
+        {ticks.length > 0 ? (
           <div style={{ position: 'relative', width: '100%', height: '24px', marginTop: '-4px' }}>
             {ticks.map((t) => {
               const leftPct = ((t.mm - 5) / (150 - 5)) * 100
@@ -223,6 +223,10 @@ export function RainfallSlider({
                 </div>
               )
             })}
+          </div>
+        ) : (
+          <div style={{ marginTop: '0.2rem', fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic', textAlign: 'right' }}>
+            Recurrencias históricas: sin datos observados para esta estación (solo Villa Mercedes cuenta con serie empírica ajustada).
           </div>
         )}
       </div>

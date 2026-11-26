@@ -345,4 +345,25 @@ def test_rainfall_ladder_api_route(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert len(data["ladder"]) == 15
     assert data["critical_ponding_threshold_mm"] >= 10.0
     assert data["step_size_mm"] == 10
+    # Parcela 205 está cerca de Fraga (sin serie anual empírica observada -> None)
     assert data["return_periods_station"] is None
+
+    # Si el lote está ubicado en el radio de Villa Mercedes (Estación 42, con serie 2008-2025):
+    f_loaded = store.load_field(f_id)
+    f_loaded["centroid"] = [-65.5046, -33.6786]
+    store.save_field(f_loaded)
+    clear_ladder_cache()
+
+    r_ladder_vm = client.get(f"/api/v1/fields/{f_id}/hydrology/rainfall-ladder?amc=medium&soil_id=B")
+    assert r_ladder_vm.status_code == 200
+    data_vm = r_ladder_vm.json()
+    assert data_vm["return_periods_station"] is not None
+    rp = data_vm["return_periods_station"]
+    assert rp["station_id"] == 42
+    assert rp["station_name"] == "Villa Mercedes"
+    assert "Gumbel" in rp["method"]
+    assert rp["milimetros"]["T2"] == 52.2
+    assert rp["milimetros"]["T10"] == 76.6
+    assert rp["milimetros"]["T25"] == 88.9
+    assert rp["milimetros"]["T50"] == 98.0
+
